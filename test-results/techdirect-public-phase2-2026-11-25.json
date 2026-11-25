@@ -1,0 +1,28 @@
+{
+  "kind": "public",
+  "repo": "TechDirect",
+  "owner": "Squ1zM0",
+  "branch": "main",
+  "commit": "fd35814ad7d9553723bdb21e82b4e714f200e0d5",
+  "score": 83,
+  "grade": "B",
+  "counts": {
+    "secrets": 0,
+    "vulnerabilities": 4,
+    "frameworks": 0,
+    "dependencies": 2,
+    "postureIssues": 3,
+    "filesScanned": 250,
+    "historyCommitsScanned": 62
+  },
+  "summary": "Scan complete. no leaked secrets were found in the files scanned; 4 known vulnerabilities in dependencies; 3 security hygiene issues to fix. Full detail is available to the repo owner only.",
+  "scannedAt": "2026-11-25T20:49:44.261Z",
+  "historyDepth": "Full history (newest-first) via ephemeral git clone: up to 1000 commits / 50 MB of patches, 45s cap. Falls back to API patches of the 5 most recent commits when git/clone is unavailable.",
+  "limits": [
+    "Full history (newest-first) via ephemeral git clone: up to 1000 commits / 50 MB of patches, 45s cap. Falls back to API patches of the 5 most recent commits when git/clone is unavailable.",
+    "HEAD: max 250 files, 200 KB per file, 3 MB total; binary, dist, node_modules and .next skipped.",
+    "Public repos only. No secret is ever stored, logged, or shown in full.",
+    "History scan: 62 commits, 40.8 MB of patches, 9.8s (caps: 1000 commits / 50 MB / 45s, newest-first).",
+    "File cap reached: scanned 250 of 2802 files (manifests and configs first)."
+  ]
+}

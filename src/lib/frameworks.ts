@@ -1,4 +1,5 @@
-// Framework fingerprinting, Tier 1 only (JS/TS, Python, Rust).
+// Framework fingerprinting, Tier 1 (JS/TS, Python, Rust) + Tier 2 (Go, Ruby,
+// PHP, Java/Kotlin, .NET) — Phase 2.
 // Pluggable by design: a framework is an entry in FRAMEWORK_MAP —
 // dep name -> framework name + ecosystem. Adding an ecosystem means
 // adding a manifest parser + map entries, not rebuilding the scanner.
@@ -31,6 +32,34 @@ export const FRAMEWORK_MAP: Record<string, { name: string; ecosystem: string }> 
   warp: { name: "Warp", ecosystem: "rust" },
   tokio: { name: "Tokio", ecosystem: "rust" },
   serde: { name: "Serde", ecosystem: "rust" },
+  // --- Tier 2: Go ---
+  "github.com/gin-gonic/gin": { name: "Gin", ecosystem: "go" },
+  "github.com/labstack/echo": { name: "Echo", ecosystem: "go" },
+  "github.com/labstack/echo/v4": { name: "Echo", ecosystem: "go" },
+  "github.com/gofiber/fiber": { name: "Fiber", ecosystem: "go" },
+  "github.com/gofiber/fiber/v2": { name: "Fiber", ecosystem: "go" },
+  "github.com/go-chi/chi/v5": { name: "Chi", ecosystem: "go" },
+  // --- Tier 2: Ruby ---
+  rails: { name: "Rails", ecosystem: "ruby" },
+  sinatra: { name: "Sinatra", ecosystem: "ruby" },
+  // --- Tier 2: PHP ---
+  "laravel/framework": { name: "Laravel", ecosystem: "php" },
+  "symfony/http-kernel": { name: "Symfony", ecosystem: "php" },
+  "symfony/symfony": { name: "Symfony", ecosystem: "php" },
+  "johnpbloch/wordpress": { name: "WordPress", ecosystem: "php" },
+  "roots/wordpress": { name: "WordPress", ecosystem: "php" },
+  // --- Tier 2: Java / Kotlin ---
+  "org.springframework.boot:spring-boot-starter-parent": { name: "Spring Boot", ecosystem: "java" },
+  "org.springframework.boot:spring-boot-starter-web": { name: "Spring Boot", ecosystem: "java" },
+  "org.springframework.boot:spring-boot-starter": { name: "Spring Boot", ecosystem: "java" },
+  "org.springframework:spring-core": { name: "Spring Framework", ecosystem: "java" },
+  "org.springframework:spring-webmvc": { name: "Spring Framework", ecosystem: "java" },
+  "org.jetbrains.kotlin:kotlin-stdlib": { name: "Kotlin", ecosystem: "java" },
+  // --- Tier 2: .NET ---
+  "Microsoft.AspNetCore.App": { name: "ASP.NET Core", ecosystem: "dotnet" },
+  "Microsoft.AspNetCore.Mvc": { name: "ASP.NET Core", ecosystem: "dotnet" },
+  "Microsoft.NET.Sdk.Web": { name: "ASP.NET Core", ecosystem: "dotnet" },
+  "Microsoft.AspNetCore.Identity.EntityFrameworkCore": { name: "ASP.NET Core Identity", ecosystem: "dotnet" },
 };
 
 export function isUnpinned(spec: string | null): boolean {
@@ -137,6 +166,155 @@ export function parseCargoLock(content: string, sourceFile: string): Dependency[
   return out;
 }
 
+// --- Tier 2 parsers (Phase 2) ---
+
+/** Parse go.mod: `require x v1.2.3` lines, single or in a require block. */
+export function parseGoMod(content: string, sourceFile: string): Dependency[] {
+  const out: Dependency[] = [];
+  const seen = new Set<string>();
+  for (const line of content.split("\n")) {
+    const m = /^\s*(?:require\s+)?([A-Za-z0-9._\/-]+)\s+(v[0-9][A-Za-z0-9.+-]*)/.exec(line.trim());
+    if (!m || m[1] === "go" || line.trim().startsWith("//")) continue;
+    if (seen.has(m[1])) continue;
+    seen.add(m[1]);
+    out.push({ name: m[1], ecosystem: "go", version: m[2], direct: true, sourceFile });
+  }
+  return out;
+}
+
+/** Parse Gemfile: `gem 'rails', '~> 7.1.0'` — version may be a range or absent. */
+export function parseGemfile(content: string, sourceFile: string): Dependency[] {
+  const out: Dependency[] = [];
+  for (const line of content.split("\n")) {
+    const m = /^\s*gem\s+['"]([^'"]+)['"]\s*(?:,\s*['"]([^'"]+)['"])?/.exec(line);
+    if (!m) continue;
+    out.push({ name: m[1], ecosystem: "ruby", version: m[2] ?? null, direct: true, sourceFile });
+  }
+  return out;
+}
+
+/** Parse Gemfile.lock GEM specs: `    rails (7.1.3)` — pinned versions win
+ *  over the Gemfile range. DEPENDENCIES entries (`rails (~> 7.1)`) are not
+ *  versions and are skipped (their parens hold operators, not versions). */
+export function parseGemfileLock(content: string, sourceFile: string): Dependency[] {
+  const out: Dependency[] = [];
+  const lines = content.split("\n");
+  const specsIdx = lines.findIndex((l) => l.trim() === "specs:");
+  if (specsIdx < 0) return out;
+  for (let i = specsIdx + 1; i < lines.length; i++) {
+    const line = lines[i];
+    if (/^\S/.test(line)) break; // next top-level section
+    const m = /^    ([A-Za-z0-9_.\/-]+) \((\d[0-9A-Za-z.+-]*)\)/.exec(line);
+    if (!m) continue;
+    out.push({ name: m[1], ecosystem: "ruby", version: m[2], direct: false, sourceFile });
+  }
+  return out;
+}
+
+/** Parse composer.json require / require-dev. */
+export function parseComposerJson(content: string, sourceFile: string): Dependency[] {
+  try {
+    const json = JSON.parse(content);
+    const out: Dependency[] = [];
+    for (const section of ["require", "require-dev"]) {
+      const deps = json[section] as Record<string, string> | undefined;
+      if (!deps) continue;
+      for (const [name, spec] of Object.entries(deps)) {
+        if (name === "php" || name.startsWith("ext-")) continue;
+        out.push({ name, ecosystem: "php", version: typeof spec === "string" ? spec : null, direct: section === "require", sourceFile });
+      }
+    }
+    return out;
+  } catch {
+    return [];
+  }
+}
+
+/** Parse composer.lock packages / packages-dev (pinned versions). */
+export function parseComposerLock(content: string, sourceFile: string): Dependency[] {
+  try {
+    const json = JSON.parse(content);
+    const out: Dependency[] = [];
+    for (const section of ["packages", "packages-dev"]) {
+      const pkgs = (json[section] ?? []) as { name?: string; version?: string }[];
+      for (const p of pkgs) {
+        if (p.name && p.version) out.push({ name: p.name, ecosystem: "php", version: p.version, direct: false, sourceFile });
+      }
+    }
+    return out;
+  } catch {
+    return [];
+  }
+}
+
+/** Parse pom.xml <dependency> blocks. `${prop}` versions resolve from
+ *  <properties> when present; otherwise version is null (never guessed). */
+export function parsePomXml(content: string, sourceFile: string): Dependency[] {
+  const out: Dependency[] = [];
+  const props = new Map<string, string>();
+  const propsBlock = /<properties>([\s\S]*?)<\/properties>/.exec(content)?.[1] ?? "";
+  for (const m of propsBlock.matchAll(/<([A-Za-z0-9_.-]+)>([^<]+)<\/\1>/g)) props.set(m[1], m[2].trim());
+  const resolve = (v: string | undefined): string | null => {
+    if (!v) return null;
+    const prop = /^\$\{([^}]+)\}$/.exec(v.trim());
+    if (prop) return props.get(prop[1]) ?? null;
+    return v.trim();
+  };
+  // Parent (e.g. spring-boot-starter-parent) carries the framework version.
+  const parent = /<parent>([\s\S]*?)<\/parent>/.exec(content)?.[1];
+  if (parent) {
+    const g = /<groupId>([^<]+)<\/groupId>/.exec(parent)?.[1]?.trim();
+    const a = /<artifactId>([^<]+)<\/artifactId>/.exec(parent)?.[1]?.trim();
+    const v = resolve(/<version>([^<]+)<\/version>/.exec(parent)?.[1]);
+    if (g && a) out.push({ name: `${g}:${a}`, ecosystem: "java", version: v, direct: true, sourceFile });
+  }
+  for (const block of content.matchAll(/<dependency>([\s\S]*?)<\/dependency>/g)) {
+    const body = block[1];
+    const g = /<groupId>([^<]+)<\/groupId>/.exec(body)?.[1]?.trim();
+    const a = /<artifactId>([^<]+)<\/artifactId>/.exec(body)?.[1]?.trim();
+    const v = resolve(/<version>([^<]+)<\/version>/.exec(body)?.[1]);
+    if (g && a) out.push({ name: `${g}:${a}`, ecosystem: "java", version: v, direct: true, sourceFile });
+  }
+  return out;
+}
+
+/** Parse build.gradle / build.gradle.kts: `implementation 'group:name:version'`
+ *  (Groovy and Kotlin DSL string forms). */
+export function parseGradle(content: string, sourceFile: string): Dependency[] {
+  const out: Dependency[] = [];
+  const seen = new Set<string>();
+  for (const m of content.matchAll(/['"]([A-Za-z0-9_.-]+):([A-Za-z0-9_.-]+):([0-9][A-Za-z0-9.+-]*)['"]/g)) {
+    const name = `${m[1]}:${m[2]}`;
+    if (seen.has(name)) continue;
+    seen.add(name);
+    out.push({ name, ecosystem: "java", version: m[3], direct: true, sourceFile });
+  }
+  return out;
+}
+
+/** Parse .csproj: PackageReference versions, plus the project SDK — an
+ *  SDK of Microsoft.NET.Sdk.Web means ASP.NET Core, but its version is
+ *  NOT the TargetFramework (net8.0 is a runtime target, not a framework
+ *  version), so version stays null. */
+export function parseCsproj(content: string, sourceFile: string): Dependency[] {
+  const out: Dependency[] = [];
+  const sdk = /<Project\s+Sdk="([^"]+)"/.exec(content)?.[1];
+  if (sdk) out.push({ name: sdk, ecosystem: "dotnet", version: null, direct: true, sourceFile });
+  for (const m of content.matchAll(/<PackageReference\s+Include="([^"]+)"[^>]*?Version="([^"]+)"/g)) {
+    out.push({ name: m[1], ecosystem: "dotnet", version: m[2], direct: true, sourceFile });
+  }
+  return out;
+}
+
+/** Parse legacy NuGet packages.config: `<package id="X" version="Y" />`. */
+export function parsePackagesConfig(content: string, sourceFile: string): Dependency[] {
+  const out: Dependency[] = [];
+  for (const m of content.matchAll(/<package\s+id="([^"]+)"\s+version="([^"]+)"/g)) {
+    out.push({ name: m[1], ecosystem: "dotnet", version: m[2], direct: false, sourceFile });
+  }
+  return out;
+}
+
 export interface FingerprintInput {
   files: Map<string, string>; // path -> content (manifests, configs, lockfiles)
 }
@@ -149,6 +327,7 @@ export function fingerprintFrameworks(deps: Dependency[], files: Map<string, str
     const existing = byName.get(d.name);
     if (!existing) byName.set(d.name, d);
     else if (!d.direct && existing.direct) byName.set(d.name, d);
+    else if (!existing.version && d.version) byName.set(d.name, d);
     else if (existing.version && /[\^~><*]/.test(existing.version) && d.version && !/[\^~><*]/.test(d.version)) byName.set(d.name, d);
   }
   const out: Framework[] = [];
@@ -172,7 +351,23 @@ export function fingerprintFrameworks(deps: Dependency[], files: Map<string, str
       out.push({ name: "Vite", ecosystem: "js", version: dep?.version ?? null, versionSource: dep ? "manifest" : "unknown", unpinned: isUnpinned(dep?.version ?? null), sourceFile: path });
     }
   }
-  return out.sort((a, b) => a.name.localeCompare(b.name));
+  // WordPress via wp-config.php when no composer package names it: the
+  // install is real, the version is not in the config, so it stays null.
+  for (const path of files.keys()) {
+    if (/(^|\/)wp-config\.php$/.test(path) && !out.some((f) => f.name === "WordPress")) {
+      out.push({ name: "WordPress", ecosystem: "php", version: null, versionSource: "unknown", unpinned: false, sourceFile: path });
+    }
+  }
+  // One entry per framework name: a framework named by two deps (e.g.
+  // spring-boot-starter-parent + spring-boot-starter-web, or the .NET SDK
+  // + an ASP.NET package) appears once, preferring a known version.
+  const byFramework = new Map<string, Framework>();
+  for (const f of out) {
+    const existing = byFramework.get(f.name);
+    if (!existing) byFramework.set(f.name, f);
+    else if (!existing.version && f.version) byFramework.set(f.name, f);
+  }
+  return [...byFramework.values()].sort((a, b) => a.name.localeCompare(b.name));
 }
 
 /** Vite-specific checks: dev-server exposure, SSR, VITE_ env leaks. */

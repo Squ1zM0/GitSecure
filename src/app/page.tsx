@@ -40,9 +40,9 @@ export default function Home() {
       <div className="card">
         <h2>What it checks</h2>
         <ul>
-          <li><b>Leaked secrets</b> — Discord and Slack webhooks, AWS keys, GitHub tokens, Stripe and OpenAI keys, database URLs, private keys, committed .env files. Checked in current files and in recent history.</li>
-          <li><b>Frameworks</b> — what the repo is built with (Next.js, React, Vite, Django, Rust crates and more), with exact versions from lockfiles where possible.</li>
-          <li><b>Dependency flaws</b> — known vulnerabilities in direct and transitive dependencies, checked against OSV.dev, with the version that fixes each one.</li>
+          <li><b>Leaked secrets</b> — Discord and Slack webhooks, AWS keys, GitHub tokens, Stripe and OpenAI keys, database URLs, private keys, committed .env files. Checked in current files and in full history (newest-first, up to the caps below).</li>
+          <li><b>Frameworks</b> — what the repo is built with (Next.js, React, Vite, Django, Rust crates, Go, Rails, Laravel, Spring, ASP.NET Core and more), with exact versions from lockfiles where possible.</li>
+          <li><b>Dependency flaws</b> — known vulnerabilities in direct and transitive dependencies, checked against OSV.dev, with full advisory detail (summary, CVSS, fixed version) and the version that fixes each one.</li>
           <li><b>Security posture</b> — missing SECURITY.md, no Dependabot, .gitignore gaps, and risky GitHub Actions patterns.</li>
         </ul>
       </div>
@@ -60,11 +60,12 @@ export default function Home() {
       </div>
 
       <div className="card">
-        <h2>Honest limits (MVP)</h2>
+        <h2>Honest limits (Phase 2)</h2>
         <ul>
-          <li>History is checked for the 5 most recent commits only — a secret buried in an old commit may not be caught yet.</li>
-          <li>At most 250 files per scan, manifests and configs first.</li>
-          <li>Owner verification is not built yet — see the README. In the meantime the full view is only available in local/dev owner mode.</li>
+          <li>History is scanned newest-first via an ephemeral clone, capped at 1,000 commits / 50 MB of patches / 45 seconds — a secret in a very old commit of a huge repo may still be missed, and the report says when a cap was hit. If the runtime has no git binary, the scan falls back to the 5 most recent commits and says so.</li>
+          <li>At most 250 files per scan, manifests and configs first; at most 100 secret findings and 100 advisories listed per report.</li>
+          <li>Full advisory detail (summary, CVSS, fixed version) is fetched for up to 50 advisories per scan; any beyond that are listed with their advisory ID only.</li>
+          <li>Owner verification via GitHub sign-in is code-complete but the OAuth App is not created yet, so the full view is still local/dev owner mode only on this deployment — see the README for the setup steps.</li>
           <li>GitSecure is not a replacement for GitHub Advanced Security.</li>
         </ul>
         <p>

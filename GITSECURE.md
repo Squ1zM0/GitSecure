@@ -5,12 +5,22 @@ No install, no config — swap the URL, get a security report.
 
 ## Decisions (Freddy, 2026-11-25, 12:59 PM MST)
 - GREEN LIGHT: build the MVP in the background, solo, no intervention.
-- Repo: https://github.com/Squ1zM0/GitSecure — public, empty, created
-  2026-11-25T19:56:43Z, default branch main. Verified live via GitHub API.
+- Repo: https://github.com/Squ1zM0/GitSecure — public, created
+  2026-11-25T19:56:43Z, default branch main. MVP pushed 2026-11-25,
+  commit 090972850ebacc034d7fe82100871ea981f04af4, 36 files, verified by
+  read-back. Connector: custom.github-gitsecure (fine-grained token,
+  Contents read/write on GitSecure only; permissions admin/maintain/push).
 - Domain: git-secure.com — prices Freddy gave: $22 / $10 (recorded as given;
   do NOT buy without a separate explicit go-ahead; start on Vercel subdomain).
 - Report visibility: FULL detail only for the repo owner; everyone else gets
   just the score and counts. This is a hard design rule for the MVP.
+- DEPLOYED 2026-11-25 by Freddy: live at https://gitsecure.vercel.app/,
+  verified live by Cobalt (home page + live TechDirect scan 83/B, matching
+  the local test). Vercel MCP still returns 403 on team scope
+  ffrench0598-6221s-projects, so the dashboard deployment state could not
+  be checked; live serving is the proof. Do NOT disconnect/reconnect
+  Vercel unprompted. Note: https://git-secure.vercel.app/ is a different
+  Vite template project, not GitSecure.
 
 ## Why
 Other mirrors in the TechDirect sweep read / summarise / diagram / podcast a repo.
@@ -111,8 +121,89 @@ aion-index commit as regression test), deploy on Vercel, iterate.
 ## Phases
 - MVP: secret scan (HEAD + history), framework fingerprint + known-flaw check,
   redacted report, security score.
+- **Phase 2 (built 2026-11-25, local only, NOT pushed, NOT deployed):**
+  full-history clone scanning, Tier 2 frameworks (Go/Ruby/PHP/Java/.NET),
+  full OSV advisory detail, real GitHub OAuth owner gate (code complete,
+  credentials pending — see below). Details in "Phase 2 status".
 - V1: + dependencies, workflows, posture checks.
 - V2: stack watch / alerts, GitHub App, private repos, CI badge.
+
+## Phase 2 status — built 2026-11-25, local only, NOT pushed, NOT deployed
+- Next.js 16 / React 19 / TypeScript + Auth.js (NextAuth 5.0.0-beta.32,
+  GitHub provider), in ~/workspace/gitsecure/.
+- `npm run build` passes (exit 0, 2026-11-25 ~20:50 MST). Routes:
+  `/`, `/[owner]/[repo]`, `/api/scan/[owner]/[repo]`,
+  `/api/auth/[...nextauth]` (signin / callback / signout / session).
+- **1. Full-history scanning** (`src/lib/history.ts`): ephemeral
+  `git clone --no-checkout --single-branch` to a fresh mkdtemp dir under
+  `/tmp`, streams `git log -p --all` (newest-first) through the same
+  detectors as HEAD, added lines only, redacted fragments only, clone dir
+  deleted afterwards. Caps: 1000 commits / 50 MB of patches / 45 s, stated
+  in every report's `limits`. Measured on Squ1zM0/TechDirect: 62 commits,
+  40.8 MB of patches, log generated 0.7 s, detector scan of 23.4 MB of
+  added lines 0.7 s, clone ~10 s, history step 6–12 s. Whole TechDirect
+  scan ~15 s (was 71.5 s before the HEAD fetch was parallelised 10-way
+  and the clone was started concurrently — both changes are in Phase 2,
+  and are what keep a full scan inside the 60 s route limit). If git is
+  missing from the runtime or the clone fails, the scan falls back to the
+  MVP API patches (5 most recent commits) and says so.
+  Regression test (`npm run test:history`, 9 checks): fake webhook planted
+  in an old commit of a throwaway local repo, removed from HEAD — found,
+  attributed to the right commit, redacted, temp dirs cleaned up.
+  Live AIoN regression could NOT be re-run: SqulzMD/aion-index now 404s
+  (private or deleted) as of 2026-11-25.
+- **2. Tier 2 frameworks** (`src/lib/frameworks.ts`): Go (Gin/Echo/Fiber/Chi
+  via go.mod), Ruby (Rails/Sinatra via Gemfile + Gemfile.lock, lockfile
+  wins), PHP (Laravel/Symfony/WordPress via composer.json + composer.lock,
+  plus wp-config.php detection with unknown version), Java/Kotlin (Spring
+  Boot / Spring Framework / Kotlin via pom.xml incl. `${prop}` resolution
+  and parent POM, plus build.gradle), .NET (ASP.NET Core via .csproj SDK +
+  PackageReference; TargetFramework is NOT treated as a version).
+  OSV ecosystems added: Go, RubyGems, Packagist, Maven, NuGet. Fixtures in
+  tests/fixtures/fake-repo-tier2/ (go.mod, Gemfile + lock, composer.json +
+  lock, pom.xml, build.gradle, app.csproj, wp-config.php); 14 new checks
+  in test-scanner.ts (48 total, was 34 — the "31" in the old MVP note was
+  a stale count).
+- **3. OSV detail** (`src/lib/osv.ts`): full advisory detail (summary,
+  CVSS, fixed version) now fetched for ALL advisories found, up to 50 per
+  scan in batches of 8 (was: first 12); up to 100 advisories listed per
+  scan; beyond-50 advisories listed with ID + osv.dev link and the report
+  says how many were detail-capped.
+- **4. GitHub OAuth owner gate** (`src/lib/auth.ts`, `src/lib/owner.ts`):
+  real Auth.js with the GitHub provider; session carries the GitHub login
+  from the OAuth profile; a matching login gets the full report, everyone
+  else gets public only; `GITSECURE_OWNER_MODE=true` remains as local/dev
+  fallback. Credentials live only in env vars (GITHUB_ID, GITHUB_SECRET,
+  NEXTAUTH_SECRET, NEXTAUTH_URL) — none hardcoded anywhere (checked by
+  test). Production default is safe: no env vars → auth routes answer 503
+  "not configured", `canViewFull` never calls auth(), full view stays off,
+  zero Auth.js errors logged. Gate logic tested with session mocks
+  (`npm run test:owner-gate`, 20 checks). **STILL PENDING: live OAuth
+  credentials** — Freddy must create the GitHub OAuth App (callback
+  https://gitsecure.vercel.app/api/auth/callback/github) and set the four
+  env vars in Vercel; exact steps in README.md. Live sign-in untested
+  until then.
+- Live test (`npm run test:techdirect`, Squ1zM0/TechDirect): score 83,
+  grade B — UNCHANGED from MVP (0 secrets, 4 vulns, all js-yaml 4.1.1 low
+  with fixed versions, 0 frameworks, 2 deps, 3 posture issues, 250 of
+  2,802 files). What changed legitimately: historyCommitsScanned 5 → 62
+  (full history now), total scan ~15 s. Public JSON saved to
+  test-results/techdirect-public-phase2-2026-11-25.json (MVP file kept).
+- Production-server smoke test (local `next start`, no env vars):
+  `/api/auth/session` → 503 clean "not configured" JSON; home → 200;
+  report page → 200 (public view); 0 Auth.js errors in the log. Scan API
+  for Squ1zM0/GitSecure → public JSON in 3.7 s, 2 history commits.
+- Dogfooding: scanning Squ1zM0/GitSecure itself returns 3 / F with 6
+  secret findings — all known-fake (test fixtures that are deliberate
+  detector bait, plus the official AWS example key in an old README
+  commit, 92c3a49). No real secret. Documented in README.md; the scanner
+  deliberately does not skip test files.
+- STUBBED / STILL PENDING: live OAuth credentials (above). History caps
+  remain (1000 commits / 50 MB / 45 s) — a secret in a very old commit of
+  a huge repo can still be missed, and the report says so when a cap hits.
+- Next steps: push Phase 2 to Squ1zM0/GitSecure (main), deploy to Vercel,
+  then Freddy creates the OAuth App + sets the four env vars to switch
+  the full view on for owners.
 
 ## MVP status — built 2026-11-25, local only, NOT pushed, NOT deployed
 - Next.js 16 / React 19 / TypeScript, App Router, in ~/workspace/gitsecure/.
@@ -135,3 +226,5 @@ aion-index commit as regression test), deploy on Vercel, iterate.
 - Next steps: push to Squ1zM0/GitSecure (repo is empty, main), then deploy
   to Vercel (free tier), then set the git-secure.com domain — domain NOT
   purchased.
+- NOTE: the push + deploy above are DONE (see Decisions at top). The MVP
+  record above is historical — Phase 2 supersedes it; see "Phase 2 status".

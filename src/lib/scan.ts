@@ -1,12 +1,14 @@
 // GitSecure scanner — public repos only, no auth required (optional
 // GITHUB_TOKEN env raises the GitHub API rate limit; it is never logged).
 //
-// HISTORY DEPTH (MVP, documented honestly): HEAD tree scan + the patches of
-// the 5 most recent commits. The commits list itself covers the last 50
-// commits (SHAs/messages only). Full-history scanning (every commit, e.g.
-// via a local clone) is NOT done in the MVP — a secret deleted long ago
-// in an old commit will not be caught. That is a known MVP limit, listed
-// in every report's `limits` and in the README.
+// HISTORY DEPTH (Phase 2): full history via an ephemeral git clone into
+// /tmp, streaming `git log -p --all` newest-first through the same secret
+// detectors as the HEAD scan, capped at 1000 commits / 50 MB of patches /
+// 45 s (measured on Squ1zM0/TechDirect: 62 commits, 40.8 MB of patches,
+// ~12 s total). If git is unavailable in the runtime or the clone fails,
+// the scan falls back to the MVP path — patches of the 5 most recent
+// commits via the GitHub API — and the report says so in `limits`.
+// A secret deleted long ago in an old commit is now caught, up to the caps.
 //
 // HEAD LIMITS: recursive tree, at most 250 files, 200 KB per file,
 // 3 MB total. Binary / generated / vendored paths are skipped.
@@ -14,12 +16,14 @@
 // fragments only (see secrets.ts / redact.ts).
 
 import { checkDependencies } from "./osv";
+import { scanFullHistory, MAX_HISTORY_COMMITS, MAX_HISTORY_PATCH_BYTES, HISTORY_TIMEOUT_MS } from "./history";
+import { isSkippablePath } from "./paths";
 import { computeScore, plainSummary } from "./score";
 import { envFileFinding, scanTextForSecrets, type ScannedFile } from "./secrets";
-import { fingerprintFrameworks, parseCargoLock, parseCargoToml, parsePackageJson, parsePackageLock, parseRequirements, parseYamlLock, viteFindings } from "./frameworks";
+import { fingerprintFrameworks, parseCargoLock, parseCargoToml, parseComposerJson, parseComposerLock, parseCsproj, parseGemfile, parseGemfileLock, parseGoMod, parseGradle, parsePackagesConfig, parsePackageJson, parsePackageLock, parsePomXml, parseRequirements, parseYamlLock, viteFindings } from "./frameworks";
 import type { Dependency, Framework, FullReport, PostureIssue, PublicReport, SecretFinding, Vulnerability } from "./types";
 
-export const HISTORY_DEPTH = "HEAD tree + patches of the 5 most recent commits (commits list: last 50). Full-history clone scanning is not in the MVP.";
+export const HISTORY_DEPTH = `Full history (newest-first) via ephemeral git clone: up to ${MAX_HISTORY_COMMITS} commits / ${MAX_HISTORY_PATCH_BYTES / 1_000_000} MB of patches, ${HISTORY_TIMEOUT_MS / 1000}s cap. Falls back to API patches of the 5 most recent commits when git/clone is unavailable.`;
 export const HEAD_LIMITS = "HEAD: max 250 files, 200 KB per file, 3 MB total; binary, dist, node_modules and .next skipped.";
 
 const GH_API = "https://api.github.com";
@@ -27,9 +31,6 @@ const MAX_FILES = 250;
 const MAX_FILE_BYTES = 200_000;
 const MAX_TOTAL_BYTES = 3_000_000;
 const HISTORY_COMMITS = 5;
-
-const SKIP_DIRS = ["node_modules", ".git", "dist", "build", ".next", "vendor", "target", ".venv", "__pycache__"];
-const SKIP_EXTS = [".png", ".jpg", ".jpeg", ".gif", ".webp", ".ico", ".svg", ".mp3", ".mp4", ".wav", ".woff", ".woff2", ".ttf", ".eot", ".pdf", ".zip", ".gz", ".tar", ".exe", ".dll", ".so", ".dylib", ".bin", ".lockb"];
 
 function ghHeaders(): Record<string, string> {
   const headers: Record<string, string> = { Accept: "application/vnd.github+json", "User-Agent": "GitSecure/0.1" };
@@ -66,17 +67,14 @@ async function fetchRaw(owner: string, repo: string, branch: string, path: strin
 }
 
 function isSkippable(path: string): boolean {
-  if (SKIP_DIRS.some((d) => path.split("/").includes(d))) return true;
-  const lower = path.toLowerCase();
-  if (SKIP_EXTS.some((e) => lower.endsWith(e))) return true;
-  return false;
+  return isSkippablePath(path);
 }
 
 /** Priority: manifests, configs, workflows and source first — so the file
  *  cap still covers the files that matter on a big repo like TechDirect. */
 function priority(path: string): number {
   const base = path.split("/").pop() ?? "";
-  if (["package.json", "package-lock.json", "pnpm-lock.yaml", "yarn.lock", "Cargo.toml", "Cargo.lock", "requirements.txt", "pyproject.toml", "Pipfile", "go.mod"].includes(base)) return 0;
+  if (["package.json", "package-lock.json", "pnpm-lock.yaml", "yarn.lock", "Cargo.toml", "Cargo.lock", "requirements.txt", "pyproject.toml", "Pipfile", "go.mod", "go.sum", "Gemfile", "Gemfile.lock", "composer.json", "composer.lock", "pom.xml", "build.gradle", "build.gradle.kts", "packages.config"].includes(base) || base.endsWith(".csproj")) return 0;
   if (path.startsWith(".github/")) return 1;
   if (/\.(env|config\.(js|ts|mjs))$/.test(path) || base === ".gitignore" || base === "SECURITY.md") return 2;
   if (/\.(ts|tsx|js|jsx|py|rs|json|yaml|yml|toml|sh)$/.test(path)) return 3;
@@ -88,11 +86,48 @@ export interface ScanOptions {
   historyCommits?: number;
 }
 
+/** Fetch HEAD files with a bounded worker pool (10 concurrent). Files are
+ *  claimed in priority order; the 3 MB total cap is enforced on completion
+ *  (declared blob size is used as the pre-fetch estimate). Sequential
+ *  fetching took ~33 s for 250 files on TechDirect; the pool takes ~11 s,
+ *  which is what keeps a full scan (HEAD + history clone) inside the
+ *  60 s serverless route limit. */
+const HEAD_FETCH_CONCURRENCY = 10;
+async function fetchHeadFiles(
+  owner: string,
+  repo: string,
+  branch: string,
+  chosen: { path: string; size?: number }[],
+): Promise<Map<string, string>> {
+  const files = new Map<string, string>();
+  let totalBytes = 0;
+  let next = 0;
+  const workers = Array.from({ length: HEAD_FETCH_CONCURRENCY }, async () => {
+    while (next < chosen.length) {
+      const entry = chosen[next++];
+      if (entry.size && entry.size > MAX_FILE_BYTES) continue;
+      if (totalBytes + (entry.size ?? 0) > MAX_TOTAL_BYTES) continue;
+      const content = await fetchRaw(owner, repo, branch, entry.path);
+      if (content == null) continue;
+      if (totalBytes + content.length > MAX_TOTAL_BYTES) continue;
+      totalBytes += content.length;
+      files.set(entry.path, content);
+    }
+  });
+  await Promise.all(workers);
+  return files;
+}
+
 export async function scanRepo(owner: string, repo: string, options: ScanOptions = {}): Promise<FullReport> {
   const historyCount = options.historyCommits ?? HISTORY_COMMITS;
   const repoInfo = await ghJson<{ default_branch: string; description: string | null; private: boolean }>(`${GH_API}/repos/${owner}/${repo}`);
   if (repoInfo.private) throw new Error("This repository is private. GitSecure scans public repos only.");
   const branch = repoInfo.default_branch || "main";
+
+  // Start the history clone NOW so it runs concurrently with the HEAD
+  // fetch below (clone ~10 s, HEAD fetch ~11 s in parallel instead of
+  // ~22 s in series — this is what keeps TechDirect inside 60 s).
+  const historyPromise = scanFullHistory(owner, repo, branch);
 
   const tree = await ghJson<{ tree: { path: string; type: string; size?: number }[]; truncated?: boolean }>(
     `${GH_API}/repos/${owner}/${repo}/git/trees/${encodeURIComponent(branch)}?recursive=1`,
@@ -101,58 +136,72 @@ export async function scanRepo(owner: string, repo: string, options: ScanOptions
   const sorted = [...allFiles].sort((a, b) => priority(a.path) - priority(b.path) || a.path.localeCompare(b.path));
   const chosen = sorted.slice(0, MAX_FILES);
 
-  const files = new Map<string, string>();
-  let totalBytes = 0;
-  for (const entry of chosen) {
-    if (entry.size && entry.size > MAX_FILE_BYTES) continue;
-    const content = await fetchRaw(owner, repo, branch, entry.path);
-    if (content == null) continue;
-    if (totalBytes + content.length > MAX_TOTAL_BYTES) break;
-    totalBytes += content.length;
-    files.set(entry.path, content);
-  }
+  const files = await fetchHeadFiles(owner, repo, branch, chosen);
 
-  // Secrets: HEAD files.
+  // Secrets: HEAD files — iterate in priority (chosen) order, not fetch
+  // completion order, so findings are deterministic run to run.
   const secrets: SecretFinding[] = [];
-  for (const [path, content] of files) {
+  for (const entry of chosen) {
+    const content = files.get(entry.path);
+    if (content === undefined) continue;
+    const path = entry.path;
     if (/(^|\/)\.env(\.|$)/.test(path) && !path.endsWith(".env.example")) {
       secrets.push(envFileFinding(path, "HEAD"));
     }
     secrets.push(...scanTextForSecrets({ path, content, commit: "HEAD" }));
   }
 
-  // Secrets: recent history (patches of the most recent commits).
+  // Secrets: full history first (ephemeral clone, newest-first), with the
+  // MVP API patch path as fallback when git/clone is unavailable.
   const commits = await ghJson<{ sha: string; commit: { message: string } }[]>(
     `${GH_API}/repos/${owner}/${repo}/commits?per_page=50&sha=${encodeURIComponent(branch)}`,
   ).catch(() => []);
   const headSha = commits[0]?.sha ?? "HEAD";
   let historyScanned = 0;
-  for (const commit of commits.slice(0, historyCount)) {
-    try {
-      const detail = await ghJson<{ files?: { filename: string; patch?: string }[] }>(`${GH_API}/repos/${owner}/${repo}/commits/${commit.sha}`);
-      historyScanned++;
-      for (const f of detail.files ?? []) {
-        if (!f.patch || isSkippable(f.filename)) continue;
-        // Patches are diffs: scan added lines only (lines starting with +).
-        const added = f.patch.split("\n").filter((l) => l.startsWith("+") && !l.startsWith("+++")).map((l) => l.slice(1)).join("\n");
-        secrets.push(...scanTextForSecrets({ path: f.filename, content: added, commit: commit.sha.slice(0, 7) }));
+  let historyNote: string | null = null;
+  const historyStarted = Date.now();
+  const history = await historyPromise;
+  if (history.ok) {
+    historyScanned = history.commitsScanned;
+    secrets.push(...history.findings);
+    if (history.note) historyNote = history.note;
+  } else {
+    // Fallback: patches of the most recent commits via the GitHub API.
+    historyNote = `${history.note ?? "Full-history clone unavailable."} Used API patches of the ${historyCount} most recent commits instead.`;
+    for (const commit of commits.slice(0, historyCount)) {
+      try {
+        const detail = await ghJson<{ files?: { filename: string; patch?: string }[] }>(`${GH_API}/repos/${owner}/${repo}/commits/${commit.sha}`);
+        historyScanned++;
+        for (const f of detail.files ?? []) {
+          if (!f.patch || isSkippable(f.filename)) continue;
+          // Patches are diffs: scan added lines only (lines starting with +).
+          const added = f.patch.split("\n").filter((l) => l.startsWith("+") && !l.startsWith("+++")).map((l) => l.slice(1)).join("\n");
+          secrets.push(...scanTextForSecrets({ path: f.filename, content: added, commit: commit.sha.slice(0, 7) }));
+        }
+      } catch {
+        // One bad commit must not fail the whole scan.
       }
-    } catch {
-      // One bad commit must not fail the whole scan.
     }
   }
+  const historyMs = Date.now() - historyStarted;
   // Dedupe secrets (same type/file/line/fragment, HEAD vs history).
   const seenSecrets = new Set<string>();
-  const dedupedSecrets = secrets.filter((s) => {
+  const dedupedAll = secrets.filter((s) => {
     const key = `${s.type}:${s.file}:${s.line}:${s.fragment}:${s.commit}`;
     if (seenSecrets.has(key)) return false;
     seenSecrets.add(key);
     return true;
-  }).slice(0, 100);
+  });
+  const secretOverflow = Math.max(0, dedupedAll.length - 100);
+  const dedupedSecrets = dedupedAll.slice(0, 100);
 
-  // Frameworks + dependencies (Tier 1).
+  // Frameworks + dependencies (Tier 1 + Tier 2) — priority order, so the
+  // OSV 60-dep cap always covers the same manifests run to run.
   const deps: Dependency[] = [];
-  for (const [path, content] of files) {
+  for (const entry of chosen) {
+    const content = files.get(entry.path);
+    if (content === undefined) continue;
+    const path = entry.path;
     const base = path.split("/").pop() ?? "";
     if (base === "package.json") deps.push(...parsePackageJson(content, path));
     else if (base === "package-lock.json") deps.push(...parsePackageLock(content, path));
@@ -160,6 +209,15 @@ export async function scanRepo(owner: string, repo: string, options: ScanOptions
     else if (base === "requirements.txt" || base === "Pipfile") deps.push(...parseRequirements(content, path));
     else if (base === "Cargo.toml") deps.push(...parseCargoToml(content, path));
     else if (base === "Cargo.lock") deps.push(...parseCargoLock(content, path));
+    else if (base === "go.mod") deps.push(...parseGoMod(content, path));
+    else if (base === "Gemfile") deps.push(...parseGemfile(content, path));
+    else if (base === "Gemfile.lock") deps.push(...parseGemfileLock(content, path));
+    else if (base === "composer.json") deps.push(...parseComposerJson(content, path));
+    else if (base === "composer.lock") deps.push(...parseComposerLock(content, path));
+    else if (base === "pom.xml") deps.push(...parsePomXml(content, path));
+    else if (base === "build.gradle" || base === "build.gradle.kts") deps.push(...parseGradle(content, path));
+    else if (base.endsWith(".csproj")) deps.push(...parseCsproj(content, path));
+    else if (base === "packages.config") deps.push(...parsePackagesConfig(content, path));
   }
   // Dedupe dependencies by name+ecosystem (a package can appear in both a
   // manifest and a lockfile): keep the pinned version when one exists.
@@ -182,7 +240,7 @@ export async function scanRepo(owner: string, repo: string, options: ScanOptions
   const frameworks: Framework[] = fingerprintFrameworks(deps, files);
   const unpinnedCount = deps.filter((d) => d.direct && (!d.version || d.version === "*" || d.version.toLowerCase() === "latest")).length;
 
-  const { vulnerabilities, unavailable: osvUnavailable } = await checkDependencies(deps);
+  const { vulnerabilities, unavailable: osvUnavailable, advisoriesFound, detailCapped } = await checkDependencies(deps);
 
   // Posture.
   const posture: PostureIssue[] = [];
@@ -216,6 +274,12 @@ export async function scanRepo(owner: string, repo: string, options: ScanOptions
 
   const { score, grade } = computeScore({ secrets: dedupedSecrets, vulnerabilities, posture, unpinnedCount });
   const limits = [HISTORY_DEPTH, HEAD_LIMITS, "Public repos only. No secret is ever stored, logged, or shown in full."];
+  if (history.ok) limits.push(`History scan: ${history.commitsScanned} commits, ${(history.patchBytes / 1_000_000).toFixed(1)} MB of patches, ${(history.ms / 1000).toFixed(1)}s (caps: ${MAX_HISTORY_COMMITS} commits / ${MAX_HISTORY_PATCH_BYTES / 1_000_000} MB / ${HISTORY_TIMEOUT_MS / 1000}s, newest-first).`);
+  else limits.push(`History scan took ${(historyMs / 1000).toFixed(1)}s (clone path unavailable; API fallback scanned ${historyScanned} commits).`);
+  if (historyNote) limits.push(historyNote);
+  if (secretOverflow > 0) limits.push(`Secret findings capped at 100 in this report — ${secretOverflow} more were found.`);
+  if (advisoriesFound > vulnerabilities.length) limits.push(`OSV returned ${advisoriesFound} advisories; ${vulnerabilities.length} listed (cap 100 per scan).`);
+  if (detailCapped > 0) limits.push(`Full advisory detail (summary, CVSS, fixed version) fetched for ${vulnerabilities.length - detailCapped} of ${vulnerabilities.length} listed advisories; ${detailCapped} listed with advisory ID only (detail cap 50 per scan).`);
   if (tree.truncated) limits.push("GitHub returned a truncated file tree — some files were not scanned.");
   if (allFiles.length > MAX_FILES) limits.push(`File cap reached: scanned ${files.size} of ${allFiles.length} files (manifests and configs first).`);
 

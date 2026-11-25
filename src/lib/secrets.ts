@@ -133,34 +133,40 @@ export interface ScannedFile {
   commit: string | null;
 }
 
-export function scanTextForSecrets(file: ScannedFile): SecretFinding[] {
+export interface ScannedLine {
+  line: number;
+  text: string;
+}
+
+/** Scan explicit (line number, text) pairs — the form history diffs arrive
+ *  in, where line numbers come from hunk headers rather than a position in
+ *  a whole file. scanTextForSecrets is a thin wrapper over this. */
+export function scanLinesForSecrets(file: { path: string }, lines: ScannedLine[], commit: string | null): SecretFinding[] {
   const findings: SecretFinding[] = [];
-  const lines = file.content.split("\n");
   const seen = new Set<string>();
   for (const detector of DETECTORS) {
     const re = new RegExp(detector.pattern.source, detector.pattern.flags);
-    for (let i = 0; i < lines.length; i++) {
-      const line = lines[i];
-      if (!line) continue;
+    for (const { line: lineNo, text } of lines) {
+      if (!text) continue;
       // No blanket "EXAMPLE" skip: a specific credential pattern (AKIA…,
       // ghp_…, a webhook URL) is worth flagging even on a line that says
       // "example" — a human can dismiss it, a scanner must not hide it.
       re.lastIndex = 0;
       let m: RegExpExecArray | null;
-      while ((m = re.exec(line)) !== null) {
+      while ((m = re.exec(text)) !== null) {
         const raw = m[0];
-        const key = `${detector.id}:${file.path}:${i + 1}:${redactSecret(raw)}`;
+        const key = `${detector.id}:${file.path}:${lineNo}:${redactSecret(raw)}`;
         if (seen.has(key)) continue;
         seen.add(key);
         findings.push({
-          id: `${detector.id}-${file.path.replace(/[^A-Za-z0-9]/g, "-")}-${i + 1}`,
+          id: `${detector.id}-${file.path.replace(/[^A-Za-z0-9]/g, "-")}-${lineNo}`,
           type: detector.id,
           title: detector.title,
           severity: detector.severity,
           confidence: detector.confidence,
           file: file.path,
-          line: i + 1,
-          commit: file.commit,
+          line: lineNo,
+          commit,
           fragment: redactSecret(raw),
           fix: detector.fix,
           plainEnglish: detector.plainEnglish,
@@ -170,6 +176,11 @@ export function scanTextForSecrets(file: ScannedFile): SecretFinding[] {
     }
   }
   return findings;
+}
+
+export function scanTextForSecrets(file: ScannedFile): SecretFinding[] {
+  const lines: ScannedLine[] = file.content.split("\n").map((text, i) => ({ line: i + 1, text }));
+  return scanLinesForSecrets({ path: file.path }, lines, file.commit);
 }
 
 export function envFileFinding(path: string, commit: string | null): SecretFinding {

@@ -23,7 +23,7 @@ export interface SecretFinding {
 
 export interface Framework {
   name: string;
-  ecosystem: string; // "js" | "python" | "rust" | "config"
+  ecosystem: string; // "js" | "python" | "rust" | "go" | "ruby" | "php" | "java" | "dotnet" | "config"
   version: string | null; // null = could not be determined (never guessed)
   versionSource: "lockfile" | "manifest" | "config" | "unknown";
   unpinned: boolean;
@@ -32,7 +32,7 @@ export interface Framework {
 
 export interface Dependency {
   name: string;
-  ecosystem: "npm" | "pypi" | "crates";
+  ecosystem: "npm" | "pypi" | "crates" | "go" | "ruby" | "php" | "java" | "dotnet";
   version: string | null;
   direct: boolean;
   sourceFile: string;

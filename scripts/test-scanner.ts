@@ -8,7 +8,7 @@
 import { readFileSync, readdirSync } from "node:fs";
 import { join } from "node:path";
 import { envFileFinding, scanTextForSecrets } from "../src/lib/secrets";
-import { fingerprintFrameworks, parseCargoToml, parsePackageJson, parseRequirements } from "../src/lib/frameworks";
+import { fingerprintFrameworks, parseCargoToml, parseComposerJson, parseComposerLock, parseCsproj, parseGemfile, parseGemfileLock, parseGoMod, parseGradle, parsePackageJson, parsePomXml, parseRequirements } from "../src/lib/frameworks";
 import { toPublicReport } from "../src/lib/scan";
 import { leaksSecret } from "../src/lib/redact";
 import type { Dependency, FullReport } from "../src/lib/types";
@@ -81,6 +81,37 @@ check("fingerprints Vite 5.0.0", byName.get("Vite")?.version === "5.0.0");
 check("fingerprints Django 4.2.0", byName.get("Django")?.version === "4.2.0");
 check("fingerprints Serde (Rust)", byName.has("Serde"));
 check("flags unpinned express (*)", byName.get("Express")?.unpinned === true || deps.some((d) => d.name === "express" && (!d.version || d.version === "*")));
+
+// --- Framework fingerprinting, Tier 2 (Go, Ruby, PHP, Java, .NET) ---
+const TIER2 = join(process.cwd(), "tests/fixtures/fake-repo-tier2");
+const t2 = new Map<string, string>();
+for (const f of readdirSync(TIER2)) t2.set(f, readFileSync(join(TIER2, f), "utf8"));
+const deps2: Dependency[] = [
+  ...parseGoMod(t2.get("go.mod") ?? "", "go.mod"),
+  ...parseGemfile(t2.get("Gemfile") ?? "", "Gemfile"),
+  ...parseGemfileLock(t2.get("Gemfile.lock") ?? "", "Gemfile.lock"),
+  ...parseComposerJson(t2.get("composer.json") ?? "", "composer.json"),
+  ...parseComposerLock(t2.get("composer.lock") ?? "", "composer.lock"),
+  ...parsePomXml(t2.get("pom.xml") ?? "", "pom.xml"),
+  ...parseGradle(t2.get("build.gradle") ?? "", "build.gradle"),
+  ...parseCsproj(t2.get("app.csproj") ?? "", "app.csproj"),
+];
+const frameworks2 = fingerprintFrameworks(deps2, t2);
+const byName2 = new Map(frameworks2.map((f) => [f.name, f]));
+check("Tier 2: fingerprints Gin v1.9.1", byName2.get("Gin")?.version === "v1.9.1", byName2.get("Gin")?.version ?? "missing");
+check("Tier 2: fingerprints Echo v4.11.1", byName2.get("Echo")?.version === "v4.11.1");
+check("Tier 2: fingerprints Fiber v2.49.0", byName2.get("Fiber")?.version === "v2.49.0");
+check("Tier 2: Rails lockfile 7.1.3 wins over Gemfile range", byName2.get("Rails")?.version === "7.1.3" && byName2.get("Rails")?.versionSource === "lockfile", `${byName2.get("Rails")?.version ?? "missing"} / ${byName2.get("Rails")?.versionSource ?? "?"}`);
+check("Tier 2: fingerprints Sinatra 3.0.5", byName2.get("Sinatra")?.version === "3.0.5");
+check("Tier 2: Laravel lockfile v10.34.2 wins over ^10.0", byName2.get("Laravel")?.version === "v10.34.2" && byName2.get("Laravel")?.versionSource === "lockfile", byName2.get("Laravel")?.version ?? "missing");
+check("Tier 2: fingerprints Symfony v6.3.8", byName2.get("Symfony")?.version === "v6.3.8");
+check("Tier 2: Spring Boot 3.2.0, one entry (parent + starter + gradle)", frameworks2.filter((f) => f.name === "Spring Boot").length === 1 && byName2.get("Spring Boot")?.version === "3.2.0", byName2.get("Spring Boot")?.version ?? "missing");
+check("Tier 2: Spring Framework 6.1.2 via ${spring.version}", byName2.get("Spring Framework")?.version === "6.1.2", byName2.get("Spring Framework")?.version ?? "missing");
+check("Tier 2: fingerprints Kotlin 1.9.20", byName2.get("Kotlin")?.version === "1.9.20");
+check("Tier 2: ASP.NET Core 8.0.0, one entry (SDK + package)", frameworks2.filter((f) => f.name === "ASP.NET Core").length === 1 && byName2.get("ASP.NET Core")?.version === "8.0.0", byName2.get("ASP.NET Core")?.version ?? "missing");
+check("Tier 2: WordPress detected, version unknown (wp-config.php only)", byName2.get("WordPress")?.version === null && byName2.get("WordPress")?.versionSource === "unknown", `version=${String(byName2.get("WordPress")?.version)} / ${byName2.get("WordPress")?.versionSource ?? "?"}`);
+check("Tier 2: unresolvable ${...} pom version stays null, never guessed", deps2.some((d) => d.name === "org.example:unresolvable" && d.version === null));
+check("Tier 2: .NET SDK pseudo-dep has null version (TargetFramework is not a version)", deps2.some((d) => d.name === "Microsoft.NET.Sdk.Web" && d.version === null));
 
 // --- Public vs full split ---
 const full: FullReport = {

@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { isOwnerModeEnabled } from "@/lib/owner";
+import { canViewFull } from "@/lib/owner";
 import { scanRepo, toPublicReport } from "@/lib/scan";
 
 export const maxDuration = 60;
@@ -13,8 +13,9 @@ export async function GET(
   const wantsFull = url.searchParams.get("full") === "1";
   try {
     const full = await scanRepo(owner, repo);
-    if (wantsFull && isOwnerModeEnabled()) {
-      return NextResponse.json(full);
+    if (wantsFull) {
+      const { allowed } = await canViewFull(owner);
+      if (allowed) return NextResponse.json(full);
     }
     return NextResponse.json(toPublicReport(full));
   } catch (err) {

@@ -1,4 +1,4 @@
-import { isOwnerModeEnabled } from "@/lib/owner";
+import { canViewFull, isOAuthConfigured, isOwnerModeEnabled } from "@/lib/owner";
 import { scanRepo, toPublicReport } from "@/lib/scan";
 import type { FullReport, PublicReport } from "@/lib/types";
 
@@ -43,6 +43,8 @@ export default async function ReportPage({
   const sp = await searchParams;
   const wantsFull = sp.full === "1";
   const ownerMode = isOwnerModeEnabled();
+  const oauthConfigured = isOAuthConfigured();
+  const { allowed: isOwner, login: signedInAs } = await canViewFull(owner);
 
   let full: FullReport;
   try {
@@ -59,7 +61,7 @@ export default async function ReportPage({
     );
   }
 
-  const showFull = wantsFull && ownerMode;
+  const showFull = wantsFull && isOwner;
   const report: PublicReport | FullReport = showFull ? full : toPublicReport(full);
 
   return (
@@ -70,15 +72,24 @@ export default async function ReportPage({
         <div className="banner amber" role="note">
           <b>Public view — score and counts only.</b> Full detail (file names, line numbers, redacted
           secret fragments, framework versions, vulnerability IDs) is available to the repo owner only.
-          {!wantsFull && " Owners: full detail is not yet wired to GitHub sign-in — see the banner below."}
-          {wantsFull && !ownerMode && " Owner verification is coming — the full view is not available yet in this deployment."}
+          {oauthConfigured ? (
+            signedInAs ? (
+              <> You are signed in as <b>{signedInAs}</b>, which does not match this repo&apos;s owner. <a href="/api/auth/signout">Sign out</a> to switch accounts.</>
+            ) : (
+              <> Owners: <a href={`/api/auth/signin?callbackUrl=/${owner}/${repo}?full=1`}>sign in with GitHub</a> to view the full detail for this repo.</>
+            )
+          ) : (
+            <> Owner verification is not live yet on this deployment — the GitHub OAuth App is not configured (see README). The full view is available in local/dev owner mode only.</>
+          )}
         </div>
       )}
       {showFull && (
         <div className="banner green" role="note">
-          <b>Owner view (local/dev owner mode).</b> This deployment has owner mode enabled for local
-          testing only. Production owner verification via GitHub OAuth is still to be built — do not
-          treat this banner as proof of ownership.
+          <b>Owner view{signedInAs ? <> — signed in as {signedInAs}</> : " (local/dev owner mode)"}.</b>{" "}
+          {ownerMode && !signedInAs
+            ? "This deployment has local/dev owner mode enabled. Production owner verification via GitHub OAuth is still to be wired up — do not treat this banner as proof of ownership."
+            : "Full detail is shown because the signed-in GitHub account matches this repo's owner."}{" "}
+          <a href="/api/auth/signout">Sign out</a>
         </div>
       )}
 
@@ -105,7 +116,7 @@ export default async function ReportPage({
           <div className="card">
             <h2>Frameworks ({full.frameworks.length})</h2>
             {full.frameworks.length === 0 ? (
-              <p>No Tier 1 frameworks were fingerprinted in this repo.</p>
+              <p>No frameworks were fingerprinted in this repo (Tiers 1–2: JS/TS, Python, Rust, Go, Ruby, PHP, Java/Kotlin, .NET).</p>
             ) : (
               <ul>
                 {full.frameworks.map((f) => (
@@ -160,7 +171,7 @@ export default async function ReportPage({
         </ul>
         <p className="small">
           API: <a href={`/api/scan/${owner}/${repo}`}>public JSON for this repo</a>
-          {ownerMode ? <> · <a href={`/${owner}/${repo}?full=1`}>owner view (local/dev mode)</a></> : null}
+          <> · <a href={`/${owner}/${repo}?full=1`}>owner view (GitHub sign-in)</a></>
         </p>
       </div>
     </div>

@@ -30,11 +30,15 @@ function fixedVersion(vuln: Record<string, unknown>): string | null {
 }
 
 // OSV querybatch returns only vuln IDs (no summary, severity, or fixed
-// version). Full detail needs GET /v1/vulns/{id} per advisory. Fetching
-// detail for every advisory would be slow, so the MVP fetches detail for
-// the first DETAIL_LIMIT advisories and lists the rest with an honest
-// "check the advisory" note instead of inventing a summary.
-const DETAIL_LIMIT = 12;
+// version). Full detail needs GET /v1/vulns/{id} per advisory. Phase 2
+// fetches full detail (summary, CVSS, fixed version) for ALL advisories
+// found, up to DETAIL_CAP, in small parallel batches — advisories beyond
+// the cap are still listed, with their advisory ID and an osv.dev link,
+// and the report says how many were detail-capped. The total listed per
+// scan is capped at VULN_CAP so one bad dependency cannot flood a report.
+const DETAIL_CAP = 50;
+const VULN_CAP = 100;
+const DETAIL_BATCH = 8;
 
 async function fetchVulnDetail(id: string): Promise<Record<string, unknown> | null> {
   try {
@@ -49,10 +53,23 @@ async function fetchVulnDetail(id: string): Promise<Record<string, unknown> | nu
   }
 }
 
-export async function checkDependencies(deps: Dependency[]): Promise<{ vulnerabilities: Vulnerability[]; unavailable: boolean }> {
+/** Fetch detail for a list of advisory IDs, DETAIL_BATCH at a time. */
+async function fetchDetailsBatched(ids: string[]): Promise<Map<string, Record<string, unknown>>> {
+  const detailById = new Map<string, Record<string, unknown>>();
+  for (let i = 0; i < ids.length; i += DETAIL_BATCH) {
+    const batch = ids.slice(i, i + DETAIL_BATCH);
+    const results = await Promise.all(batch.map((id) => fetchVulnDetail(id)));
+    results.forEach((detail, j) => {
+      if (detail) detailById.set(batch[j], detail);
+    });
+  }
+  return detailById;
+}
+
+export async function checkDependencies(deps: Dependency[]): Promise<{ vulnerabilities: Vulnerability[]; unavailable: boolean; advisoriesFound: number; detailCapped: number }> {
   const queryable = deps.filter((d) => d.version && !/[\^~><*]/.test(d.version) && d.name.length > 0).slice(0, 60);
-  if (queryable.length === 0) return { vulnerabilities: [], unavailable: false };
-  const ecosystemMap: Record<string, string> = { npm: "npm", pypi: "PyPI", crates: "crates.io" };
+  if (queryable.length === 0) return { vulnerabilities: [], unavailable: false, advisoriesFound: 0, detailCapped: 0 };
+  const ecosystemMap: Record<string, string> = { npm: "npm", pypi: "PyPI", crates: "crates.io", go: "Go", ruby: "RubyGems", php: "Packagist", java: "Maven", dotnet: "NuGet" };
   try {
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), 15000);
@@ -65,20 +82,20 @@ export async function checkDependencies(deps: Dependency[]): Promise<{ vulnerabi
       signal: controller.signal,
     });
     clearTimeout(timer);
-    if (!res.ok) return { vulnerabilities: [], unavailable: true };
+    if (!res.ok) return { vulnerabilities: [], unavailable: true, advisoriesFound: 0, detailCapped: 0 };
     const data = (await res.json()) as { results?: { vulns?: Record<string, unknown>[] }[] };
-    // Collect (dep, vuln id) pairs, then fetch full detail for the first few.
+    // Collect (dep, vuln id) pairs, then fetch full detail for all of them
+    // up to DETAIL_CAP; beyond that the advisory is listed without detail.
     const pairs: { dep: Dependency; id: string }[] = [];
     (data.results ?? []).forEach((result, i) => {
       const dep = queryable[i];
       for (const v of result.vulns ?? []) pairs.push({ dep, id: String(v.id ?? "OSV-UNKNOWN") });
     });
-    const details = await Promise.all(pairs.slice(0, DETAIL_LIMIT).map((p) => fetchVulnDetail(p.id)));
-    const detailById = new Map<string, Record<string, unknown>>();
-    pairs.slice(0, DETAIL_LIMIT).forEach((p, i) => {
-      if (details[i]) detailById.set(p.id, details[i] as Record<string, unknown>);
-    });
-    const vulnerabilities: Vulnerability[] = pairs.slice(0, 50).map(({ dep, id }) => {
+    const listed = pairs.slice(0, VULN_CAP);
+    const detailIds = [...new Set(listed.slice(0, DETAIL_CAP).map((p) => p.id))];
+    const detailById = await fetchDetailsBatched(detailIds);
+    const detailCapped = Math.max(0, listed.length - DETAIL_CAP);
+    const vulnerabilities: Vulnerability[] = listed.map(({ dep, id }) => {
       const detail = detailById.get(id);
       const summary = detail ? String(detail.summary ?? detail.details ?? "") : "";
       const severityList = ((detail?.severity ?? []) as { type?: string; score?: string }[]);
@@ -97,8 +114,8 @@ export async function checkDependencies(deps: Dependency[]): Promise<{ vulnerabi
         upgrade: fixed ? `Upgrade ${dep.name} to ${fixed} or later.` : `Check advisory ${id} for ${dep.name} and upgrade to a patched version.`,
       };
     });
-    return { vulnerabilities, unavailable: false };
+    return { vulnerabilities, unavailable: false, advisoriesFound: pairs.length, detailCapped };
   } catch {
-    return { vulnerabilities: [], unavailable: true };
+    return { vulnerabilities: [], unavailable: true, advisoriesFound: 0, detailCapped: 0 };
   }
 }
