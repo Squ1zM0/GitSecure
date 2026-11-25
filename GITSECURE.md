@@ -28,7 +28,11 @@ No install, no config — swap the URL, get a security report.
   EVERYONE (no login flow — owner gate + Auth.js deleted), "Honest
   limits" section removed from the site, and the HEAD file scan made
   UNLIMITED — no file-count cap at all (no 250, no 1,000, no 5,000).
-  See "Phase 4 status" below. Redaction rule unchanged.
+  See "Phase 4 status" below. Redaction rule unchanged. Pushed
+  2026-11-25 as 836180c9 (+ eb69e148 cleanup push for stale files the
+  helper left behind), verified live: home 200 with no Honest limits,
+  live scan API TechDirect full 83/B with filesScanned 2,802, live MCP
+  scan_repo full with redacted detail.
 - DEPLOYED 2026-11-25 by Freddy: live at https://gitsecure.vercel.app/,
   verified live by Cobalt (home page + live TechDirect scan 83/B, matching
   the local test). Vercel MCP still returns 403 on team scope
@@ -346,11 +350,37 @@ No scanner logic, scores, or public/full split changed. TechDirect still
   `test:public-full` 32/32 (new, replaces `test:owner-gate`),
   `test:techdirect` 83/B with filesScanned = 2,802 — the full scannable
   tree, proved against an independent tree-API count (2,802 in the tree;
-  local scan ~12 s via the tarball path), `test:mcp` 49/49 against a
-  local production server. No literal secret-pattern values committed
-  (grep-verified; fixtures still use `__SECRET_n__` placeholders,
-  test-assembled fakes only). Pushed to main (commit SHA + live checks
-  below once verified).
+  local scan ~12 s via the tarball path), `test:mcp` 51/51 against a
+  local production server (was 49 — two checks added: filesScanned
+  > 250 and fixed versions present). No literal secret-pattern values
+  committed (grep-verified; fixtures still use `__SECRET_n__`
+  placeholders, test-assembled fakes only).
+- **Pushed 2026-11-25, commit 836180c93f33464272c8d7c9c984ec0cb07ee905**
+  (57 files, verified by read-back). **Then a second push was needed,
+  eb69e1486926da02b9c6ca3d5afdf6ca897a0b5d:** the push helper
+  (`gh-push-gitsecure.py`) passed `base_tree` when creating the new
+  tree, so files deleted locally silently PERSISTED on the remote —
+  the first push left `src/lib/auth.ts`, `src/lib/owner.ts`, the
+  NextAuth route and `scripts/test-owner-gate.ts` on main, and the
+  stale auth route (importing `next-auth`, no longer a dependency)
+  broke the Vercel build, so the old deployment kept serving for
+  ~15 minutes. Root-cause fix: the helper no longer passes `base_tree`
+  (its docstring already promised a full tree replacement); the
+  re-push removed the 4 stale files (remote tree now exactly the local
+  working copy: 57 files + 19 directory entries) and Vercel deployed.
+- **Live verification (2026-11-25, after eb69e148):** home 200, no
+  "Honest limits", no sign-in / owner-only copy, "What you get" present;
+  live scan API `Squ1zM0/TechDirect` 200, kind full, 83/B,
+  filesScanned = 2,802, all detail fields present, js-yaml + fixed
+  versions present, "Scanned all 2802 files in the tree" in limits
+  (history 5 commits — the known Vercel no-git fallback); live MCP
+  initialize 200 (protocol 2025-03-26, gitsecure 0.1.0), `scan_repo`
+  Squ1zM0/GitSecure returns kind full with file names, line numbers
+  and redacted fragments, no full fake secret. Live dogfood is 9/F
+  with 5 secrets (not the local 1/F with 6): the Vercel history
+  fallback only scans the 5 most recent commits, so the AWS example
+  key in the old README commit is out of the window — the known live
+  history caveat, not a scanner change.
 
 ## Phase 2 status — built and pushed 2026-11-25, commit 870f889f, live at https://gitsecure.vercel.app/ (verified serving: home 200, live TechDirect scan 200, 83/B)
 - Next.js 16 / React 19 / TypeScript + Auth.js (NextAuth 5.0.0-beta.32,
