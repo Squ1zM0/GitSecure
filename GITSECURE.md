@@ -121,14 +121,20 @@ aion-index commit as regression test), deploy on Vercel, iterate.
 ## Phases
 - MVP: secret scan (HEAD + history), framework fingerprint + known-flaw check,
   redacted report, security score.
-- **Phase 2 (built 2026-11-25, local only, NOT pushed, NOT deployed):**
+- **Phase 2 (built and pushed 2026-11-25, commit 870f889f, live on Vercel):**
   full-history clone scanning, Tier 2 frameworks (Go/Ruby/PHP/Java/.NET),
   full OSV advisory detail, real GitHub OAuth owner gate (code complete,
-  credentials pending — see below). Details in "Phase 2 status".
+  credentials pending — see below). Details in "Phase 2 status". LIVE
+  CAVEAT (verified 2026-11-25): the Vercel serverless runtime has no git
+  binary, so live scans fall back to API patches of the 5 most recent
+  commits and say so in the report; full-history (62 commits on TechDirect)
+  works locally where git exists. Fixing that in production needs either
+  a GITHUB_TOKEN in Vercel or an API-based history path — a Phase 3 item,
+  not a Phase 2 blocker.
 - V1: + dependencies, workflows, posture checks.
 - V2: stack watch / alerts, GitHub App, private repos, CI badge.
 
-## Phase 2 status — built 2026-11-25, local only, NOT pushed, NOT deployed
+## Phase 2 status — built and pushed 2026-11-25, commit 870f889f, live at https://gitsecure.vercel.app/ (verified serving: home 200, live TechDirect scan 200, 83/B)
 - Next.js 16 / React 19 / TypeScript + Auth.js (NextAuth 5.0.0-beta.32,
   GitHub provider), in ~/workspace/gitsecure/.
 - `npm run build` passes (exit 0, 2026-11-25 ~20:50 MST). Routes:
