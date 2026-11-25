@@ -3,13 +3,14 @@
 // real leaked secret here. Run: npm run test:scanner
 // Checks: detection of each planted secret type, redaction (no full fake
 // secret appears anywhere in the findings), framework fingerprinting,
-// unpinned detection, and the public-vs-full split (public leaks no detail).
+// unpinned detection, and the Phase 4 full report (everyone gets the
+// detail — file names, framework names, vulnerability IDs — with
+// secrets still redacted).
 
 import { readFileSync, readdirSync } from "node:fs";
 import { join } from "node:path";
 import { envFileFinding, scanTextForSecrets } from "../src/lib/secrets";
 import { fingerprintFrameworks, parseCargoToml, parseComposerJson, parseComposerLock, parseCsproj, parseGemfile, parseGemfileLock, parseGoMod, parseGradle, parsePackageJson, parsePomXml, parseRequirements } from "../src/lib/frameworks";
-import { toPublicReport } from "../src/lib/scan";
 import { leaksSecret } from "../src/lib/redact";
 import type { Dependency, FullReport } from "../src/lib/types";
 
@@ -113,7 +114,7 @@ check("Tier 2: WordPress detected, version unknown (wp-config.php only)", byName
 check("Tier 2: unresolvable ${...} pom version stays null, never guessed", deps2.some((d) => d.name === "org.example:unresolvable" && d.version === null));
 check("Tier 2: .NET SDK pseudo-dep has null version (TargetFramework is not a version)", deps2.some((d) => d.name === "Microsoft.NET.Sdk.Web" && d.version === null));
 
-// --- Public vs full split ---
+// --- Phase 4 full report: everyone gets the detail ---
 const full: FullReport = {
   kind: "full",
   repo: "fake-repo",
@@ -122,7 +123,7 @@ const full: FullReport = {
   commit: "abc1234",
   score: 10,
   grade: "F",
-  counts: { secrets: findings.length, vulnerabilities: 0, frameworks: frameworks.length, dependencies: deps.length, postureIssues: 1, filesScanned: files.length, historyCommitsScanned: 0 },
+  counts: { secrets: findings.length, vulnerabilities: 1, frameworks: frameworks.length, dependencies: deps.length, postureIssues: 1, filesScanned: files.length, historyCommitsScanned: 0 },
   summary: "Scan complete.",
   scannedAt: new Date().toISOString(),
   historyDepth: "test",
@@ -130,15 +131,22 @@ const full: FullReport = {
   secrets: findings,
   frameworks,
   dependencies: deps,
-  vulnerabilities: [],
+  vulnerabilities: [{ id: "GHSA-test-1234", packageName: "next", ecosystem: "npm", installedVersion: "14.2.5", fixedVersion: "14.2.6", severity: "high", summary: "Test vuln.", plainEnglish: "Upgrade.", upgrade: "Upgrade next." }],
   posture: [],
 };
-const pub = toPublicReport(full);
-const pubJson = JSON.stringify(pub);
-check("public report has score + counts", typeof pub.score === "number" && pub.counts.secrets === findings.length);
-check("public report has no file names", !pubJson.includes("config.js"));
-check("public report has no secret fragments", !pubJson.includes("FAKE"));
-check("public report has no framework names", !pubJson.includes("Next.js") && !pubJson.includes("Django"));
+const fullJson = JSON.stringify(full);
+check("full report has score + counts", typeof full.score === "number" && full.counts.secrets === findings.length);
+check("full report includes file names", fullJson.includes("config.js"));
+check("full report includes framework names", fullJson.includes("Next.js") && fullJson.includes("Django"));
+check("full report includes vulnerability IDs", fullJson.includes("GHSA-test-1234"));
+// Compare against the PARSED report, not the raw JSON string: a
+// fragment can contain a `"` (e.g. `pass…2"`), which JSON.stringify
+// escapes, so a raw substring search would false-fail.
+const parsedFull = JSON.parse(fullJson) as FullReport;
+check("full report includes redacted secret fragments (never full)", findings.every((f) => parsedFull.secrets.some((s) => s.fragment === f.fragment) && f.fragment.length < 12));
+for (const secret of FAKE_SECRETS) {
+  check(`full report never contains the full fake secret (${secret.slice(0, 18)}…)`, !leaksSecret(fullJson, secret));
+}
 
 console.log(failures === 0 ? "\nAll fixture tests passed." : `\n${failures} test(s) FAILED.`);
 process.exit(failures === 0 ? 0 : 1);

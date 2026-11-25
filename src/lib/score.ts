@@ -1,6 +1,6 @@
 // Score 0–100. Starts at 100, deducts per finding. Plain-English summary
-// must never name files, lines, or secret fragments (public view is
-// score + counts only).
+// must never name files, lines, or secret fragments (the full report
+// shows them; the summary never does).
 
 import type { PostureIssue, SecretFinding, Severity, Vulnerability } from "./types";
 
@@ -26,7 +26,7 @@ export function plainSummary(args: { secrets: number; vulnerabilities: number; p
   if (args.vulnerabilities > 0) parts.push(`${args.vulnerabilities} known vulnerabilit${args.vulnerabilities === 1 ? "y" : "ies"} in dependencies`);
   if (args.postureIssues > 0) parts.push(`${args.postureIssues} security hygiene issue${args.postureIssues === 1 ? "" : "s"} to fix`);
   if (args.frameworks > 0) parts.push(`${args.frameworks} framework${args.frameworks === 1 ? "" : "s"} fingerprinted`);
-  return `Scan complete. ${parts.join("; ")}. Full detail is available to the repo owner only.`;
+  return `Scan complete. ${parts.join("; ")}. The full detail is in this report — no sign-in needed.`;
 }
 
 /** One plain line under the score: what the number means, and what

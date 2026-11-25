@@ -4,7 +4,7 @@ import "./globals.css";
 export const metadata: Metadata = {
   title: "GitSecure — is this repo safe?",
   description:
-    "Swap github.com for git-secure.com and get a security report for a public repo: leaked secrets, framework flaws, dependency vulnerabilities, and posture. Full detail is owner-only.",
+    "Swap github.com for git-secure.com and get a security report for a public repo: leaked secrets, framework flaws, dependency vulnerabilities, and posture. Everyone gets the full report — no sign-up, no login.",
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
@@ -22,7 +22,8 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
             live-validated. It is not a replacement for GitHub Advanced Security.
           </p>
           <p>
-            Full detail is available to the repo owner only — everyone else sees the score and counts.
+            Everyone gets the full report — score, counts, file names, line numbers, and redacted
+            secret fragments — because the repo is public. No sign-up, no login.
           </p>
         </footer>
       </body>

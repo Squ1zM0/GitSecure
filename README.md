@@ -37,11 +37,13 @@ github.com/Squ1zM0/TechDirect  →  git-secure.com/Squ1zM0/TechDirect
 Every finding is plain English: what it is, what it lets an attacker do, and the
 exact fix, in order.
 
-## What you see — and what you don't
+## What you get
 
-Everyone sees the **score (0–100) and the counts only**. Full detail (file names,
-line numbers, redacted secret fragments, framework versions, vulnerability IDs)
-is available to the repo owner only.
+Everyone gets the **full report** — the score (0–100) and counts, plus the
+full detail: file names, line numbers, redacted secret fragments, framework
+versions, and vulnerability IDs with the version that fixes each one. No
+sign-up, no login. That works because GitSecure only scans **public repos**,
+so the detail is information already public in the repo.
 
 Secrets are **never shown in full** (fragment only: first 4 chars … last 2),
 **never stored**, and **never live-validated** (the scanner never calls the
@@ -59,25 +61,20 @@ Optional env (server-side only, never in the repo):
 
 - `GITHUB_TOKEN` — a GitHub token raises the API rate limit from 60 to 5,000
   requests/hour. Without it, scans may hit the unauthenticated limit.
-- `GITSECURE_OWNER_MODE=true` — local/dev owner mode only (see below).
-- `GITHUB_ID`, `GITHUB_SECRET`, `NEXTAUTH_SECRET`, `NEXTAUTH_URL` — GitHub
-  OAuth App credentials for owner verification (see below). With none of
-  these set, the full view stays off everywhere — that is the safe default.
+
+No login is needed for the full view — there is no sign-in flow and no
+env var gates it.
 
 ## Routes
 
 - `/` — home page, explains GitSecure, owner/repo input.
-- `/[owner]/[repo]` — scan report for a public repo (public view by default).
-  Streams a loading state first ("Scanning the repo… checking files, then
-  history, then dependencies") while the ~15 s live scan runs.
-- `/api/scan/[owner]/[repo]` — JSON report. `?full=1` returns the full report
-  only when the requester is verified as the repo owner; otherwise it returns
-  the public report. Errors carry honest statuses: 400 bad owner/repo format,
-  404 repo not found or private, 429 GitHub rate limit, 504 scan timeout,
-  502 GitHub upstream error.
-- `/api/auth/*` — GitHub sign-in (Auth.js): `/api/auth/signin`,
-  `/api/auth/callback/github`, `/api/auth/signout`, `/api/auth/session`.
-  Returns 503 "not configured" until the OAuth App credentials are set.
+- `/[owner]/[repo]` — full scan report for a public repo. Streams a loading
+  state first ("Scanning the repo… checking files, then history, then
+  dependencies") while the ~15 s live scan runs.
+- `/api/scan/[owner]/[repo]` — the full JSON report, same detail as the page.
+  No sign-in, no `?full` flag. Errors carry honest statuses: 400 bad
+  owner/repo format, 404 repo not found or private, 429 GitHub rate limit,
+  504 scan timeout, 502 GitHub upstream error.
 - `/mcp` — MCP server for AI assistants (Streamable HTTP transport,
   stateless). `/api/mcp` is an alias for the same handler. See
   "Use with your AI assistant (MCP)" below.
@@ -94,27 +91,27 @@ copyable config snippets for Claude, Cursor, VS Code, and Windsurf/Cline
 { "mcpServers": { "gitsecure": { "url": "https://gitsecure.vercel.app/mcp" } } }
 ```
 
-Tools (all public reports only — see below):
+Tools (all return the full report — see below):
 
-- `scan_repo` (owner, repo) — run a live security scan, return the public
-  report: score, grade, counts, summary, limits. Use when someone asks
-  whether a repo is safe.
-- `get_report` (owner, repo) — read or refresh the public report for a
+- `scan_repo` (owner, repo) — run a live security scan, return the full
+  report: score, grade, counts, summary, limits, and the full detail
+  (file names, line numbers, redacted secret fragments, framework
+  versions, vulnerability IDs). Use when someone asks whether a repo is safe.
+- `get_report` (owner, repo) — read or refresh the full report for a
   repo. Runs a fresh live scan each time (GitSecure never stores reports).
 - `list_checks` (no args) — what GitSecure checks, in plain English, plus
-  the honest limits. Use before a scan, or to explain a score.
+  the scan notes. Use before a scan, or to explain a score.
 
-**MCP returns public reports only, always.** No file names, line numbers,
-secret fragments, vulnerability IDs, or framework versions ever leave over
-MCP — there is no `full` parameter and no owner-mode flag. Full detail
-stays owner-only via the signed-in web flow. A scan takes about 15 seconds;
-owner/repo names are validated the same way as on the site, and a bad
-name, a missing/private repo, or a GitHub rate limit comes back as a
-plain-English error, never a stack trace. The endpoint is stateless (a
-fresh server per request, no session state, no git binary needed — the
-scan falls back to API patches when git is unavailable), so it works on
-the Vercel serverless runtime. A plain `GET /mcp` is refused with a 4xx:
-in stateless mode the server holds no SSE stream (MCP clients use POST).
+**MCP returns the full report, like the web flow.** Secrets are still
+redacted fragments only — never shown in full. There is no `full`
+parameter and no login. A scan takes about 15 seconds; owner/repo names
+are validated the same way as on the site, and a bad name, a missing/private
+repo, or a GitHub rate limit comes back as a plain-English error, never a
+stack trace. The endpoint is stateless (a fresh server per request, no
+session state, no git binary needed — the scan falls back to API patches
+when git is unavailable), so it works on the Vercel serverless runtime.
+A plain `GET /mcp` is refused with a 4xx: in stateless mode the server
+holds no SSE stream (MCP clients use POST).
 
 Test it against a local production server (real protocol handshake with
 the SDK client — initialize, tools/list, live `scan_repo` calls):
@@ -124,37 +121,17 @@ npm run build && npm start     # in one terminal
 npm run test:mcp               # in another — 49 checks
 ```
 
-## Owner verification (code complete, credentials pending — read this)
+## No login
 
-Owner verification is **implemented with real GitHub OAuth (Auth.js /
-NextAuth v5, GitHub provider)** in `src/lib/auth.ts` + `src/lib/owner.ts`:
-a signed-in user whose GitHub login matches the repo owner gets the full
-report; everyone else (and signed-out users) gets the public score + counts
-only. The gate logic is unit-tested with session mocks
-(`npm run test:owner-gate`, 20 checks). The local/dev env flag
-`GITSECURE_OWNER_MODE=true` still works for local testing only.
+There is no sign-in flow and no owner verification. Phase 4 (2026-11-25)
+removed the GitHub OAuth owner gate entirely — the Auth.js route
+(`src/app/api/auth`), `src/lib/auth.ts`, and `src/lib/owner.ts` are
+deleted, and `next-auth` is no longer a dependency. Rationale: the site
+only scans public repos, so the full detail is information already public
+in the repo. The redaction rule did not change: a secret is never shown
+in full.
 
-**Live OAuth is NOT wired up yet** — it needs a GitHub OAuth App, which
-only Freddy can create. Until then the full view stays off in production
-(safe default: with no OAuth env vars set, the auth routes answer 503 and
-every scan returns the public report). Exact steps for Freddy:
-
-1. GitHub → Settings → Developer settings → OAuth Apps → New OAuth App.
-   - Application name: `GitSecure`
-   - Homepage URL: `https://gitsecure.vercel.app/`
-   - Authorization callback URL: `https://gitsecure.vercel.app/api/auth/callback/github`
-2. Copy the Client ID → `GITHUB_ID`; generate a Client Secret → `GITHUB_SECRET`.
-3. Generate a random secret for `NEXTAUTH_SECRET` (e.g. `openssl rand -base64 32`).
-   Set `NEXTAUTH_URL=https://gitsecure.vercel.app/`.
-4. In Vercel → GitSecure project → Settings → Environment Variables, add all
-   four (`GITHUB_ID`, `GITHUB_SECRET`, `NEXTAUTH_SECRET`, `NEXTAUTH_URL`),
-   then redeploy.
-5. Verify: visit a repo page as the repo owner, sign in with GitHub, open
-   `?full=1` — the owner banner appears. Sign out (or visit as a different
-   user) — the public view returns. No credentials are ever hardcoded or
-   committed; env vars are the only place they live.
-
-## Honest limits
+## Scan limits (developer notes — not shown on the site)
 
 - **History depth:** full history, newest-first, via an ephemeral `git clone`
   into `/tmp` (deleted after the scan). Caps: **1,000 commits / 50 MB of
@@ -164,9 +141,15 @@ every scan returns the public report). Exact steps for Freddy:
   and the report says when a cap was hit. If the runtime has no `git`
   binary, or the clone fails, the scan falls back to API patches of the
   5 most recent commits and says so in the report's limits.
-- **HEAD limits:** max 250 files (fetched 10 at a time), 200 KB per file,
-  3 MB total; binary, `dist`, `node_modules` and `.next` skipped. Manifests
-  and configs are scanned first.
+- **HEAD scan: unlimited.** Every file in the HEAD tree is scanned,
+  manifests and configs first (fetched 10 at a time). There is no
+  file-count cap and no per-file or total size cap — no 250, no 1,000,
+  no 5,000. Binary, `dist`, `node_modules` and `.next` paths are skipped:
+  generated/vendored paths, not source files. The 60 s route limit and
+  GitHub rate limits still exist, so a gigantic repo may hit a time/rate
+  boundary — if it does, the report says plainly how many files were
+  actually scanned and that it stopped for time/rate, never pretending
+  it scanned everything.
 - **Findings caps:** at most 100 secret findings and 100 advisories listed
   per report (the report says how many more were found).
 - **Dependency check:** up to 60 pinned dependencies per scan via OSV.dev
@@ -181,7 +164,7 @@ every scan returns the public report). Exact steps for Freddy:
 
 ## Dogfooding note
 
-Scanning GitSecure's own repo (`Squ1zM0/GitSecure`) returns score **0 / F**
+Scanning GitSecure's own repo (`Squ1zM0/GitSecure`) returns score **1 / F**
 with 6 secret findings — all known-fake: the test fixtures that are
 deliberately detector bait (`.env` fixture, `hunter2hunter2` password,
 fake Postgres URL in the test file), plus the official AWS example key in
@@ -189,12 +172,16 @@ an old README commit. No real secret is in the repo. The scanner does not
 skip test files on purpose: real leaks hide in "just a test" files too, so
 a scanner that ignored them would miss real ones.
 
-(The repo scored 3 / F in the MVP-era note; it is 0 / F now because the
-Phase 2 push added `package-lock.json` — 119 dependencies fingerprinted —
-Tier 2 fixtures, and a fake `vite.config.ts`, which add framework,
-dependency and Vite posture deductions plus unpinned-version deductions.
-The 6 secret findings are unchanged. The change is in the repo's
-contents, not the scanner.)
+(The repo scored 3 / F in the MVP-era note, then 0 / F after the Phase 2
+push added `package-lock.json` — 119 dependencies fingerprinted — Tier 2
+fixtures, and a fake `vite.config.ts`. It is 1 / F now: deductions are
+76 (secrets: 4 high + 2 medium) + 19 (posture) + 4 (2 unpinned deps × 2)
+= 99, so the score is 1. The 0 / F was measured when remote head was
+d6a7e136 (Phase 2); the Phase 3 push (5d8da890) changed the repo's
+contents and the unpinned count, so the total dropped below the 100-point
+clamp. The 6 secret findings are unchanged. The change is in the repo's
+contents, not the scanner — the Phase 4 scanner change cannot affect a
+53-file repo, where the old 250-file cap never bound.)
 
 ## Phase 3 Part A — functionality polish (built 2026-11-25, not pushed, not deployed)
 
@@ -245,7 +232,8 @@ TechDirect still scans 83/B (verified locally, production server).
   48/48, `test:history` 9/9, `test:owner-gate` 20/20, `test:techdirect`
   83/B, 62 history commits, ~15 s. Production server (`npm start`) checked
   by curl: home 200, TechDirect report 200 (TTFB 0.05 s), scan API 200
-  (83/B), not-found API 404, bad-format API 400.
+  (83/B), not-found API 404, bad-format API 400. (The owner gate and its
+  test were removed in Phase 4 — see below.)
 
 ## Phase 3 Part B — MCP server for LLMs (built 2026-11-25, not pushed, not deployed)
 
@@ -264,18 +252,20 @@ scans 83/B (verified locally and over MCP).
   no git binary required (scan falls back to API patches). `maxDuration`
   60. Note: Next 16 with `cacheComponents` rejects the `runtime` and
   `dynamic` route segment configs — the routes export only `maxDuration`.
-- **Tools:** `scan_repo` (owner, repo — live scan, public report),
-  `get_report` (owner, repo — same public report, fresh scan each time,
+- **Tools:** `scan_repo` (owner, repo — live scan, full report),
+  `get_report` (owner, repo — same full report, fresh scan each time,
   documented as read/refresh), `list_checks` (no args — the four checks
-  in plain English plus honest limits). Descriptions say when to use each,
+  in plain English plus scan notes). Descriptions say when to use each,
   what it returns, and what it does NOT return. Input schemas validate
   owner/repo with the same rules as the site; bad input, missing/private
   repos, and rate limits return plain-English errors, never a stack trace.
-- **Public-only, always:** every MCP response goes through
-  `toPublicReport`. No tool accepts a `full` parameter or any owner-mode
-  flag. Proved by `npm run test:mcp`, which scans Squ1zM0/GitSecure
-  (0/F, 6 known-fake findings) over MCP and asserts the response contains
-  no file names, line numbers, or secret fragments.
+- **Full reports over MCP (Phase 4):** MCP used to return public-only
+  reports through `toPublicReport`, with no file names, line numbers, or
+  secret fragments. Phase 4 flipped it: MCP returns the full report, like
+  the web flow — secrets still redacted fragments only. `npm run test:mcp`
+  now scans Squ1zM0/GitSecure (1/F, 6 known-fake findings) over MCP and
+  asserts the response carries the full detail while containing no full
+  fake secret.
 - **Human view:** `src/components/McpSection.tsx` (copy buttons use
   `navigator.clipboard` with a textarea fallback and a "Copied" state).
   Full version on the home page (`src/app/page.tsx`): MCP server URL plus
@@ -299,36 +289,40 @@ scans 83/B (verified locally and over MCP).
   proper JSON-RPC result. Home page renders the full MCP section (5 copy
   buttons), report page the compact one (2 copy buttons). No literal
   secret-pattern values committed (fixtures still use `__SECRET_n__`
-  placeholders; test-assembled fakes only).
+  placeholders; test-assembled fakes only). (The owner gate, its test,
+  and the public-only MCP rule were removed in Phase 4 — see below.)
 - **Limits that remain:** a scan over MCP takes the same ~15 s as on the
   web (one JSON response, no streaming progress); the MCP client timeout
   in the test is 120 s. A GET that asks for `text/event-stream` opens a
   standalone SSE stream the transport holds open — MCP clients use POST,
-  so this is not probed. Live OAuth is still pending (see above), so the
-  full view stays off in production; MCP never had a full view at all.
-  Dogfood score note: GitSecure itself is 0/F now, not 3/F (see
-  "Dogfooding note" above — Phase 2 push changed the repo's contents).
+  so this is not probed. Dogfood score note: GitSecure itself is 0/F now,
+  not 3/F (see "Dogfooding note" above — Phase 2 push changed the repo's
+  contents).
 
 ## Tests
 
 ```bash
 npm run test:scanner     # synthetic fixture with FAKE planted secrets only
                          # (tests/fixtures/fake-repo + fake-repo-tier2) —
-                         # 48 checks: detection, redaction, Tier 1 + Tier 2
-                         # fingerprinting, and the public/full split
+                         # 56 checks: detection, redaction, Tier 1 + Tier 2
+                         # fingerprinting, and the Phase 4 full report
 npm run test:history     # full-history regression: a fake secret planted in
                          # an old commit of a throwaway local repo, removed
                          # from HEAD — 9 checks, clone + log + detect
-npm run test:owner-gate  # GitHub OAuth gate logic with session mocks, no
-                         # network — 20 checks, incl. fail-closed default
+npm run test:public-full # Phase 4: no login flow, no owner gate, no
+                         # "Honest limits" copy anywhere in src; no file-count
+                         # cap in the scanner; full detail + redaction —
+                         # 32 checks, no network
 npm run test:techdirect  # live scan of the real public repo Squ1zM0/TechDirect
-                         # (score 83/B, 62 history commits, ~15 s)
+                         # (score 83/B, 62 history commits, filesScanned =
+                         # full scannable tree — 2,802, ~12 s via tarball)
 npm run test:mcp         # MCP end-to-end: needs a running production server
                          # (npm run build && npm start) — real SDK-client
                          # handshake, tools/list, live scan_repo calls for
-                         # TechDirect (83/B) and GitSecure (0/F, public-only
-                         # proof), error cases, snippet JSON validity —
-                         # 49 checks. Set MCP_BASE_URL to test another server.
+                         # TechDirect (83/B, full detail) and GitSecure
+                         # (0/F, full detail, no full fake secret), error
+                         # cases, snippet JSON validity — 49 checks.
+                         # Set MCP_BASE_URL to test another server.
 ```
 
 The fixture uses invented credentials only (including the official AWS example
@@ -336,9 +330,55 @@ key, assembled in memory by the test from fragments). Never put a real leaked se
 
 ## Tech
 
-Next.js 16 (App Router) + TypeScript + React 19 + Auth.js (NextAuth v5,
-GitHub provider). No paid services, no external database. Deployable on
-the Vercel free tier.
+Next.js 16 (App Router) + TypeScript + React 19. No paid services, no
+external database, no auth library (Phase 4 removed NextAuth — there is
+no login flow). Deployable on the Vercel free tier.
+
+## Phase 4 — full report for everyone + unlimited file scan (built 2026-11-25)
+
+Freddy's word, same day: the site only works on public repos, so give ALL
+the information to ANY user that calls — no login flow. And remove the
+"Honest limits" section from the site. Plus: the file scan is unlimited —
+NOT 250, and NOT a higher cap either. No file-count cap at all.
+
+- **Owner gate removed, everywhere.** Scan API returns the full report to
+  anyone (no sign-in, no `?full` flag, no owner check). Report page shows
+  the full detail to anyone. MCP `scan_repo` / `get_report` return the full
+  report too. Deleted: `src/lib/auth.ts`, `src/lib/owner.ts`,
+  `src/app/api/auth/[...nextauth]/route.ts`, and the `next-auth`
+  dependency (lockfile re-synced). `src/lib/types.ts` has one report shape
+  now (`FullReport`); `toPublicReport` is gone. Home "What you see" card
+  rewritten as "What you get"; footer, MCP copy, README and GITSECURE.md
+  updated — nothing on the site promises a login-gated view anymore.
+- **"Honest limits" section removed** from the home page and everywhere in
+  the UI. Scan limits live in code comments and developer docs only now
+  (README "Scan limits" section above, `src/lib/scan.ts` header).
+- **Unlimited HEAD scan.** Removed `MAX_FILES = 250`, `MAX_FILE_BYTES =
+  200_000`, `MAX_TOTAL_BYTES = 3_000_000` and the `slice(0, MAX_FILES)` —
+  the scan now reads the whole non-skipped tree, manifests and configs
+  first. Binary / dist / node_modules / `.next` skipping stays
+  (not source files, not a cap). GitHub tree pagination: the recursive
+  tree call returns the whole tree in one response (up to 100k entries);
+  a truncated flag is reported honestly. Files arrive via ONE tarball
+  download (codeload) instead of one HTTPS request per file — measured:
+  2,802 separate raw fetches took ~120 s no matter the concurrency
+  (raw.githubusercontent.com answers ~25 requests/s from one client),
+  while the 1.7 MB TechDirect tarball downloads in ~1.4 s; whole scan
+  ~12 s. If the tarball is unavailable the scan falls back to per-file
+  fetches and still scans everything, just slower. A 55 s scan timeout
+  still exists inside the 60 s route limit — on timeout the report says
+  how many files had been fetched, never pretending it finished.
+  History caps unchanged (1,000 commits / 50 MB / 45 s).
+- **Redaction unchanged and re-tested:** secrets are still fragments only.
+  Proved by `test:scanner` (full-report checks), `test:public-full`
+  (fixture scan, no full fake secret), and `test:mcp` (GitSecure dogfood
+  over MCP, no full fake secret).
+- **Verification (2026-11-25):** `npm run build` exit 0; `test:scanner`
+  56/56, `test:history` 9/9, `test:public-full` 32/32, `test:techdirect`
+  83/B with filesScanned = 2,802 (full scannable tree, proved against an
+  independent tree-API count), whole scan ~12 s via the tarball path;
+  `test:mcp` 49/49 against a local production server. Pushed to main;
+  live checks below in GITSECURE.md.
 
 ## Project notes
 

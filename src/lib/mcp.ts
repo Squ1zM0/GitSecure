@@ -1,12 +1,12 @@
 // GitSecure MCP server — lets an LLM ask GitSecure about a public repo
 // over the Model Context Protocol (Streamable HTTP transport, stateless).
 //
-// HARD RULE: MCP returns PUBLIC reports only, always. Every tool response
-// goes through toPublicReport, so no file names, line numbers, secret
-// fragments, vulnerability IDs, or framework versions ever leave over
-// MCP. There is no `full` parameter and no owner-mode flag on any tool —
-// full detail stays owner-only via the signed-in web flow. The scanner
-// itself is unchanged: same scanRepo, same scores, same limits.
+// Phase 4: MCP returns the FULL report, like the web flow — the site
+// only scans public repos, so the detail is information already public
+// in the repo, and there is no login flow. HARD RULE (unchanged): a
+// secret is never shown in full — redacted fragment only, never
+// stored, never live-validated. The scanner itself is unchanged: same
+// scanRepo, same scores, same limits.
 //
 // Stateless by design: a fresh McpServer + transport is created per HTTP
 // request (sessionIdGenerator: undefined), so nothing is held in memory
@@ -17,7 +17,7 @@
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { WebStandardStreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/webStandardStreamableHttp.js";
 import { z } from "zod";
-import { ScanError, scanRepoWithTimeout, toPublicReport, validateOwnerRepo } from "./scan";
+import { ScanError, scanRepoWithTimeout, validateOwnerRepo } from "./scan";
 
 const NAME_RE = /^[A-Za-z0-9_.-]+$/;
 const NAME_MESSAGE =
@@ -37,15 +37,16 @@ function toolError(message: string) {
   };
 }
 
-/** Run a live scan and return the PUBLIC report as JSON text.
+/** Run a live scan and return the FULL report as JSON text.
  *  ScanError messages are already plain English; anything else gets a
- *  generic message — never a stack trace. */
-async function publicScan(owner: string, repo: string) {
+ *  generic message — never a stack trace. Secrets in the report are
+ *  redacted fragments only, never full values. */
+async function fullScan(owner: string, repo: string) {
   try {
     validateOwnerRepo(owner, repo);
     const full = await scanRepoWithTimeout(owner, repo);
     return {
-      content: [{ type: "text" as const, text: JSON.stringify(toPublicReport(full), null, 2) }],
+      content: [{ type: "text" as const, text: JSON.stringify(full, null, 2) }],
     };
   } catch (err) {
     if (err instanceof ScanError) return toolError(err.message);
@@ -60,11 +61,11 @@ const LIST_CHECKS_TEXT = `What GitSecure checks when it scans a public GitHub re
 3. Dependency flaws — known vulnerabilities in direct and transitive dependencies, checked against OSV.dev, a free public database of known software flaws. Each one comes with a plain summary, a severity score, and the version that fixes it.
 4. Security posture — missing SECURITY.md, no Dependabot config, .gitignore gaps, and risky GitHub Actions patterns (pull_request_target, write-all permissions, secrets echoed into logs).
 
-What you get back from a scan is the PUBLIC report only: a score from 0 to 100, a letter grade, counts, a one-paragraph summary, and the honest limits below. You do NOT get file names, line numbers, secret fragments, vulnerability IDs, or framework versions — that full detail is available only to the repo owner through the signed-in web flow.
+What you get back from a scan is the FULL report: a score from 0 to 100, a letter grade, counts, a one-paragraph summary, and the full detail — file names, line numbers, redacted secret fragments, framework versions, and vulnerability IDs with the version that fixes each one. Secrets are never shown in full, only as redacted fragments.
 
-Honest limits:
+Scan notes:
 - History is scanned newest-first via an ephemeral clone, capped at 1,000 commits / 50 MB of patches / 45 seconds. A secret in a very old commit of a huge repo may still be missed, and the report says when a cap was hit. If the runtime has no git binary, the scan falls back to the 5 most recent commits and says so.
-- At most 250 files per scan (manifests and configs first), 200 KB per file, 3 MB total; at most 100 secret findings and 100 advisories listed per report.
+- Every file in the repo tree is scanned, manifests and configs first (binary, dist, node_modules and .next skipped — generated/vendored paths, not source files). At most 100 secret findings and 100 advisories listed per report.
 - Dependency detail is fetched for up to 50 advisories per scan; any beyond that are listed with their advisory ID only.
 - Unauthenticated GitHub API is 60 requests/hour; a scan uses roughly 7 API calls plus raw file fetches. If GitHub's request limit is hit, scans fail with a plain-English rate-limit error — try again in a few minutes.
 - GitSecure is not a replacement for GitHub Advanced Security.`;
@@ -80,19 +81,19 @@ export function createMcpServer(): McpServer {
     {
       title: "Scan a repo",
       description:
-        "Run a live security scan of a public GitHub repo and return its public report. " +
+        "Run a live security scan of a public GitHub repo and return its full report. " +
         "Use this when someone asks whether a repo is safe, or asks to scan or check a repo. " +
         "Give owner and repo separately (for example owner Squ1zM0, repo TechDirect). " +
-        "Returns the public report only: a score from 0 to 100, a letter grade, counts of possible leaked secrets, " +
-        "dependency vulnerabilities, frameworks, dependencies and posture issues, a one-paragraph summary, and the scan's honest limits. " +
-        "It does NOT return file names, line numbers, secret fragments, vulnerability IDs, or framework versions — " +
-        "that full detail is available only to the repo owner through the signed-in web flow. " +
+        "Returns the full report: a score from 0 to 100, a letter grade, counts of possible leaked secrets, " +
+        "dependency vulnerabilities, frameworks, dependencies and posture issues, a one-paragraph summary, " +
+        "plus the full detail — file names, line numbers, redacted secret fragments, framework versions, " +
+        "and vulnerability IDs with the version that fixes each one. Secrets are never shown in full. " +
         "A scan takes about 15 seconds and looks at current files plus full history. " +
         "If the repo does not exist or is private, or GitHub's request limit is hit, the tool returns a plain-English error instead of a result.",
       inputSchema: repoInput,
       annotations: { readOnlyHint: true },
     },
-    async ({ owner, repo }) => publicScan(owner, repo),
+    async ({ owner, repo }) => fullScan(owner, repo),
   );
 
   server.registerTool(
@@ -100,16 +101,16 @@ export function createMcpServer(): McpServer {
     {
       title: "Get a repo report",
       description:
-        "Read (or refresh) the public security report for a public GitHub repo. " +
+        "Read (or refresh) the full security report for a public GitHub repo. " +
         "Use this when someone asks for the current score or report for a repo that may already have been scanned, or to check the latest result. " +
         "It runs a fresh live scan each time — GitSecure never stores reports — so the result is always current. " +
-        "Returns the same public report as scan_repo: score, grade, counts, summary and limits. " +
-        "It does NOT return file names, line numbers, secret fragments, vulnerability IDs, or framework versions; " +
-        "full detail is owner-only via the signed-in web flow.",
+        "Returns the same full report as scan_repo: score, grade, counts, summary, limits, and the full detail " +
+        "(file names, line numbers, redacted secret fragments, framework versions, vulnerability IDs). " +
+        "Secrets are never shown in full.",
       inputSchema: repoInput,
       annotations: { readOnlyHint: true },
     },
-    async ({ owner, repo }) => publicScan(owner, repo),
+    async ({ owner, repo }) => fullScan(owner, repo),
   );
 
   server.registerTool(
@@ -117,9 +118,9 @@ export function createMcpServer(): McpServer {
     {
       title: "List what GitSecure checks",
       description:
-        "List what GitSecure checks when it scans a repo, in plain English, plus the honest limits of each check. " +
+        "List what GitSecure checks when it scans a repo, in plain English, plus the notes on each check. " +
         "Use this when someone asks what GitSecure looks for, what a scan covers, or what it cannot catch — before running a scan, or to explain a score. " +
-        "Takes no arguments. Returns a description of the four checks (leaked secrets, frameworks, dependency flaws, security posture) and the limits. " +
+        "Takes no arguments. Returns a description of the four checks (leaked secrets, frameworks, dependency flaws, security posture) and the scan notes. " +
         "It does not scan anything and returns no score.",
       annotations: { readOnlyHint: true },
     },

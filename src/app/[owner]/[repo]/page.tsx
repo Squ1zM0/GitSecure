@@ -1,14 +1,16 @@
-import { canViewFull, isOAuthConfigured, isOwnerModeEnabled } from "@/lib/owner";
-import { scanRepoWithTimeout, ScanError, toPublicReport } from "@/lib/scan";
+// Phase 4: every caller gets the full report — the site only scans
+// public repos, so the detail is information already public in the
+// repo. No login flow, no owner gate, no ?full flag.
+import { scanRepoWithTimeout, ScanError } from "@/lib/scan";
 import { explainScore } from "@/lib/score";
 import McpSection from "@/components/McpSection";
-import type { FullReport, PublicReport } from "@/lib/types";
+import type { FullReport } from "@/lib/types";
 
 // Scan-on-demand page: never prerendered — each visit runs a live scan.
 export const instant = false;
 export const maxDuration = 60;
 
-function ScoreCard({ report }: { report: PublicReport | FullReport }) {
+function ScoreCard({ report }: { report: FullReport }) {
   return (
     <div className="card">
       <div className="score-row">
@@ -90,17 +92,10 @@ function errorCopy(err: unknown, owner: string, repo: string): { title: string; 
 
 export default async function ReportPage({
   params,
-  searchParams,
 }: {
   params: Promise<{ owner: string; repo: string }>;
-  searchParams: Promise<{ full?: string }>;
 }) {
   const { owner, repo } = await params;
-  const sp = await searchParams;
-  const wantsFull = sp.full === "1";
-  const ownerMode = isOwnerModeEnabled();
-  const oauthConfigured = isOAuthConfigured();
-  const { allowed: isOwner, login: signedInAs } = await canViewFull(owner);
 
   let full: FullReport;
   try {
@@ -119,42 +114,16 @@ export default async function ReportPage({
     );
   }
 
-  const showFull = wantsFull && isOwner;
-  const report: PublicReport | FullReport = showFull ? full : toPublicReport(full);
+  const report: FullReport = full;
 
   return (
     <div>
       <p><a href="/">← Scan another repo</a></p>
       <h1>{owner}/{repo}</h1>
 
-      {!showFull && (
-        <div className="banner amber" role="note">
-          <b>Public view — score and counts only.</b> Full detail (file names, line numbers, redacted
-          secret fragments, framework versions, vulnerability IDs) is available to the repo owner only.
-          {oauthConfigured ? (
-            signedInAs ? (
-              <> You are signed in as <b>{signedInAs}</b>, which does not match this repo&apos;s owner. <a href="/api/auth/signout">Sign out</a> to switch accounts.</>
-            ) : (
-              <> Owners: <a href={`/api/auth/signin?callbackUrl=/${owner}/${repo}?full=1`}>sign in with GitHub</a> to view the full detail for this repo.</>
-            )
-          ) : (
-            <> Owner verification is not live yet on this deployment — the GitHub OAuth App is not configured (see README). The full view is available in local/dev owner mode only.</>
-          )}
-        </div>
-      )}
-      {showFull && (
-        <div className="banner green" role="note">
-          <b>Owner view{signedInAs ? <> — signed in as {signedInAs}</> : " (local/dev owner mode)"}.</b>{" "}
-          {ownerMode && !signedInAs
-            ? "This deployment has local/dev owner mode enabled. Production owner verification via GitHub OAuth is still to be wired up — do not treat this banner as proof of ownership."
-            : "Full detail is shown because the signed-in GitHub account matches this repo's owner."}{" "}
-          <a href="/api/auth/signout">Sign out</a>
-        </div>
-      )}
-
       <ScoreCard report={report} />
 
-      {showFull && (
+      {(
         <>
           <div className="card">
             <h2>Leaked secrets ({full.secrets.length})</h2>
@@ -228,8 +197,7 @@ export default async function ReportPage({
           ))}
         </ul>
         <p className="small">
-          API: <a href={`/api/scan/${owner}/${repo}`}>public JSON for this repo</a>
-          <> · <a href={`/${owner}/${repo}?full=1`}>owner view (GitHub sign-in)</a></>
+          API: <a href={`/api/scan/${owner}/${repo}`}>full JSON report for this repo</a> — same detail as this page, no sign-in.
         </p>
       </div>
 

@@ -12,8 +12,11 @@ No install, no config — swap the URL, get a security report.
   Contents read/write on GitSecure only; permissions admin/maintain/push).
 - Domain: git-secure.com — prices Freddy gave: $22 / $10 (recorded as given;
   do NOT buy without a separate explicit go-ahead; start on Vercel subdomain).
-- Report visibility: FULL detail only for the repo owner; everyone else gets
-  just the score and counts. This is a hard design rule for the MVP.
+- Report visibility, FLIPPED (Freddy, 2026-11-25, 3:38 PM MST): the site
+  only scans PUBLIC repos, so the full detail that used to be owner-only
+  now goes to ANYONE who calls — no login flow, no OAuth. Rationale: it is
+  all information already public in the repo. The redaction rule is NOT
+  flipped: a secret is still never shown in full, only a redacted fragment.
 - PHASE 3 DONE 2026-11-25: plain/fluid human flow (loading state, input
   validation, honest API statuses, plain-English pass, mobile 360px clean)
   + MCP server for LLMs (see "Phase 3" sections below). Pushed as
@@ -21,6 +24,11 @@ No install, no config — swap the URL, get a security report.
   and live: home 200 with the MCP section, live scan API 83/B, live MCP
   initialize 200 (gitsecure 0.1.0) and tools/list returns exactly
   scan_repo, get_report, list_checks.
+- PHASE 4 (Freddy, 2026-11-25, ~3:38–3:39 PM MST): full report for
+  EVERYONE (no login flow — owner gate + Auth.js deleted), "Honest
+  limits" section removed from the site, and the HEAD file scan made
+  UNLIMITED — no file-count cap at all (no 250, no 1,000, no 5,000).
+  See "Phase 4 status" below. Redaction rule unchanged.
 - DEPLOYED 2026-11-25 by Freddy: live at https://gitsecure.vercel.app/,
   verified live by Cobalt (home page + live TechDirect scan 83/B, matching
   the local test). Vercel MCP still returns 403 on team scope
@@ -121,7 +129,9 @@ aion-index commit as regression test), deploy on Vercel, iterate.
 
 ## Decisions needed from Freddy (only these — 1 and 2 answered 2026-11-25)
 1. DONE: repo Squ1zM0/GitSecure, domain git-secure.com.
-2. DONE: full detail owner-only; public gets score + counts.
+2. DONE, then FLIPPED (Phase 4, Freddy 2026-11-25): was "full detail
+   owner-only; public gets score + counts" — now everyone gets the full
+   report, no login flow, because the site only scans public repos.
 3. OPEN: Launch: free side tool, or later paid monitoring / alerts / badge?
    (Not a blocker for the MVP — build free.)
 
@@ -131,7 +141,8 @@ aion-index commit as regression test), deploy on Vercel, iterate.
 - **Phase 2 (built and pushed 2026-11-25, commit 870f889f, live on Vercel):**
   full-history clone scanning, Tier 2 frameworks (Go/Ruby/PHP/Java/.NET),
   full OSV advisory detail, real GitHub OAuth owner gate (code complete,
-  credentials pending — see below). Details in "Phase 2 status". LIVE
+  credentials pending — REMOVED in Phase 4, see below). Details in
+  "Phase 2 status". LIVE
   CAVEAT (verified 2026-11-25): the Vercel serverless runtime has no git
   binary, so live scans fall back to API patches of the 5 most recent
   commits and say so in the report; full-history (62 commits on TechDirect)
@@ -236,7 +247,9 @@ No scanner logic, scores, or public/full split changed. TechDirect still
   parameter or any owner-mode flag. Proved by `npm run test:mcp`, which
   scans Squ1zM0/GitSecure (0/F, 6 known-fake findings) over MCP and
   asserts the response contains no file names, line numbers, or secret
-  fragments.
+  fragments. **SUPERSEDED IN PHASE 4:** MCP now returns the full report
+  like the web flow (secrets still redacted); `toPublicReport` is gone
+  and the dogfood score is 1/F — see "Phase 4 status" above.
 - **Human view:** `src/components/McpSection.tsx` — "Use with your AI
   assistant (MCP)". Full version on the home page: MCP server URL
   (https://gitsecure.vercel.app/mcp) plus copyable config snippets for
@@ -273,6 +286,71 @@ No scanner logic, scores, or public/full split changed. TechDirect still
   Dogfood score correction: GitSecure itself is 0/F now, not 3/F — the
   Phase 2 push changed the repo's contents (see dogfooding note above),
   not the scanner.
+
+## Phase 4 status — full report for everyone + unlimited file scan (built 2026-11-25, Freddy's word ~3:38–3:39 PM MST)
+
+- **Visibility flip.** The site only scans public repos, so the full
+  detail that used to be owner-only now goes to ANYONE who calls — no
+  login flow. Scan API `/api/scan/[owner]/[repo]` returns the full
+  report to anyone (no sign-in, no `?full` flag, no owner check); the
+  report page shows the full detail to anyone; MCP `scan_repo` /
+  `get_report` return the full report too. Deleted: `src/lib/auth.ts`,
+  `src/lib/owner.ts`, `src/app/api/auth/[...nextauth]/route.ts`, and the
+  `next-auth` dependency (package.json + package-lock.json re-synced via
+  `npm install`, exit 0, 6 packages removed). `src/lib/types.ts` has one
+  report shape now (`FullReport`); `toPublicReport` is gone. Home "What
+  you see" card rewritten as "What you get"; footer, MCP copy, README
+  and this spec updated. The GitHub OAuth App steps are obsolete and
+  deleted from the README — nobody needs to create one.
+- **"Honest limits" section removed** from the home page and everywhere
+  in the UI (Freddy: "No need for it."). Not moved to a footer or modal.
+  Scan limits live in code comments and developer docs only now (README
+  "Scan limits" section, `src/lib/scan.ts` header).
+- **Unlimited HEAD scan.** Removed `MAX_FILES = 250`, `MAX_FILE_BYTES =
+  200_000`, `MAX_TOTAL_BYTES = 3_000_000` and the `slice(0, MAX_FILES)` —
+  the scan now reads the whole non-skipped tree, manifests and configs
+  first. Binary / dist / node_modules / `.next` skipping stays
+  (generated/vendored paths, not source files — not a cap). GitHub tree
+  pagination: the recursive tree call returns the whole tree in one
+  response (up to 100k entries); a truncated flag is reported honestly.
+  No other numeric file cap remains (grep-verified: no `MAX_FILES`,
+  no `slice(0, N)` on the file list, no "250 files" in the scanner).
+  The 55 s scan timeout inside the 60 s route limit still exists — on
+  timeout the report says how many files had been fetched (live progress
+  tracker in `scan.ts`), never pretending it finished. History caps
+  unchanged (1,000 commits / 50 MB / 45 s).
+- **Tarball read (needed to make unlimited actually complete).** The
+  first unlimited build fetched each file separately from
+  raw.githubusercontent.com — 2,802 fetches took ~120 s at 10-way AND
+  at 40-way concurrency (measured: ~25 requests/s from one client, so
+  concurrency was never the bottleneck), which blew the 55 s route
+  timeout and made the proof-case repo un-scannable live. Fix, same
+  scan, different transport: one tarball download from codeload
+  (`fetchHeadFilesViaTarball` in `src/lib/scan.ts`, minimal tar reader,
+  gunzip via node:zlib, entries never written to disk) — TechDirect's
+  1.7 MB tarball downloads in ~1.4 s and the whole scan is ~12 s.
+  If the tarball is unavailable the scan falls back to per-file fetches
+  and still scans everything, just slower (the report says so in
+  `limits`). The 500 MB tarball download guard is a memory guard with
+  that same fallback, not a scan cap — no file is ever skipped because
+  of it.
+- **Redaction unchanged and re-tested.** Secrets are still fragments
+  only (first 4 chars … last 2), never stored, never live-validated.
+  Proved by `test:scanner` (full-report checks incl. a fragment with a
+  JSON-escaped `"` — compared against the parsed report, not raw JSON),
+  `test:public-full` (fixture scan, no full fake secret), and `test:mcp`
+  (GitSecure dogfood over MCP, no full fake secret).
+- **Verification (2026-11-25):** `npm run build` exit 0 (after clearing
+  a stale `.next` cache that still referenced the deleted auth route);
+  `test:scanner` 56/56 (was 48 — more checks added), `test:history` 9/9,
+  `test:public-full` 32/32 (new, replaces `test:owner-gate`),
+  `test:techdirect` 83/B with filesScanned = 2,802 — the full scannable
+  tree, proved against an independent tree-API count (2,802 in the tree;
+  local scan ~12 s via the tarball path), `test:mcp` 49/49 against a
+  local production server. No literal secret-pattern values committed
+  (grep-verified; fixtures still use `__SECRET_n__` placeholders,
+  test-assembled fakes only). Pushed to main (commit SHA + live checks
+  below once verified).
 
 ## Phase 2 status — built and pushed 2026-11-25, commit 870f889f, live at https://gitsecure.vercel.app/ (verified serving: home 200, live TechDirect scan 200, 83/B)
 - Next.js 16 / React 19 / TypeScript + Auth.js (NextAuth 5.0.0-beta.32,
@@ -324,11 +402,11 @@ No scanner logic, scores, or public/full split changed. TechDirect still
   test). Production default is safe: no env vars → auth routes answer 503
   "not configured", `canViewFull` never calls auth(), full view stays off,
   zero Auth.js errors logged. Gate logic tested with session mocks
-  (`npm run test:owner-gate`, 20 checks). **STILL PENDING: live OAuth
-  credentials** — Freddy must create the GitHub OAuth App (callback
-  https://gitsecure.vercel.app/api/auth/callback/github) and set the four
-  env vars in Vercel; exact steps in README.md. Live sign-in untested
-  until then.
+  (`npm run test:owner-gate`, 20 checks). **REMOVED IN PHASE 4 (Freddy,
+  2026-11-25): the whole gate is deleted — no OAuth App, no sign-in, no
+  owner mode. Everyone gets the full report because the site only scans
+  public repos. The historical record above is what Phase 2 built; it no
+  longer exists in the code.**
 - Live test (`npm run test:techdirect`, Squ1zM0/TechDirect): score 83,
   grade B — UNCHANGED from MVP (0 secrets, 4 vulns, all js-yaml 4.1.1 low
   with fixed versions, 0 frameworks, 2 deps, 3 posture issues, 250 of
@@ -339,22 +417,23 @@ No scanner logic, scores, or public/full split changed. TechDirect still
   `/api/auth/session` → 503 clean "not configured" JSON; home → 200;
   report page → 200 (public view); 0 Auth.js errors in the log. Scan API
   for Squ1zM0/GitSecure → public JSON in 3.7 s, 2 history commits.
-- Dogfooding: scanning Squ1zM0/GitSecure itself returns 0 / F with 6
+- Dogfooding: scanning Squ1zM0/GitSecure itself returns 1 / F with 6
   secret findings — all known-fake (test fixtures that are deliberate
   detector bait, plus the official AWS example key in an old README
   commit, 92c3a49). No real secret. Documented in README.md; the scanner
-  deliberately does not skip test files. (Was 3 / F in the MVP-era note;
-  the Phase 2 push added package-lock.json — 119 deps fingerprinted —
-  Tier 2 fixtures and a fake vite.config.ts, which add framework,
-  dependency and Vite posture deductions plus unpinned deductions. The 6
-  secret findings are unchanged; the change is in the repo's contents,
-  not the scanner. Re-verified 2026-11-25 during Phase 3 Part B.)
-- STUBBED / STILL PENDING: live OAuth credentials (above). History caps
-  remain (1000 commits / 50 MB / 45 s) — a secret in a very old commit of
-  a huge repo can still be missed, and the report says so when a cap hits.
-- Next steps: push Phase 2 to Squ1zM0/GitSecure (main), deploy to Vercel,
-  then Freddy creates the OAuth App + sets the four env vars to switch
-  the full view on for owners.
+  deliberately does not skip test files. (Was 3 / F in the MVP-era note,
+  then 0 / F after the Phase 2 push added package-lock.json — 119 deps
+  fingerprinted — Tier 2 fixtures and a fake vite.config.ts. It is 1 / F
+  now: deductions 76 + 19 + 4 = 99. The 0 / F was measured at remote
+  d6a7e136; the Phase 3 push (5d8da890) changed the repo's contents and
+  the unpinned count. The 6 secret findings are unchanged; the change is
+  in the repo's contents, not the scanner. Re-verified 2026-11-25 in
+  Phase 4.)
+- History caps remain (1000 commits / 50 MB / 45 s) — a secret in a very
+  old commit of a huge repo can still be missed, and the report says so
+  when a cap hits. (The OAuth item above was removed in Phase 4.)
+- Next steps: push Phase 2 to Squ1zM0/GitSecure (main), deploy to Vercel.
+  (The OAuth App step is gone — Phase 4 removed the gate entirely.)
 
 ## MVP status — built 2026-11-25, local only, NOT pushed, NOT deployed
 - Next.js 16 / React 19 / TypeScript, App Router, in ~/workspace/gitsecure/.

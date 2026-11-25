@@ -1,6 +1,9 @@
+// Scan API — returns the FULL report to anyone, no sign-in, no login.
+// Phase 4: the site only scans public repos, so the detail is
+// information already public in the repo. Secrets are still redacted
+// fragments only (see src/lib/scan.ts / redact.ts).
 import { NextResponse } from "next/server";
-import { canViewFull } from "@/lib/owner";
-import { scanRepoWithTimeout, ScanError, toPublicReport } from "@/lib/scan";
+import { scanRepoWithTimeout, ScanError } from "@/lib/scan";
 
 export const maxDuration = 60;
 
@@ -9,15 +12,9 @@ export async function GET(
   ctx: { params: Promise<{ owner: string; repo: string }> },
 ) {
   const { owner, repo } = await ctx.params;
-  const url = new URL(_req.url);
-  const wantsFull = url.searchParams.get("full") === "1";
   try {
     const full = await scanRepoWithTimeout(owner, repo);
-    if (wantsFull) {
-      const { allowed } = await canViewFull(owner);
-      if (allowed) return NextResponse.json(full);
-    }
-    return NextResponse.json(toPublicReport(full));
+    return NextResponse.json(full);
   } catch (err) {
     if (err instanceof ScanError) {
       // 404 repo not found/private, 429 GitHub rate limit, 504 scan

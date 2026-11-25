@@ -1,5 +1,5 @@
 // Alias for the canonical MCP endpoint (/mcp). Same handler, same
-// stateless Streamable HTTP transport, public reports only. Document
+// stateless Streamable HTTP transport, full reports to anyone. Document
 // /mcp as canonical; this alias exists for clients that expect /api/*.
 import { handleMcpRequest } from "@/lib/mcp";
 

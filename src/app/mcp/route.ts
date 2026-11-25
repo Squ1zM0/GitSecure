@@ -1,7 +1,8 @@
 // Canonical MCP endpoint: https://gitsecure.vercel.app/mcp
 // Streamable HTTP transport, stateless (a fresh server + transport per
 // request — no session state, no git binary required). /api/mcp is an
-// alias serving the same handler. Public reports only, always.
+// alias serving the same handler. Full reports to anyone — the site
+// only scans public repos, and there is no login flow.
 import { handleMcpRequest } from "@/lib/mcp";
 
 export const maxDuration = 60;

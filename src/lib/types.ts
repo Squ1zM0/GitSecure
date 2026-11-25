@@ -1,8 +1,9 @@
 // GitSecure report types.
-// Hard rule: a PublicReport contains score + counts ONLY. No file names,
-// no line numbers, no secret fragments, no vulnerability IDs, no framework
-// names/versions. A FullReport adds the detail, and is only served in
-// owner mode (see src/lib/owner.ts).
+// Phase 4: every caller gets the full report — the site only scans
+// public repos, so the detail is information already public in the
+// repo. There is no public-only report shape and no login flow.
+// Hard rule (unchanged): a secret is never shown in full — redacted
+// fragment only, never stored, never live-validated.
 
 export type Severity = "critical" | "high" | "medium" | "low" | "info";
 
@@ -68,8 +69,8 @@ export interface ReportCounts {
   historyCommitsScanned: number;
 }
 
-export interface PublicReport {
-  kind: "public";
+export interface FullReport {
+  kind: "full";
   repo: string;
   owner: string;
   branch: string;
@@ -81,15 +82,9 @@ export interface PublicReport {
   scannedAt: string;
   historyDepth: string;
   limits: string[];
-}
-
-export interface FullReport extends Omit<PublicReport, "kind"> {
-  kind: "full";
   secrets: SecretFinding[];
   frameworks: Framework[];
   dependencies: Dependency[];
   vulnerabilities: Vulnerability[];
   posture: PostureIssue[];
 }
-
-export type AnyReport = PublicReport | FullReport;

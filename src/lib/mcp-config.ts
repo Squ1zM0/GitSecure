@@ -58,4 +58,4 @@ export const MCP_SNIPPETS: McpSnippet[] = [
 
 /** One plain line, used on every human surface that mentions MCP. */
 export const MCP_PLAIN_LINE =
-  "Your AI assistant gets the public score and counts only — never file names, line numbers, or secret details. Full detail stays owner-only in the signed-in web view.";
+  "Your AI assistant gets the full report — score, counts, file names, line numbers, and redacted secret fragments. Secrets are never shown in full, and there is no sign-up or login.";

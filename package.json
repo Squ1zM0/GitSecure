@@ -2,12 +2,11 @@
   "dependencies": {
     "@modelcontextprotocol/sdk": "1.32.2",
     "next": "16.4.6",
-    "next-auth": "^5.0.0-beta.32",
     "react": "19.3.0",
     "react-dom": "19.3.0",
     "zod": "4.3.5"
   },
-  "description": "GitSecure \u2014 swap github.com for git-secure.com and get a security report for a public repo: leaked secrets, framework flaws, dependency vulnerabilities, and posture. Full detail is owner-only.",
+  "description": "GitSecure — swap github.com for git-secure.com and get a security report for a public repo: leaked secrets, framework flaws, dependency vulnerabilities, and posture. Everyone gets the full report — no sign-up, no login.",
   "devDependencies": {
     "@types/node": "^20",
     "@types/react": "^19",
@@ -22,7 +21,7 @@
     "dev": "next dev",
     "start": "next start",
     "test:history": "tsx scripts/test-history.ts",
-    "test:owner-gate": "tsx scripts/test-owner-gate.ts",
+    "test:public-full": "tsx scripts/test-public-full.ts",
     "test:scanner": "tsx scripts/test-scanner.ts",
     "test:techdirect": "tsx scripts/scan-techdirect.ts",
     "test:mcp": "tsx scripts/test-mcp.ts"

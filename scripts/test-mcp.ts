@@ -7,20 +7,24 @@
 // What it checks, against the live server:
 //   1. initialize handshake (client.connect) succeeds
 //   2. tools/list returns scan_repo, get_report, list_checks — and NO tool
-//      accepts a `full` parameter (MCP is public-only, always)
+//      accepts a `full` or `owner` parameter (full detail is the default
+//      for everyone now; there is no gate to opt into)
 //   3. tools/call list_checks returns the plain-English check descriptions
-//   4. tools/call scan_repo Squ1zM0/TechDirect returns the known public
-//      result (83/B, 0 secrets, 4 vulns) — and nothing but the public report
-//   5. tools/call scan_repo Squ1zM0/GitSecure returns 0/F with 6 secrets
-//      counted — and the response contains NO file names, line numbers, or
-//      secret fragments (public-only rule, proved on a repo WITH findings).
-//      NOTE: the repo scored 3/F in the MVP-era dogfood note; it is 0/F
-//      now because the Phase 2 push (remote main d6a7e13) added
-//      package-lock.json (119 deps fingerprinted), Tier 2 fixtures and a
-//      fake vite.config.ts — more deps/frameworks/Vite posture findings
-//      and unpinned deductions. Secrets are still the same 6 known-fake
-//      ones. The change is in the remote repo's contents, not the scanner
-//      (scanner logic untouched, nothing pushed by this task).
+//   4. tools/call scan_repo Squ1zM0/TechDirect returns the known FULL
+//      result (83/B, 0 secrets, 4 vulns) — with the full detail present
+//      (vulnerability IDs, js-yaml, fixed versions)
+//   5. tools/call scan_repo Squ1zM0/GitSecure returns 1/F with 6 secrets
+//      counted — and the response DOES carry the full detail (file names,
+//      line numbers, redacted fragments) while containing NO full fake
+//      secret anywhere (redaction rule, proved on a repo WITH findings).
+//      NOTE: the repo scored 3/F in the MVP era, then 0/F after the
+//      Phase 2 push (remote main d6a7e13) added package-lock.json (119
+//      deps fingerprinted), Tier 2 fixtures and a fake vite.config.ts.
+//      It is 1/F now: deductions are 76 (secrets) + 19 (posture) + 4
+//      (2 unpinned deps) = 99. The 0/F was measured at remote d6a7e136;
+//      the Phase 3 push (5d8da890) changed the repo's contents and the
+//      unpinned count. Secrets are still the same 6 known-fake ones.
+//      The change is in the remote repo's contents, not the scanner.
 //   6. bad owner/repo format and a missing repo return plain-English
 //      errors, never a stack trace
 //   7. the config snippets shown on the human pages are valid JSON
@@ -92,11 +96,14 @@ async function main() {
     const tool = toolsByName.get(name);
     check(`tool ${name} has a plain-English description`, !!tool?.description && tool.description.length > 50, tool?.description ?? "(none)");
   }
-  const noFullParam = listed.tools.every((t) => {
+  // NOTE: `owner` IS a legitimate input (the repo owner's name) — only
+  // a `full` flag would be a gate parameter, and there is none: full
+  // detail is the default for everyone now.
+  const noGateParam = listed.tools.every((t) => {
     const props = (t.inputSchema as { properties?: Record<string, unknown> }).properties ?? {};
     return !("full" in props);
   });
-  check("no tool accepts a `full` parameter (public-only, always)", noFullParam);
+  check("no tool accepts a `full` gate parameter (full detail is the default)", noGateParam);
 
   // 3. list_checks.
   const checks = await client.callTool({ name: "list_checks", arguments: {} });
@@ -105,7 +112,7 @@ async function main() {
   check("list_checks mentions frameworks", /framework/i.test(checksText));
   check("list_checks mentions dependency flaws", /dependency/i.test(checksText));
   check("list_checks mentions posture", /posture/i.test(checksText));
-  check("list_checks states honest limits", /limit/i.test(checksText));
+  check("list_checks states the scan notes", /scan notes/i.test(checksText));
   check("list_checks does not scan (no report JSON / score field)", !checksText.includes('"score"') && !checksText.includes('"counts"'));
 
   // 4. scan_repo TechDirect — known result 83/B, 0 secrets, 4 vulns.
@@ -124,15 +131,16 @@ async function main() {
     tdReport = null;
   }
   check("scan_repo TechDirect returns parseable JSON", tdReport !== null);
-  check("scan_repo TechDirect kind is public", tdReport?.kind === "public", `kind=${tdReport?.kind}`);
+  check("scan_repo TechDirect kind is full", tdReport?.kind === "full", `kind=${tdReport?.kind}`);
   check("scan_repo TechDirect score 83 / grade B", tdReport?.score === 83 && tdReport?.grade === "B", `got ${tdReport?.score}/${tdReport?.grade}`);
   check("scan_repo TechDirect 0 secrets, 4 vulns", tdReport?.counts?.secrets === 0 && tdReport?.counts?.vulnerabilities === 4, JSON.stringify(tdReport?.counts));
   const tdKeys = tdReport ? Object.keys(tdReport) : [];
-  for (const forbidden of ["secrets", "frameworks", "vulnerabilities", "posture", "dependencies"]) {
-    check(`scan_repo TechDirect response has no "${forbidden}" field`, !tdKeys.includes(forbidden));
+  for (const field of ["secrets", "frameworks", "vulnerabilities", "posture", "dependencies"]) {
+    check(`scan_repo TechDirect response HAS the "${field}" field (full detail)`, tdKeys.includes(field));
   }
-  check("scan_repo TechDirect response names no vulnerable package (js-yaml is full detail)", !tdText.includes("js-yaml"));
-  check("scan_repo TechDirect response has no secret fragment field", !tdText.includes("fragment"));
+  check("scan_repo TechDirect response names the vulnerable package (js-yaml)", tdText.includes("js-yaml"));
+  check("scan_repo TechDirect response includes fixed versions", /"fixedVersion"/.test(tdText));
+  check("scan_repo TechDirect scanned the whole tree (>250 files)", (tdReport?.counts?.filesScanned ?? 0) > 250, `filesScanned=${tdReport?.counts?.filesScanned}`);
 
   // 5. scan_repo GitSecure — 3/F, 6 secrets counted; the public-only
   // proof: a repo WITH findings must still leak no file/line/fragment.
@@ -151,15 +159,34 @@ async function main() {
     gsReport = null;
   }
   check("scan_repo GitSecure returns parseable JSON", gsReport !== null);
-  check("scan_repo GitSecure score 0 / grade F (see header note: 3/F was MVP-era, before the Phase 2 push added fixtures + package-lock)", gsReport?.score === 0 && gsReport?.grade === "F", `got ${gsReport?.score}/${gsReport?.grade}`);
+  // Score moved 0 → 1 in Phase 4: the deductions are 76 (secrets: 4 high
+  // + 2 medium) + 19 (posture) + 4 (2 unpinned deps × 2) = 99, so the
+  // score is 1. The 0/F was measured when remote head was d6a7e136
+  // (Phase 2); the Phase 3 push (5d8da890) changed the repo's contents
+  // and the unpinned count, so the total dropped below the 100-point
+  // clamp. The scanner change cannot affect this repo: 53 files, so the
+  // old 250-file cap never bound. 6 secrets counted, unchanged.
+  check("scan_repo GitSecure score 1 / grade F (see note above: 0/F was at remote d6a7e136, before the Phase 3 push)", gsReport?.score === 1 && gsReport?.grade === "F", `got ${gsReport?.score}/${gsReport?.grade}`);
   check("scan_repo GitSecure counts 6 secrets", gsReport?.counts?.secrets === 6, `got ${gsReport?.counts?.secrets}`);
-  check("scan_repo GitSecure kind is public", gsReport?.kind === "public");
-  // The fixture findings live in tests/fixtures and .env files; none of
-  // those paths, and none of the fake secret material, may appear.
-  for (const leaked of ["tests/fixtures", "fake-repo", ".env", "hunter2", "fragment", "line"]) {
-    check(`scan_repo GitSecure response contains no "${leaked}"`, !gsText.includes(leaked), gsText.slice(0, 300));
+  check("scan_repo GitSecure kind is full", gsReport?.kind === "full");
+  // Full detail IS present now: file names, line numbers, fragments.
+  check("scan_repo GitSecure response carries file names (full detail)", gsText.includes("tests/fixtures"));
+  check("scan_repo GitSecure response carries redacted fragments", gsText.includes("fragment"));
+  // But no FULL fake secret may ever appear — the redaction rule is
+  // unchanged. Fake secrets assembled from fragments at runtime (never
+  // literal — GitHub push protection blocks literal secret patterns).
+  const FAKE = "FAKE";
+  const fakeSecrets = [
+    "https://discord.com/api/webhooks/" + "123456789012345678/" + FAKE.repeat(6) + "123456",
+    "AKIA" + "IOSFODNN7EXAMPLE",
+    "ghp_" + FAKE.repeat(8) + "1234",
+    "sk_live_" + FAKE.repeat(6) + "12",
+    "sk-proj-" + FAKE.repeat(7),
+    "hunter2hunter2",
+  ];
+  for (const secret of fakeSecrets) {
+    check(`scan_repo GitSecure response contains no full fake secret (${secret.slice(0, 18)}…)`, !gsText.includes(secret));
   }
-  check("scan_repo GitSecure response contains no file path with a line number (file:line)", !/[\w./-]+\.(ts|js|json|env|txt):\d+/.test(gsText));
 
   // 5b. get_report returns the same public shape.
   const gr = await client.callTool(
@@ -173,7 +200,7 @@ async function main() {
   } catch {
     grReport = null;
   }
-  check("get_report TechDirect returns the public report (83/B)", !gr.isError && grReport?.kind === "public" && grReport?.score === 83 && grReport?.grade === "B", toolText(gr).slice(0, 200));
+  check("get_report TechDirect returns the full report (83/B)", !gr.isError && grReport?.kind === "full" && grReport?.score === 83 && grReport?.grade === "B", toolText(gr).slice(0, 200));
 
   // 6. Plain-English errors, never a stack trace.
   const bad = await client.callTool({ name: "scan_repo", arguments: { owner: "bad owner!", repo: "x" } });
