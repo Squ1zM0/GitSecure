@@ -93,7 +93,7 @@ npm run test:techdirect  # live scan of the real public repo Squ1zM0/TechDirect
 ```
 
 The fixture uses invented credentials only (including the official AWS example
-key `AKIAIOSFODNN7EXAMPLE`). Never put a real leaked secret in a test.
+key, assembled in memory by the test from fragments). Never put a real leaked secret in a test, and never commit a literal secret-pattern value, even a fake one: GitHub push protection blocks those on push.
 
 ## Tech
 
