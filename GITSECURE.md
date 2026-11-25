@@ -14,6 +14,13 @@ No install, no config — swap the URL, get a security report.
   do NOT buy without a separate explicit go-ahead; start on Vercel subdomain).
 - Report visibility: FULL detail only for the repo owner; everyone else gets
   just the score and counts. This is a hard design rule for the MVP.
+- PHASE 3 DONE 2026-11-25: plain/fluid human flow (loading state, input
+  validation, honest API statuses, plain-English pass, mobile 360px clean)
+  + MCP server for LLMs (see "Phase 3" sections below). Pushed as
+  1a0387ea7b16530383059047aaa8cbcb4a70dd31 (59 files), verified by read-back
+  and live: home 200 with the MCP section, live scan API 83/B, live MCP
+  initialize 200 (gitsecure 0.1.0) and tools/list returns exactly
+  scan_repo, get_report, list_checks.
 - DEPLOYED 2026-11-25 by Freddy: live at https://gitsecure.vercel.app/,
   verified live by Cobalt (home page + live TechDirect scan 83/B, matching
   the local test). Vercel MCP still returns 403 on team scope
@@ -134,7 +141,7 @@ aion-index commit as regression test), deploy on Vercel, iterate.
 - V1: + dependencies, workflows, posture checks.
 - V2: stack watch / alerts, GitHub App, private repos, CI badge.
 
-## Phase 3 Part A — functionality polish (built 2026-11-25, NOT pushed, NOT deployed)
+## Phase 3 Part A — functionality polish (built 2026-11-25, pushed + live 2026-11-25 as commit 1a0387ea)
 
 Polish only — no scanner logic, scores, or public/full split changed.
 TechDirect still 83/B, verified locally and on the production server.
@@ -196,7 +203,7 @@ TechDirect still 83/B, verified locally and on the production server.
   400. No literal secret-pattern values committed (fixtures still use
   `__SECRET_n__` placeholders; test-assembled fakes only).
 
-## Phase 3 Part B — MCP server for LLMs (built 2026-11-25, NOT pushed, NOT deployed)
+## Phase 3 Part B — MCP server for LLMs (built 2026-11-25, pushed + live 2026-11-25 as commit 1a0387ea)
 
 No scanner logic, scores, or public/full split changed. TechDirect still
 83/B, verified locally and over MCP.
