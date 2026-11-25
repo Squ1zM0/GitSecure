@@ -1,5 +1,7 @@
 import { canViewFull, isOAuthConfigured, isOwnerModeEnabled } from "@/lib/owner";
-import { scanRepo, toPublicReport } from "@/lib/scan";
+import { scanRepoWithTimeout, ScanError, toPublicReport } from "@/lib/scan";
+import { explainScore } from "@/lib/score";
+import McpSection from "@/components/McpSection";
 import type { FullReport, PublicReport } from "@/lib/types";
 
 // Scan-on-demand page: never prerendered — each visit runs a live scan.
@@ -19,6 +21,15 @@ function ScoreCard({ report }: { report: PublicReport | FullReport }) {
         </div>
       </div>
       <p>{report.summary}</p>
+      <p>
+        {explainScore({
+          score: report.score,
+          grade: report.grade,
+          secrets: report.counts.secrets,
+          vulnerabilities: report.counts.vulnerabilities,
+          postureIssues: report.counts.postureIssues,
+        })}
+      </p>
       <div className="counts">
         <div className="count"><b>{report.counts.secrets}</b><span>possible leaked secrets</span></div>
         <div className="count"><b>{report.counts.vulnerabilities}</b><span>dependency vulnerabilities</span></div>
@@ -27,9 +38,54 @@ function ScoreCard({ report }: { report: PublicReport | FullReport }) {
         <div className="count"><b>{report.counts.postureIssues}</b><span>posture issues</span></div>
         <div className="count"><b>{report.counts.filesScanned}</b><span>files scanned</span></div>
       </div>
-      <p className="small">Scanned {new Date(report.scannedAt).toLocaleString()} · History: {report.historyDepth}</p>
+      <p className="small">
+        Scanned {new Date(report.scannedAt).toLocaleString()} · History checked: {report.counts.historyCommitsScanned} commit{report.counts.historyCommitsScanned === 1 ? "" : "s"}, newest first.
+      </p>
     </div>
   );
+}
+
+/** Plain-English message for each way a scan can fail. The API carries
+ *  the matching HTTP status; this page shows the same words. */
+function errorCopy(err: unknown, owner: string, repo: string): { title: string; body: string } {
+  if (err instanceof ScanError) {
+    switch (err.kind) {
+      case "not-found":
+        return {
+          title: `Couldn't find ${owner}/${repo}`,
+          body: "We couldn't find that repo on GitHub, or it is private. GitSecure only scans public repos — check the spelling of the owner and repo names, and make sure the repo is public.",
+        };
+      case "private":
+        return {
+          title: `${owner}/${repo} is private`,
+          body: "That repo is private, and GitSecure only scans public repos.",
+        };
+      case "rate-limit":
+        return {
+          title: "GitHub's request limit was hit",
+          body: "Too many requests went to GitHub at once, so this scan couldn't run right now. Please try again in a few minutes.",
+        };
+      case "timeout":
+        return {
+          title: "The scan took too long",
+          body: "The scan was stopped because it ran past the time limit. Very large repos can take a while — try again, or try a smaller repo.",
+        };
+      case "bad-format":
+        return {
+          title: "That doesn't look like a valid repo",
+          body: "Owner and repo names can only use letters, numbers, dots, hyphens and underscores — check for typos or extra characters.",
+        };
+      default:
+        return {
+          title: `Couldn't scan ${owner}/${repo}`,
+          body: "GitHub didn't answer as expected. Try again in a bit.",
+        };
+    }
+  }
+  return {
+    title: `Couldn't scan ${owner}/${repo}`,
+    body: "Something went wrong on our side. Try again in a bit.",
+  };
 }
 
 export default async function ReportPage({
@@ -48,14 +104,16 @@ export default async function ReportPage({
 
   let full: FullReport;
   try {
-    full = await scanRepo(owner, repo);
+    full = await scanRepoWithTimeout(owner, repo);
   } catch (err) {
+    const { title, body } = errorCopy(err, owner, repo);
     return (
       <div>
-        <h1>Couldn&apos;t scan {owner}/{repo}</h1>
+        <p><a href="/">← Scan another repo</a></p>
+        <h1>{title}</h1>
         <div className="card">
-          <p>{err instanceof Error ? err.message : "Scan failed."}</p>
-          <p className="muted">Check the owner and repo names, and that the repo is public. <a href="/">Try another repo</a></p>
+          <p>{body}</p>
+          <p><a className="button-link" href="/">Scan another repo</a></p>
         </div>
       </div>
     );
@@ -66,6 +124,7 @@ export default async function ReportPage({
 
   return (
     <div>
+      <p><a href="/">← Scan another repo</a></p>
       <h1>{owner}/{repo}</h1>
 
       {!showFull && (
@@ -137,7 +196,6 @@ export default async function ReportPage({
               full.vulnerabilities.map((v) => (
                 <div className="finding" key={`${v.id}-${v.packageName}`}>
                   <p><span className={`pill ${v.severity}`}>{v.severity}</span><b>{v.id}</b> — {v.packageName} {v.installedVersion ?? ""}</p>
-                  <p>{v.summary}</p>
                   <p>{v.plainEnglish}</p>
                   <p><b>Fix:</b> {v.upgrade}</p>
                 </div>
@@ -174,6 +232,10 @@ export default async function ReportPage({
           <> · <a href={`/${owner}/${repo}?full=1`}>owner view (GitHub sign-in)</a></>
         </p>
       </div>
+
+      <McpSection compact />
+
+      <p><a className="button-link" href="/">Scan another repo</a></p>
     </div>
   );
 }

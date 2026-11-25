@@ -32,6 +32,58 @@ const MAX_FILE_BYTES = 200_000;
 const MAX_TOTAL_BYTES = 3_000_000;
 const HISTORY_COMMITS = 5;
 
+/** Error kind a scan can fail with, mapped to an honest HTTP status.
+ *  The report page and the scan API both render from `kind` + `message`,
+ *  so a failed scan says plainly what happened instead of a bare 404. */
+export type ScanErrorKind = "not-found" | "private" | "rate-limit" | "timeout" | "bad-format" | "upstream";
+export class ScanError extends Error {
+  readonly status: number;
+  readonly kind: ScanErrorKind;
+  constructor(status: number, kind: ScanErrorKind, message: string) {
+    super(message);
+    this.status = status;
+    this.kind = kind;
+  }
+}
+
+/** Owner/repo names on GitHub: letters, numbers, dots, hyphens,
+ *  underscores. Anything else is a typo or a pasted URL that was not
+ *  cleaned up — fail fast with a 400 instead of burning a scan on it. */
+const NAME_RE = /^[A-Za-z0-9_.-]+$/;
+export function validateOwnerRepo(owner: string, repo: string): void {
+  for (const [label, value] of [["owner", owner], ["repo", repo]] as const) {
+    if (!value || value === "." || value === ".." || !NAME_RE.test(value)) {
+      throw new ScanError(
+        400,
+        "bad-format",
+        `That doesn't look like a valid ${label} name. Owner and repo names can only use letters, numbers, dots, hyphens and underscores — check for typos or extra characters.`,
+      );
+    }
+  }
+}
+
+/** Whole-scan safety net: the route/page limit is 60 s, so stop at 55 s
+ *  with an honest 504 instead of letting the platform kill the request
+ *  with a generic error. The underlying scan keeps running in the
+ *  background; nothing is stored either way. */
+export const SCAN_TIMEOUT_MS = 55_000;
+export async function scanRepoWithTimeout(owner: string, repo: string): Promise<FullReport> {
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  try {
+    return await Promise.race([
+      scanRepo(owner, repo),
+      new Promise<FullReport>((_resolve, reject) => {
+        timer = setTimeout(
+          () => reject(new ScanError(504, "timeout", "The scan took too long (over 55 seconds) and was stopped. Very large repos can take a while — try again, or try a smaller repo.")),
+          SCAN_TIMEOUT_MS,
+        );
+      }),
+    ]);
+  } finally {
+    if (timer) clearTimeout(timer);
+  }
+}
+
 function ghHeaders(): Record<string, string> {
   const headers: Record<string, string> = { Accept: "application/vnd.github+json", "User-Agent": "GitSecure/0.1" };
   if (process.env.GITHUB_TOKEN) headers.Authorization = `Bearer ${process.env.GITHUB_TOKEN}`;
@@ -43,10 +95,19 @@ async function ghJson<T>(url: string): Promise<T> {
   const timer = setTimeout(() => controller.abort(), 12000);
   try {
     const res = await fetch(url, { headers: ghHeaders(), signal: controller.signal, cache: "no-store" });
-    if (res.status === 404) throw new Error("Repository not found (or it is private). GitSecure scans public repos only.");
-    if (res.status === 403) throw new Error("GitHub API rate limit reached. Try again later — a GITHUB_TOKEN raises the limit.");
-    if (!res.ok) throw new Error(`GitHub API error (${res.status}).`);
+    if (res.status === 404) throw new ScanError(404, "not-found", "Repository not found (or it is private). GitSecure scans public repos only.");
+    if (res.status === 429 || (res.status === 403 && res.headers.get("x-ratelimit-remaining") === "0")) {
+      throw new ScanError(429, "rate-limit", "GitHub's request limit was hit, so this scan couldn't run right now. Please try again in a few minutes.");
+    }
+    if (res.status === 403) throw new ScanError(502, "upstream", "GitHub refused the request (403). The repo may be blocked or temporarily unavailable — try again later.");
+    if (!res.ok) throw new ScanError(502, "upstream", `GitHub answered with an unexpected error (${res.status}). Try again in a bit.`);
     return (await res.json()) as T;
+  } catch (err) {
+    if (err instanceof ScanError) throw err;
+    if (err instanceof Error && err.name === "AbortError") {
+      throw new ScanError(504, "timeout", "GitHub took too long to answer. Try again.");
+    }
+    throw new ScanError(502, "upstream", "GitHub couldn't be reached. Try again in a bit.");
   } finally {
     clearTimeout(timer);
   }
@@ -119,9 +180,10 @@ async function fetchHeadFiles(
 }
 
 export async function scanRepo(owner: string, repo: string, options: ScanOptions = {}): Promise<FullReport> {
+  validateOwnerRepo(owner, repo);
   const historyCount = options.historyCommits ?? HISTORY_COMMITS;
   const repoInfo = await ghJson<{ default_branch: string; description: string | null; private: boolean }>(`${GH_API}/repos/${owner}/${repo}`);
-  if (repoInfo.private) throw new Error("This repository is private. GitSecure scans public repos only.");
+  if (repoInfo.private) throw new ScanError(404, "private", "This repository is private. GitSecure scans public repos only.");
   const branch = repoInfo.default_branch || "main";
 
   // Start the history clone NOW so it runs concurrently with the HEAD
@@ -269,7 +331,7 @@ export async function scanRepo(owner: string, repo: string, options: ScanOptions
     posture.push({ id: `vite-${v.title.toLowerCase().replace(/[^a-z0-9]+/g, "-")}`, title: v.title, severity: v.severity, detail: v.detail, fix: v.title.includes("VITE_") ? "Move real secrets out of VITE_ variables — use server-side secrets instead." : "Restrict the dev server to localhost and review the plugins you install." });
   }
   if (osvUnavailable) {
-    posture.push({ id: "osv-unavailable", title: "Dependency check unavailable", severity: "info", detail: "OSV.dev could not be reached, so dependency vulnerabilities could not be checked in this scan.", fix: "Re-run the scan later." });
+    posture.push({ id: "osv-unavailable", title: "Dependency check unavailable", severity: "info", detail: "The public flaw database (OSV.dev) could not be reached, so dependency vulnerabilities could not be checked in this scan.", fix: "Re-run the scan later." });
   }
 
   const { score, grade } = computeScore({ secrets: dedupedSecrets, vulnerabilities, posture, unpinnedCount });
@@ -278,8 +340,8 @@ export async function scanRepo(owner: string, repo: string, options: ScanOptions
   else limits.push(`History scan took ${(historyMs / 1000).toFixed(1)}s (clone path unavailable; API fallback scanned ${historyScanned} commits).`);
   if (historyNote) limits.push(historyNote);
   if (secretOverflow > 0) limits.push(`Secret findings capped at 100 in this report — ${secretOverflow} more were found.`);
-  if (advisoriesFound > vulnerabilities.length) limits.push(`OSV returned ${advisoriesFound} advisories; ${vulnerabilities.length} listed (cap 100 per scan).`);
-  if (detailCapped > 0) limits.push(`Full advisory detail (summary, CVSS, fixed version) fetched for ${vulnerabilities.length - detailCapped} of ${vulnerabilities.length} listed advisories; ${detailCapped} listed with advisory ID only (detail cap 50 per scan).`);
+  if (advisoriesFound > vulnerabilities.length) limits.push(`The flaw database (OSV.dev) returned ${advisoriesFound} advisories; ${vulnerabilities.length} listed (cap 100 per scan).`);
+  if (detailCapped > 0) limits.push(`Full advisory detail (a plain summary, a severity score, and the version that fixes it) fetched for ${vulnerabilities.length - detailCapped} of ${vulnerabilities.length} listed advisories; ${detailCapped} listed with advisory ID only (detail cap 50 per scan).`);
   if (tree.truncated) limits.push("GitHub returned a truncated file tree — some files were not scanned.");
   if (allFiles.length > MAX_FILES) limits.push(`File cap reached: scanned ${files.size} of ${allFiles.length} files (manifests and configs first).`);
 

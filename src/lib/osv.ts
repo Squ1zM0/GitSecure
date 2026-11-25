@@ -110,7 +110,13 @@ export async function checkDependencies(deps: Dependency[]): Promise<{ vulnerabi
         fixedVersion: fixed,
         severity,
         summary: summary ? summary.slice(0, 300) : `A known vulnerability (${id}) affects this package version. Full detail was not fetched for this advisory — see osv.dev/vulnerability/${id}.`,
-        plainEnglish: `${dep.name} ${dep.version ?? ""} has a known security flaw (${id}). ${fixed ? `Upgrade to ${fixed} or later to fix it.` : "No fixed version was listed in the detail fetched — check the advisory before upgrading."}`,
+        // Plain English, one line: what the flaw is (in the advisory's own
+        // words), what it lets an attacker do, and what to upgrade to.
+        // The advisory summary is the human-written description; the fix
+        // line is ours. Keep it to one sentence of summary + the upgrade.
+        plainEnglish: summary
+          ? `${summary.endsWith(".") ? summary : `${summary}.`} This affects ${dep.name} ${dep.version ?? ""}. ${fixed ? `Upgrade to ${fixed} or later to fix it.` : "No fixed version was listed in the detail fetched — check the advisory before upgrading."}`
+          : `${dep.name} ${dep.version ?? ""} has a known security flaw (${id}). ${fixed ? `Upgrade to ${fixed} or later to fix it.` : "No fixed version was listed in the detail fetched — check the advisory before upgrading."}`,
         upgrade: fixed ? `Upgrade ${dep.name} to ${fixed} or later.` : `Check advisory ${id} for ${dep.name} and upgrade to a patched version.`,
       };
     });

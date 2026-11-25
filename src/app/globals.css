@@ -8,7 +8,7 @@ a { color: var(--accent); }
 .container { max-width: 860px; margin: 0 auto; padding: 20px 16px 40px; }
 .footer { max-width: 860px; margin: 0 auto; padding: 0 16px 32px; color: var(--muted); font-size: 13px; }
 .card { background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 18px; margin: 14px 0; }
-h1 { font-size: 30px; line-height: 1.2; margin: 8px 0; }
+h1 { font-size: 30px; line-height: 1.2; margin: 8px 0; overflow-wrap: anywhere; }
 h2 { font-size: 20px; margin: 6px 0 10px; }
 h3 { font-size: 16px; margin: 14px 0 6px; }
 p { margin: 8px 0; }
@@ -17,6 +17,8 @@ p { margin: 8px 0; }
 form.scan-form { display: flex; gap: 8px; flex-wrap: wrap; margin: 16px 0; }
 input[type="text"] { flex: 1 1 220px; padding: 12px; font-size: 16px; border: 1px solid #999; border-radius: 8px; background: #fff; color: #111; }
 button { padding: 12px 18px; font-size: 16px; font-weight: 700; border: 0; border-radius: 8px; background: var(--accent); color: #fff; cursor: pointer; }
+button:disabled { opacity: 0.6; cursor: default; }
+a.button-link { display: inline-block; padding: 12px 18px; font-size: 16px; font-weight: 700; border-radius: 8px; background: var(--accent); color: #fff; text-decoration: none; }
 button.secondary { background: #eee; color: #111; border: 1px solid var(--line); }
 .score-row { display: flex; gap: 16px; align-items: center; flex-wrap: wrap; }
 .score { font-size: 56px; font-weight: 800; line-height: 1; }
@@ -40,4 +42,7 @@ ul { padding-left: 20px; }
 li { margin: 6px 0; }
 .url-example { background: #111; color: #d8ffd8; padding: 12px; border-radius: 8px; overflow-x: auto; font-size: 14px; }
 .url-example s { color: #f0a0a0; text-decoration: line-through; }
+.snippet pre { background: #111; color: #d8ffd8; padding: 12px; border-radius: 8px; overflow-x: auto; font-size: 13px; margin: 6px 0 14px; white-space: pre; }
+.copy-row { display: flex; gap: 10px; align-items: center; justify-content: space-between; flex-wrap: wrap; }
+button.copy-btn { padding: 6px 12px; font-size: 13px; }
 @media (max-width: 560px) { h1 { font-size: 25px; } .score { font-size: 46px; } }

@@ -134,6 +134,139 @@ aion-index commit as regression test), deploy on Vercel, iterate.
 - V1: + dependencies, workflows, posture checks.
 - V2: stack watch / alerts, GitHub App, private repos, CI badge.
 
+## Phase 3 Part A — functionality polish (built 2026-11-25, NOT pushed, NOT deployed)
+
+Polish only — no scanner logic, scores, or public/full split changed.
+TechDirect still 83/B, verified locally and on the production server.
+
+- **Loading state** (`src/app/[owner]/[repo]/loading.tsx`): streams instantly
+  while the ~15 s live scan runs — "Scanning the repo… Checking files…
+  then the full history, then dependencies for known flaws." Report-page
+  time-to-first-byte on the production server fell from ~22 s to ~0.05 s
+  (full page still ~15 s). Static progress text describing the steps in
+  order, not a live per-step indicator — the scan is one server-side job.
+- **Home form** (`src/app/page.tsx`): button disables and reads "Scanning…"
+  while navigating; pasted github.com / git-secure.com URLs accepted with
+  any trailing path (`/tree/main`, `/issues/…`, trailing slash, `.git`);
+  owner/repo validated to letters, numbers, dots, hyphens, underscores with
+  a plain-English error; empty input gets a helpful message. Parse logic
+  covered by 16 cases run against the exact shipped function
+  (all pass; script in /tmp/test-parseinput.ts, ephemeral). Client flow
+  also verified in a real headless browser: pasting
+  `https://github.com/Squ1zM0/TechDirect/tree/main` navigated to
+  `/Squ1zM0/TechDirect` with the button showing "Scanning…".
+- **Honest scan errors** (`ScanError` in `src/lib/scan.ts`, kind + HTTP
+  status): 400 bad owner/repo format (validated before any GitHub call),
+  404 repo not found or private, 429 GitHub rate limit (GitHub 429, or 403
+  with `x-ratelimit-remaining: 0`; other 403s are 502), 504 scan timeout
+  (55 s race inside the 60 s route limit; GitHub fetch timeouts also map
+  to 504), 502 GitHub upstream error, 500 unknown. The scan API returns
+  the status; the report page shows the matching plain-English message
+  with a "Scan another repo" action. Caveat: the report *page* itself
+  still returns HTTP 200 for a failed scan — Next.js App Router pages
+  cannot set a response status; only the API carries the honest status.
+- **Report page**: "Scan another repo" link at the top and a button at the
+  bottom; the technical history-depth string is now plain English under
+  the score ("History checked: 62 commits, newest first" — full limits
+  list below unchanged); one plain line explains the score and what would
+  raise it (`explainScore` in `src/lib/score.ts`, e.g. "83 out of 100
+  (grade B) is a good score. Most of the points lost come from 4 known
+  flaws in dependencies — upgrading the affected packages would raise
+  the score.").
+- **Plain English**: "CVSS" and "OSV.dev" explained in plain words on
+  first use everywhere in the human UI ("a free public database of known
+  software flaws", "a severity score"); the only remaining "CVSS" is a
+  code comment in `src/lib/osv.ts`. Vulnerability lines now read as one
+  plain sentence — what the flaw is, what it affects, and what to upgrade
+  to (advisory summary folded into `plainEnglish` in `src/lib/osv.ts`;
+  the report page no longer renders the summary twice). "Honest limits
+  (Phase 2)" renamed to "Honest limits" (home page + README).
+- **Rate limit (429)**: NOT triggerable safely in testing (would need
+  burning the unauthenticated quota); the 429 path is code-reviewed only.
+- **Mobile (360 px)**: verified with a real headless-Chromium render of
+  the production server (home, loading, report, error pages):
+  `scrollWidth` 360 = viewport 360, zero overflowing elements, text
+  readable, input full-width with button stacked below, counts in a clean
+  two-column grid. Screenshots in /tmp (ephemeral).
+- **Verification (2026-11-25)**: `npm run build` exit 0;
+  `test:scanner` 48/48, `test:history` 9/9, `test:owner-gate` 20/20,
+  `test:techdirect` 83/B (62 history commits, ~15 s). Production server
+  (`npm start`) checked by curl: home 200, TechDirect report 200
+  (TTFB 0.05 s), scan API 200 (83/B), not-found API 404, bad-format API
+  400. No literal secret-pattern values committed (fixtures still use
+  `__SECRET_n__` placeholders; test-assembled fakes only).
+
+## Phase 3 Part B — MCP server for LLMs (built 2026-11-25, NOT pushed, NOT deployed)
+
+No scanner logic, scores, or public/full split changed. TechDirect still
+83/B, verified locally and over MCP.
+
+- **Endpoint:** `/mcp` (canonical) + `/api/mcp` (alias) — Next.js App
+  Router routes (`src/app/mcp/route.ts`, `src/app/api/mcp/route.ts`,
+  handler in `src/lib/mcp.ts`). Official MCP TypeScript SDK
+  `@modelcontextprotocol/sdk` **1.32.2** (exact pin in package.json, no
+  caret, no "latest") + `zod` 4.3.5, Streamable HTTP transport via the
+  SDK's `WebStandardStreamableHTTPServerTransport` (web-standard
+  Request/Response, fits App Router). Stateless: a fresh McpServer +
+  transport per request (`sessionIdGenerator: undefined`), JSON responses
+  (`enableJsonResponse: true`) so a ~15 s scan comes back as one
+  response; no in-memory session state, no git binary required (the scan
+  path already falls back to API patches when git is unavailable). Routes
+  export only `maxDuration = 60` — Next 16 with `cacheComponents`
+  rejects the `runtime` and `dynamic` route segment configs (build
+  failed twice on those before they were removed).
+- **Tools:** `scan_repo` (owner, repo — live scan, public report),
+  `get_report` (owner, repo — same public report; a fresh live scan each
+  time, documented as read/refresh — GitSecure never stores reports),
+  `list_checks` (no args — the four checks in plain English plus the
+  honest limits). Descriptions say when to use each, what it returns,
+  and what it does NOT return. Input schemas validate owner/repo with
+  the same rules as the site (letters/numbers/dots/hyphens/underscores);
+  bad input, missing/private repos, and rate limits return
+  plain-English errors, never a stack trace.
+- **HARD RULE — MCP returns PUBLIC reports only, always:** every MCP
+  response goes through `toPublicReport`. No tool accepts a `full`
+  parameter or any owner-mode flag. Proved by `npm run test:mcp`, which
+  scans Squ1zM0/GitSecure (0/F, 6 known-fake findings) over MCP and
+  asserts the response contains no file names, line numbers, or secret
+  fragments.
+- **Human view:** `src/components/McpSection.tsx` — "Use with your AI
+  assistant (MCP)". Full version on the home page: MCP server URL
+  (https://gitsecure.vercel.app/mcp) plus copyable config snippets for
+  Claude, Cursor, VS Code, and Windsurf/Cline (snippets in
+  `src/lib/mcp-config.ts`, all valid JSON — the test parses each one),
+  plus one plain line explaining the LLM gets the public score and
+  counts only, never full detail. Compact version on the report page:
+  URL + Claude snippet + link to the home page for the rest. Copy
+  buttons use `navigator.clipboard` with a textarea fallback and a
+  "Copied" state. Verified in the rendered production HTML: 5 copy
+  buttons on home, 2 on the report page.
+- **Test** (`scripts/test-mcp.ts`, `npm run test:mcp`): uses the SDK's
+  own Client + StreamableHTTPClientTransport against a running local
+  production server (`npm run build` + `npm start`; `MCP_BASE_URL`
+  overrides the server). Real protocol handshake (initialize),
+  tools/list, live `scan_repo` calls. 49 checks, all passing
+  2026-11-25: TechDirect 83/B (0 secrets, 4 vulns, public-only fields
+  absent, no `js-yaml` package name), GitSecure 0/F (6 secrets counted,
+  no file names / line numbers / fragments), `get_report` TechDirect
+  83/B, bad format + missing repo plain-English errors with no stack
+  trace, all four snippets valid JSON, plain GET /mcp refused with a
+  4xx (406 without an SSE Accept header — stateless, no stream held).
+  Raw curl initialize on both `/mcp` and `/api/mcp` returns 200.
+- **Verification (2026-11-25):** `npm run build` exit 0;
+  `test:scanner` 48/48, `test:history` 9/9, `test:owner-gate` 20/20,
+  `test:techdirect` 83/B (62 history commits, ~15 s), `test:mcp` 49/49.
+  No literal secret-pattern values committed (fixtures still use
+  `__SECRET_n__` placeholders; test-assembled fakes only).
+- **Limits that remain:** a scan over MCP takes the same ~15 s as on the
+  web (one JSON response, no streaming progress); the MCP client timeout
+  in the test is 120 s. A GET that asks for `text/event-stream` opens a
+  standalone SSE stream the transport holds open — MCP clients use POST,
+  so this is not probed in the test (a probe hung until killed).
+  Dogfood score correction: GitSecure itself is 0/F now, not 3/F — the
+  Phase 2 push changed the repo's contents (see dogfooding note above),
+  not the scanner.
+
 ## Phase 2 status — built and pushed 2026-11-25, commit 870f889f, live at https://gitsecure.vercel.app/ (verified serving: home 200, live TechDirect scan 200, 83/B)
 - Next.js 16 / React 19 / TypeScript + Auth.js (NextAuth 5.0.0-beta.32,
   GitHub provider), in ~/workspace/gitsecure/.
@@ -199,11 +332,16 @@ aion-index commit as regression test), deploy on Vercel, iterate.
   `/api/auth/session` → 503 clean "not configured" JSON; home → 200;
   report page → 200 (public view); 0 Auth.js errors in the log. Scan API
   for Squ1zM0/GitSecure → public JSON in 3.7 s, 2 history commits.
-- Dogfooding: scanning Squ1zM0/GitSecure itself returns 3 / F with 6
+- Dogfooding: scanning Squ1zM0/GitSecure itself returns 0 / F with 6
   secret findings — all known-fake (test fixtures that are deliberate
   detector bait, plus the official AWS example key in an old README
   commit, 92c3a49). No real secret. Documented in README.md; the scanner
-  deliberately does not skip test files.
+  deliberately does not skip test files. (Was 3 / F in the MVP-era note;
+  the Phase 2 push added package-lock.json — 119 deps fingerprinted —
+  Tier 2 fixtures and a fake vite.config.ts, which add framework,
+  dependency and Vite posture deductions plus unpinned deductions. The 6
+  secret findings are unchanged; the change is in the repo's contents,
+  not the scanner. Re-verified 2026-11-25 during Phase 3 Part B.)
 - STUBBED / STILL PENDING: live OAuth credentials (above). History caps
   remain (1000 commits / 50 MB / 45 s) — a secret in a very old commit of
   a huge repo can still be missed, and the report says so when a cap hits.
