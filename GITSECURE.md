@@ -1295,13 +1295,13 @@ spider web.
   3 dead ends, 0 in use. MCP dogfood counts updated 22 → 32 (history
   grew to 25 commits; Phase 11 added new fake-secret fixtures —
   same pattern as Phases 5/10, reason recorded in test-mcp.ts).
-- **Live verification (2026-11-26, after <COMMIT>):** home 200; live
+- **Live verification (2026-11-26, after d0306925):** home 200; live
   TechDirect 83/B, 0 secrets, 4 vulns, 2,802 files, 62/62 history;
-  live GitSecure self-scan 0/F, 32 secrets, all 32 likely-test-key —
-  the likely-test section is clickable and separate, dead-end findings
-  labelled, in-use findings show their track in the map; MCP
-  initialize 200, tools/list shows `scan_repo`, `get_report`,
-  `resume_scan`, `list_checks`.
+  live GitSecure self-scan 0/F, 34 secrets, 32 likely-test-key, 2
+  uncertain, 0 likely-genuine-leak — the likely-test section is
+  clickable and separate, dead-end findings labelled, in-use findings
+  show their track in the map; MCP initialize 200, tools/list shows
+  `scan_repo`, `get_report`, `resume_scan`, `list_checks`.
 
 ## Phase 2 status — built and pushed 2026-11-25, commit 870f889f, live at https://gitsecure.vercel.app/ (verified serving: home 200, live TechDirect scan 200, 83/B)
 - Next.js 16 / React 19 / TypeScript + Auth.js (NextAuth 5.0.0-beta.32,
