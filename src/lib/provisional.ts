@@ -51,6 +51,13 @@ export function buildProvisionalReport(
     "Dependency flaws are still being checked — no vulnerability count yet.",
     "Public repos only. No secret is ever stored, logged, or shown in full.",
   ];
+  // Phase 11: usage is plain data on the finding, so passing it
+  // through needs no import — and the history-only note is a pure
+  // data check on the rendered findings, so this file stays
+  // client-safe (no triage import).
+  if (secrets.some((f) => f.usage?.historyOnly === true)) {
+    limits.push("For secrets found in history, usage (whether anything still references the key) was checked against the current files only — the old commit's files are gone, so a reference that existed then but not now is not counted.");
+  }
   if (head.treeTruncated) {
     limits.push("GitHub returned a truncated file tree — some files were not scanned. The tree was too large for GitHub to return in one response.");
   }

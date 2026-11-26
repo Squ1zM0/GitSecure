@@ -40,11 +40,20 @@
 //     -> likely-genuine-leak (a specific credential pattern with
 //     nothing suggesting a test is most likely real).
 //   otherwise -> uncertain (keeps detector severity, says so).
+//
+// Phase 11 — usage feedback (see usage.ts): after the verdict above,
+// a finding's usage can move it. A likely-test finding referenced
+// from non-test code upgrades to at least uncertain (to
+// likely-genuine-leak when the reference is in a production-ish
+// path and the detector is a credential type); a decisive
+// fingerprint match is NOT overridden by a docs/examples reference.
+// A finding nothing references gets the `usage-dead-end` signal
+// (+2 points toward likely-test-key). Usage never changes the score.
 
 import { createHash } from "node:crypto";
 import { DETECTORS } from "./secrets";
 import { redactSecret } from "./redact";
-import type { SecretFinding, SecretTriage, Severity, TriageVerdict } from "./types";
+import type { SecretFinding, SecretTriage, SecretUsage, Severity, TriageVerdict } from "./types";
 import type { ScannedLine } from "./secrets";
 
 // ---------------------------------------------------------------------------
@@ -127,6 +136,55 @@ function filenameTestTokens(base: string): string[] {
     .split(/[^a-z0-9]+/)
     .filter((t) => TEST_FILENAME_TOKENS.has(t));
 }
+
+/** Is this a test file? Any path segment is a test segment, or the
+ *  filename carries a test token (`src/foo.test.ts`,
+ *  `tests-phandle.dtsi`). Used by the usage analysis (usage.ts) to
+ *  classify a referencing file as test or non-test. */
+export function isTestFilePath(path: string): boolean {
+  const segments = path.split("/");
+  if (segments.some((s) => isTestPathSegment(s))) return true;
+  const base = segments[segments.length - 1] ?? "";
+  return filenameTestTokens(base).length > 0;
+}
+
+/** First path segment in one of the production-ish directories
+ *  (Phase 11 rule (b)). */
+const PROD_USAGE_SEGMENTS = new Set(["src", "lib", "app", "config", "deploy", "scripts"]);
+
+/** Is this a documentation / example file? (Non-test only — a file
+ *  under tests/ or examples/ is test, not docs, for usage purposes.) */
+export function isDocsPath(path: string): boolean {
+  if (isTestFilePath(path)) return false;
+  const segments = path.split("/");
+  if (segments.some((s) => s.toLowerCase() === "docs" || s.toLowerCase() === "doc")) return true;
+  return /\.(md|mdx|txt|rst|adoc)$/i.test(segments[segments.length - 1] ?? "");
+}
+
+/** Is this a production-ish path, for the Phase 11 triage upgrade
+ *  rule (b): a file under src/, lib/, app/, config/, deploy/, or
+ *  scripts/, or a config file at the repo root. */
+export function isProductionPath(path: string): boolean {
+  const segments = path.split("/");
+  if (segments.length > 1 && PROD_USAGE_SEGMENTS.has(segments[0].toLowerCase())) return true;
+  if (segments.length === 1) {
+    // Repo-root file: production-ish unless it is docs or a test.
+    return !isDocsPath(path) && !isTestFilePath(path);
+  }
+  return false;
+}
+
+/** Detector types that are credentials, for the Phase 11 upgrade
+ *  rule (b): AWS key, token, webhook, database URL, hardcoded
+ *  password, private key. `env-file` (a file, not a credential) and
+ *  `generic-high-entropy-secret` (a low-confidence guess) are not
+ *  in the set. */
+const CREDENTIAL_TYPES = new Set([
+  "aws-access-key",
+  "github-token", "slack-token", "openai-api-key", "stripe-secret-key", "jwt-token",
+  "discord-webhook", "slack-webhook",
+  "database-url", "hardcoded-password", "private-key",
+]);
 
 /** Content phrases that say "test / example / not for production".
  *  Word-boundary regexes, so "latest" and "contest" do not match. */
@@ -440,6 +498,13 @@ export interface TriageContext {
   referencedByTestOnly?: boolean;
   /** True when the key file is referenced from production code. */
   referencedByProd?: boolean;
+  /** Phase 11 usage annotation for this finding (see usage.ts).
+   *  When present it supersedes referencedByTestOnly /
+   *  referencedByProd: test-only references still count +2, but a
+   *  non-test reference is handled by the post-verdict upgrade rules
+   *  below instead of the old -2 point signal, so it is never
+   *  double-counted. */
+  usage?: SecretUsage;
   /** Extra known-test-key fingerprints (tests use this to plant a
    *  fingerprint without touching the built-in list). */
   extraKnownFingerprints?: { sha256: string; name: string }[];
@@ -539,11 +604,23 @@ export function triageFinding(finding: SecretFinding, ctx: TriageContext = {}): 
   if (prodTokens.length > 0) {
     signals.push({ id: `prod-filename:${prodTokens[0]}`, points: -2, text: `its file name looks production (${base})` });
   }
-  if (ctx.referencedByTestOnly) {
+  // Phase 11 usage signals (Layer 1). With a real usage annotation,
+  // test-only references are the old +2 signal; a non-test reference
+  // is NOT a point signal here — the post-verdict upgrade rules
+  // below handle it (a likely-test finding referenced from non-test
+  // code is upgraded, not merely nudged by -2). Without usage, the
+  // legacy flags behave exactly as they did in Phase 10.
+  const usageTestOnly = ctx.usage
+    ? ctx.usage.referencedByTestsTotal > 0 && ctx.usage.referencedByTotal === 0
+    : ctx.referencedByTestOnly;
+  if (usageTestOnly) {
     signals.push({ id: "usage-test-only", points: 2, text: "it is only referenced from test files" });
   }
-  if (ctx.referencedByProd) {
+  if (!ctx.usage && ctx.referencedByProd) {
     signals.push({ id: "usage-prod", points: -2, text: "it is referenced from production code" });
+  }
+  if (ctx.usage?.deadEnd) {
+    signals.push({ id: "usage-dead-end", points: 2, text: "nothing in this repo references it" });
   }
 
   // --- Layer 2: cryptographic inspection ---
@@ -609,6 +686,57 @@ export function triageFinding(finding: SecretFinding, ctx: TriageContext = {}): 
     verdict = "uncertain";
   }
 
+  // --- Phase 11: usage feedback, applied AFTER the Phase 10 verdict.
+  //
+  // Rule (exact, see GITSECURE.md Phase 11):
+  //   (a) a finding triaged likely-test-key that is referenced by
+  //       non-test code is upgraded to at minimum `uncertain`, with
+  //       the explanation naming the referencing file;
+  //   (b) it upgrades further to `likely-genuine-leak` when the
+  //       referencing non-test code is in a production-ish path
+  //       (src/, lib/, app/, config/, deploy/, scripts/, or a repo
+  //       root config file — see isProductionPath) AND the detector
+  //       type is a credential type (see CREDENTIAL_TYPES);
+  //   (c) a finding with zero references anywhere is a true dead
+  //       end: the `usage-dead-end` signal above already added +2
+  //       points toward likely-test-key, and the explanation says so
+  //       plainly (see usageNotes below).
+  // A decisive fingerprint / example-value match is NOT overridden
+  // by a single non-test reference in docs/examples — only
+  // production-path usage upgrades it; a docs reference leaves it
+  // likely-test-key but records the reference. Usage never changes
+  // the score — triage never changes the score, usage included.
+  const usageNotes: string[] = [];
+  if (ctx.usage?.deadEnd) {
+    usageNotes.push("Nothing in this repo references this key — a true dead end.");
+  }
+  let upgradedTo: TriageVerdict | null = null;
+  let upgradeRef: { file: string; line: number } | null = null;
+  if (ctx.usage && verdict === "likely-test-key" && ctx.usage.referencedByTotal > 0) {
+    const prodRefs = ctx.usage.referencedBy.filter((r) => isProductionPath(r.file));
+    const docsRefs = ctx.usage.referencedBy.filter((r) => isDocsPath(r.file));
+    const otherRefs = ctx.usage.referencedBy.filter((r) => !isProductionPath(r.file) && !isDocsPath(r.file));
+    if (decisiveTest && prodRefs.length === 0 && otherRefs.length === 0) {
+      // Decisive match + docs/examples references only: stays
+      // likely-test-key, but the reference is recorded.
+      const ref = docsRefs[0];
+      signals.push({ id: "usage-docs-ref", points: 0, text: `it is referenced from documentation (${ref.file}:${ref.line})` });
+      usageNotes.push(`It is referenced from ${ref.file}:${ref.line}, but only in documentation, so that does not change the verdict.`);
+    } else if (prodRefs.length > 0 && CREDENTIAL_TYPES.has(finding.type)) {
+      upgradedTo = "likely-genuine-leak";
+      upgradeRef = prodRefs[0];
+      signals.push({ id: "usage-prod-ref", points: 0, text: `it is referenced from production code (${upgradeRef.file}:${upgradeRef.line})` });
+      // No usageNotes push here: the dedicated genuine-leak
+      // explanation below already names the referencing file.
+    } else {
+      upgradedTo = "uncertain";
+      upgradeRef = ctx.usage.referencedBy[0];
+      signals.push({ id: "usage-referenced", points: 0, text: `it is referenced from non-test code (${upgradeRef.file}:${upgradeRef.line})` });
+      usageNotes.push(`It is referenced from ${upgradeRef.file}:${upgradeRef.line} in non-test code, so it may be a real credential after all.`);
+    }
+    if (upgradedTo) verdict = upgradedTo;
+  }
+
   // --- Annotation ---
   const testReasons = signals.filter((s) => s.points > 0).map((s) => s.text);
   if (decisiveTest) testReasons.unshift(decisiveTest);
@@ -626,9 +754,11 @@ export function triageFinding(finding: SecretFinding, ctx: TriageContext = {}): 
     adjustedConfidence = "low";
   } else if (verdict === "likely-genuine-leak") {
     explanation =
-      prodReasons.length > 0
-        ? `This looks like a genuine leak: ${prodReasons.join("; ")} with no test signals.`
-        : `This looks like a genuine leak: a high-confidence ${finding.title.toLowerCase()} match with no test signals.`;
+      upgradedTo === "likely-genuine-leak" && upgradeRef
+        ? `This looks like a genuine leak: it was flagged as a possible test key (${testReasons.join("; ") || "test signals"}), but it is referenced from ${upgradeRef.file}:${upgradeRef.line} in production code, so treat it as a real credential.`
+        : prodReasons.length > 0
+          ? `This looks like a genuine leak: ${prodReasons.join("; ")} with no test signals.`
+          : `This looks like a genuine leak: a high-confidence ${finding.title.toLowerCase()} match with no test signals.`;
     fix = finding.fix;
   } else {
     const mixed = [...testReasons, ...prodReasons].join("; ");
@@ -638,6 +768,7 @@ export function triageFinding(finding: SecretFinding, ctx: TriageContext = {}): 
         : `Not enough evidence to tell whether this is a test value or a real leak — a human should check it.`;
     fix = finding.fix;
   }
+  if (usageNotes.length > 0) explanation += ` ${usageNotes.join(" ")}`;
 
   return {
     triage: {

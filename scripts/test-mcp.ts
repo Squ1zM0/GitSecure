@@ -134,6 +134,7 @@ async function main() {
   check("list_checks mentions dependency flaws", /dependency/i.test(checksText));
   check("list_checks mentions posture", /posture/i.test(checksText));
   check("list_checks states the scan notes", /scan notes/i.test(checksText));
+  check("list_checks names the secret usage check (in use vs dead end)", /secret usage/i.test(checksText) && /dead end/i.test(checksText));
   check("list_checks does not scan (no report JSON / score field)", !checksText.includes('"score"') && !checksText.includes('"counts"'));
 
   // 4. scan_repo TechDirect — known result 83/B, 0 secrets, 4 vulns.
@@ -197,10 +198,18 @@ async function main() {
   // Phase 10 dogfood: every one of the 22 is a known-fake fixture
   // secret, so all 22 must triage likely-test-key — and the honest
   // split must say so.
-  const gsFull = gsReport as { secrets?: { triage?: { verdict?: string } }[] } | null;
+  const gsFull = gsReport as { secrets?: { triage?: { verdict?: string }; usage?: { deadEnd?: boolean } }[] } | null;
   const gsTestKeys = gsFull?.secrets?.filter((s) => s.triage?.verdict === "likely-test-key").length ?? -1;
   check("scan_repo GitSecure: all 22 secrets triage likely-test-key", gsFull?.secrets?.length === 22 && gsTestKeys === 22, `test keys ${gsTestKeys} of ${gsFull?.secrets?.length ?? "?"}`);
   check("scan_repo GitSecure: counts.testKeySecrets is 22", gsReport?.counts?.testKeySecrets === 22, `got ${gsReport?.counts?.testKeySecrets}`);
+  // Phase 11 dogfood: every secret finding in the MCP response
+  // carries usage alongside triage (HEAD findings from scanHead,
+  // history findings from the git-path HEAD corpus).
+  check(
+    "scan_repo GitSecure: every secret carries a usage annotation",
+    (gsFull?.secrets?.length ?? 0) === 22 && (gsFull?.secrets ?? []).every((s) => s.usage !== undefined && typeof s.usage.deadEnd === "boolean"),
+    `usage on ${(gsFull?.secrets ?? []).filter((s) => s.usage !== undefined).length} of ${gsFull?.secrets?.length ?? "?"} secrets`,
+  );
   check("scan_repo GitSecure kind is full", gsReport?.kind === "full");
   // Full detail IS present now: file names, line numbers, fragments.
   check("scan_repo GitSecure response carries file names (full detail)", gsText.includes("tests/fixtures"));

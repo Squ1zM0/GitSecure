@@ -26,14 +26,52 @@
 //     with a copy-link button, so one finding can be shared. A shared
 //     anchor link opens the page with that finding expanded and scrolled
 //     into view, even past the first 100.
-// Redaction unchanged: only the redacted fragment ever appears — never
-// a full secret, including in graph tooltips and link labels.
+// Phase 11: the triage verdicts become SECTIONS, not just a filter —
+// likely-test findings live in their own collapsed "Likely test keys"
+// section, genuine leaks in their own open section, uncertain findings
+// in their own open section — and the spider map becomes a usage
+// graph (finding -> the files that reference it). Redaction unchanged:
+// only the redacted fragment ever appears — never a full secret,
+// including in graph tooltips and link labels.
 
 "use client";
 
 import { useEffect, useMemo, useState, type ReactNode } from "react";
-import type { Dependency, Framework, PostureIssue, SecretFinding, Severity, Vulnerability } from "@/lib/types";
+import type { Dependency, Framework, PostureIssue, SecretFinding, SecretUsage, Severity, TriageVerdict, Vulnerability } from "@/lib/types";
 import { findingAnchorId, githubBlobUrl, osvAdvisoryUrl } from "@/lib/links";
+
+// Phase 11: usage annotation (SecretUsage on SecretFinding, see
+// src/lib/types.ts). `getUsage` validates the shape — a finding
+// without `usage` (older report) renders exactly as before, never crashes.
+export function getUsage(s: SecretFinding): SecretUsage | undefined {
+  const u = (s as SecretFinding & { usage?: unknown }).usage;
+  if (!u || typeof u !== "object") return undefined;
+  const o = u as unknown as Record<string, unknown>;
+  if (typeof o.deadEnd !== "boolean") return undefined;
+  const refs = (v: unknown): { file: string; line: number }[] =>
+    Array.isArray(v)
+      ? v.filter(
+          (r): r is { file: string; line: number } =>
+            !!r && typeof r === "object" && typeof (r as { file: unknown }).file === "string" && typeof (r as { line: unknown }).line === "number",
+        )
+      : [];
+  const by = refs(o.referencedBy);
+  const byTests = refs(o.referencedByTests);
+  return {
+    referencedBy: by,
+    referencedByTotal: typeof o.referencedByTotal === "number" ? o.referencedByTotal : by.length,
+    referencedByTests: byTests,
+    referencedByTestsTotal: typeof o.referencedByTestsTotal === "number" ? o.referencedByTestsTotal : byTests.length,
+    deadEnd: o.deadEnd,
+    historyOnly: o.historyOnly === true ? true : undefined,
+  };
+}
+
+/** A finding with no triage annotation reads as uncertain — it is
+ *  never silently counted as a test key or a genuine leak. */
+function verdictOf(s: SecretFinding): TriageVerdict | "uncertain" {
+  return s.triage?.verdict ?? "uncertain";
+}
 
 const PAGE_SIZE = 100;
 /** Groups start open only when the filtered list is small; a wall of
@@ -132,6 +170,7 @@ function SecretRow({ entry, owner, repo, branch }: { entry: Indexed<SecretFindin
   const s = entry.item;
   const anchor = findingAnchorId("secret", entry.idx);
   const blob = githubBlobUrl(owner, repo, branch, s.file, s.line, s.commit);
+  const usage = getUsage(s);
   const triageLabel =
     s.triage?.verdict === "likely-test-key"
       ? "Likely test key"
@@ -146,15 +185,43 @@ function SecretRow({ entry, owner, repo, branch }: { entry: Indexed<SecretFindin
       : s.triage?.verdict === "likely-genuine-leak"
         ? "triage-genuine"
         : "triage-uncertain";
+  // The dead-end note in plain English. When the triage explanation
+  // already says it (the usual case — the explanation names the
+  // dead end), don't repeat the sentence; the pill alone marks it.
+  const deadEndNote =
+    usage?.deadEnd && !(s.triage?.explanation ?? "").toLowerCase().includes("references")
+      ? "Nothing in this repo references this key — a true dead end."
+      : null;
+  const usageRefs =
+    usage && !usage.deadEnd
+      ? [
+          ...usage.referencedBy.slice(0, 3).map((r) => `${r.file}:${r.line}`),
+          ...usage.referencedByTests.slice(0, 3).map((r) => `${r.file}:${r.line} (test)`),
+        ]
+      : [];
+  const usageTotal = (usage?.referencedByTotal ?? 0) + (usage?.referencedByTestsTotal ?? 0);
   return (
     <div className={`finding sev-${s.severity}`} id={anchor}>
-      <p className="finding-title"><span className={`pill ${s.severity}`}>{s.severity}</span><b>{s.title}</b> <span className="muted">· {s.confidence} confidence</span></p>
+      <p className="finding-title"><span className={`pill ${s.severity}`}>{s.severity}</span>{usage?.deadEnd ? <span className="pill dead-end">Dead end</span> : null}<b>{s.title}</b> <span className="muted">· {s.confidence} confidence</span></p>
       <p>{s.plainEnglish}</p>
       {s.triage && triageLabel ? (
         <p className="triage">
           <span className={`pill ${triagePill}`}>{triageLabel}</span>
           {s.triage.explanation}{" "}
           <span className="muted">(Triage assessed severity: {s.triage.adjustedSeverity}, confidence: {s.triage.adjustedConfidence}.)</span>
+        </p>
+      ) : null}
+      {usage?.deadEnd && (deadEndNote || usage.historyOnly) ? (
+        <p className="dead-end-note">
+          {deadEndNote ?? ""}
+          {usage.historyOnly ? " (Usage checked against the current files only.)" : ""}
+        </p>
+      ) : null}
+      {usage && !usage.deadEnd && usageTotal > 0 ? (
+        <p className="small usage-line">
+          Used by: {usageRefs.join(", ")}
+          {usageTotal > usageRefs.length ? ` (+${usageTotal - usageRefs.length} more)` : ""}
+          {usage.historyOnly ? " — usage checked against the current files only." : ""}
         </p>
       ) : null}
       <p className="small"><code className="inline">{s.file}:{s.line}</code> · commit <code className="inline">{s.commit ?? "HEAD"}</code> · fragment <code className="inline">{s.fragment}</code> (redacted — never the full secret)</p>
@@ -252,13 +319,247 @@ export function FileMap({ byFile, onSelectFile }: { byFile: { file: string; coun
   );
 }
 
-export function SecretsList({ secrets, owner, repo, branch }: { secrets: SecretFinding[]; owner: string; repo: string; branch: string }) {
+// ------------------------------------------------------- Phase 11 map
+
+/** How many finding nodes the usage map draws (most-used first). A
+ *  rendering cap, NOT a data cap — every finding stays in the list. */
+const MAP_FINDINGS = 12;
+
+/** Phase 11 usage graph. Repo node at the centre, finding nodes on an
+ *  inner ring, file nodes on an outer ring, EDGES from each finding to
+ *  the files that reference it (solid = non-test code, dashed = test
+ *  code) plus a thin edge to the file the finding itself lives in.
+ *  Click a finding node to highlight its track (finding -> the files
+ *  that use it -> the finding's own file, one hop each way); click a
+ *  file node to filter the list to it. Dead-end findings are greyed,
+ *  labelled "dead end", and have no outgoing edges. When no finding
+ *  carries `usage` (older report), this falls back to the Phase 5
+ *  file-count spider unchanged. */
+export function UsageMap({
+  findings,
+  byFile,
+  onSelectFile,
+  onShowFinding,
+}: {
+  findings: Indexed<SecretFinding>[];
+  byFile: { file: string; count: number }[];
+  onSelectFile: (file: string) => void;
+  onShowFinding?: (idx: number) => void;
+}) {
+  const [selected, setSelected] = useState<number | null>(null);
+  useEffect(() => {
+    setSelected(null);
+  }, [findings]);
+  const hasUsage = findings.some(({ item }) => getUsage(item) !== undefined);
+  if (!hasUsage) return <FileMap byFile={byFile} onSelectFile={onSelectFile} />;
+
+  const baseName = (file: string) => file.split("/").pop() ?? file;
+  // Most-used findings first so the tracks worth following are the
+  // ones drawn; dead ends still appear (greyed) when there is room.
+  const usageOf = (e: Indexed<SecretFinding>) => getUsage(e.item);
+  const drawn = [...findings]
+    .sort((a, b) => {
+      const ua = usageOf(a);
+      const ub = usageOf(b);
+      const ta = ua && !ua.deadEnd ? ua.referencedByTotal + ua.referencedByTestsTotal : -1;
+      const tb = ub && !ub.deadEnd ? ub.referencedByTotal + ub.referencedByTestsTotal : -1;
+      return tb - ta || a.idx - b.idx;
+    })
+    .slice(0, MAP_FINDINGS);
+  // File nodes: every file a drawn finding is used from, then the
+  // largest files by finding count, capped at MAP_NODES.
+  const refFiles = new Set<string>();
+  for (const e of drawn) {
+    const u = usageOf(e);
+    if (!u || u.deadEnd) continue;
+    for (const r of [...u.referencedBy, ...u.referencedByTests]) refFiles.add(r.file);
+    refFiles.add(e.item.file);
+  }
+  const fileNodes = [
+    ...[...refFiles].map((file) => ({ file, count: byFile.find((f) => f.file === file)?.count ?? 0 })),
+    ...byFile.filter((f) => !refFiles.has(f.file)),
+  ].slice(0, MAP_NODES);
+
+  const cx = 200;
+  const cy = 170;
+  const findingRadius = 82;
+  const fileRadius = 138;
+  const nodePos = (i: number, n: number, radius: number) => {
+    const angle = (2 * Math.PI * i) / Math.max(n, 1) - Math.PI / 2;
+    return { x: cx + radius * Math.cos(angle), y: cy + radius * Math.sin(angle) };
+  };
+  const filePos = new Map<string, { x: number; y: number }>();
+  fileNodes.forEach((f, i) => filePos.set(f.file, nodePos(i, fileNodes.length, fileRadius)));
+  const findingPos = new Map<number, { x: number; y: number }>();
+  drawn.forEach((e, i) => findingPos.set(e.idx, nodePos(i, drawn.length, findingRadius)));
+
+  type Edge = { key: string; findingIdx: number; from: { x: number; y: number }; to: { x: number; y: number }; kind: "code" | "test" | "own" };
+  const edges: Edge[] = [];
+  for (const e of drawn) {
+    const u = usageOf(e);
+    const fp = findingPos.get(e.idx);
+    if (!fp || !u || u.deadEnd) continue;
+    const own = filePos.get(e.item.file);
+    if (own) edges.push({ key: `own-${e.idx}`, findingIdx: e.idx, from: fp, to: own, kind: "own" });
+    for (const r of u.referencedBy) {
+      const to = filePos.get(r.file);
+      if (to) edges.push({ key: `code-${e.idx}-${r.file}-${r.line}`, findingIdx: e.idx, from: fp, to, kind: "code" });
+    }
+    for (const r of u.referencedByTests) {
+      const to = filePos.get(r.file);
+      if (to) edges.push({ key: `test-${e.idx}-${r.file}-${r.line}`, findingIdx: e.idx, from: fp, to, kind: "test" });
+    }
+  }
+  const selectedEntry = selected != null ? drawn.find((e) => e.idx === selected) ?? null : null;
+  const selectedUsage = selectedEntry ? usageOf(selectedEntry) : null;
+  // The track of the selected finding: the files its edges reach.
+  const trackFiles = new Set<string>();
+  if (selectedEntry) {
+    trackFiles.add(selectedEntry.item.file);
+    for (const e of edges) if (e.findingIdx === selectedEntry.idx) {
+      for (const [file, pos] of filePos) if (pos === e.to) trackFiles.add(file);
+    }
+  }
+  const totalRefs = selectedUsage && !selectedUsage.deadEnd ? selectedUsage.referencedByTotal + selectedUsage.referencedByTestsTotal : 0;
+
+  return (
+    <div>
+      <p className="small">
+        Usage map — follow a secret through the repo. Showing {drawn.length} of {findings.length} findings and {fileNodes.length} files. Click a finding to highlight its track; click a file to filter the list to it.
+      </p>
+      <p className="map-legend" aria-label="Map legend">
+        <span><b>●</b> Centre — this repo</span>
+        <span><b>━━</b> Used in non-test code</span>
+        <span><b>┄┄</b> Used in tests only</span>
+        <span><b>●</b> Grey node — dead end, nothing references it</span>
+        <span>Every node is keyboard reachable: Tab to it, Enter to select</span>
+      </p>
+      <div className="map-wrap">
+        <svg viewBox="0 0 400 340" role="group" aria-label="Usage map: secrets and the files that reference them">
+          <circle className="map-centre" cx={cx} cy={cy} r={30} />
+          <text className="map-centre-text" x={cx} y={cy + 4} textAnchor="middle" fontSize={10} fontWeight={700}>This repo</text>
+          {edges.map((e) => (
+            <line
+              key={e.key}
+              x1={e.from.x}
+              y1={e.from.y}
+              x2={e.to.x}
+              y2={e.to.y}
+              className={`map-edge map-edge-${e.kind}${selected == null || e.findingIdx === selected ? " map-edge-track" : " map-edge-dim"}`}
+            />
+          ))}
+          {fileNodes.map((f, i) => {
+            const { x, y } = nodePos(i, fileNodes.length, fileRadius);
+            const r = 9 + Math.min(15, Math.sqrt(Math.max(f.count, 1)) * 2.2);
+            const dimmed = selected != null && !trackFiles.has(f.file);
+            return (
+              <g
+                key={f.file}
+                className={`map-node${dimmed ? " map-dim" : ""}`}
+                onClick={() => onSelectFile(f.file)}
+                onKeyDown={(ev) => {
+                  if (ev.key === "Enter" || ev.key === " ") {
+                    ev.preventDefault();
+                    onSelectFile(f.file);
+                  }
+                }}
+                tabIndex={0}
+                role="button"
+                aria-label={`${f.file}, ${f.count} findings — filter the list to this file`}
+              >
+                <title>{`${f.file} — ${f.count} finding${f.count === 1 ? "" : "s"}`}</title>
+                <circle className="map-hit" cx={x} cy={y} r={24} />
+                <circle cx={x} cy={y} r={r} />
+                <text x={x} y={y - r - 4} textAnchor="middle">{baseName(f.file).slice(0, 14)}</text>
+                <text x={x} y={y + r + 12} textAnchor="middle" fontWeight={700}>{f.count}</text>
+              </g>
+            );
+          })}
+          {drawn.map((e) => {
+            const { x, y } = findingPos.get(e.idx) ?? { x: cx, y: cy };
+            const u = usageOf(e);
+            const dead = u?.deadEnd === true;
+            const refs = u && !dead ? u.referencedByTotal + u.referencedByTestsTotal : 0;
+            const isSelected = selected === e.idx;
+            const dimmed = selected != null && !isSelected;
+            const label = `secret ${e.idx + 1}`;
+            return (
+              <g
+                key={e.idx}
+                className={`map-node map-finding-node${dead ? " map-finding-deadend" : ""}${isSelected ? " map-node-selected" : ""}${dimmed ? " map-dim" : ""}`}
+                onClick={() => setSelected(isSelected ? null : e.idx)}
+                onKeyDown={(ev) => {
+                  if (ev.key === "Enter" || ev.key === " ") {
+                    ev.preventDefault();
+                    setSelected(isSelected ? null : e.idx);
+                  }
+                }}
+                tabIndex={0}
+                role="button"
+                aria-label={
+                  dead
+                    ? `${label}, ${e.item.title}, ${e.item.file} line ${e.item.line} — dead end, nothing references it`
+                    : u
+                      ? `${label}, ${e.item.title}, ${e.item.file} line ${e.item.line} — used by ${refs} reference${refs === 1 ? "" : "s"}`
+                      : `${label}, ${e.item.title}, ${e.item.file} line ${e.item.line} — no usage data`
+                }
+              >
+                <title>{`${label} — ${e.item.file}:${e.item.line}${dead ? " — dead end" : u ? ` — ${refs} reference${refs === 1 ? "" : "s"}` : " — no usage data"}`}</title>
+                <circle className="map-hit" cx={x} cy={y} r={24} />
+                <circle cx={x} cy={y} r={11} />
+                <text x={x} y={y + 3} textAnchor="middle" fontWeight={700}>{`S${e.idx + 1}`}</text>
+                <text x={x} y={y + 23} textAnchor="middle">{dead ? "dead end" : u ? `${refs} use${refs === 1 ? "" : "s"}` : ""}</text>
+              </g>
+            );
+          })}
+        </svg>
+      </div>
+      <div className="map-track-detail" aria-live="polite">
+        {selectedEntry && selectedUsage ? (
+          <>
+            <p>
+              <b>Secret {selectedEntry.idx + 1} — {selectedEntry.item.title}</b> · <code className="inline">{selectedEntry.item.file}:{selectedEntry.item.line}</code>
+              {selectedUsage.deadEnd ? (
+                <> · <span className="pill dead-end">Dead end</span> Nothing in this repo references this key — a true dead end{selectedUsage.historyOnly ? " (usage checked against the current files only)" : ""}.</>
+              ) : totalRefs === 0 ? (
+                <> · No references recorded.</>
+              ) : (
+                <>
+                  {" "}· Used by: {selectedUsage.referencedBy.slice(0, 10).map((r) => `${r.file}:${r.line}`).join(", ")}
+                  {selectedUsage.referencedByTests.length > 0 ? `; in tests: ${selectedUsage.referencedByTests.slice(0, 10).map((r) => `${r.file}:${r.line}`).join(", ")}` : ""}
+                  {totalRefs > 10 ? ` (+${totalRefs - 10} more)` : ""}
+                  {selectedUsage.historyOnly ? " (usage checked against the current files only)" : ""}
+                </>
+              )}
+            </p>
+            {onShowFinding ? (
+              <p>
+                <button type="button" className="secondary" onClick={() => onShowFinding(selectedEntry.idx)}>Show this finding in the list</button>
+              </p>
+            ) : null}
+          </>
+        ) : (
+          <p className="small">Click a finding node to follow its track — the secret, the files that use it, and the file it lives in.</p>
+        )}
+      </div>
+    </div>
+  );
+}
+
+export function SecretsList({ secrets, owner, repo, branch, defaultTestSectionOpen = false }: { secrets: SecretFinding[]; owner: string; repo: string; branch: string; defaultTestSectionOpen?: boolean }) {
   const [groupBy, setGroupBy] = useState<"none" | "type" | "file">("none");
   const [typeFilter, setTypeFilter] = useState("all");
   const [sevFilter, setSevFilter] = useState("all");
   const [triageFilter, setTriageFilter] = useState("all");
   const [fileQuery, setFileQuery] = useState("");
   const [view, setView] = useState<"list" | "map">("list");
+  // Phase 11 verdict sections. Genuine leaks and uncertain findings
+  // are open by default — they are the ones that need a human. Likely
+  // test keys are collapsed by default: still listed, still counted,
+  // one click away, never mixed in with the genuine leaks.
+  const [genuineOpen, setGenuineOpen] = useState(true);
+  const [uncertainOpen, setUncertainOpen] = useState(true);
+  const [testOpen, setTestOpen] = useState(defaultTestSectionOpen);
   // A shared #secret-N link: clear the filters, force the flat list,
   // and open it past the linked finding so the anchor exists to scroll to.
   const [hashTarget, setHashTarget] = useState<number | null>(null);
@@ -290,6 +591,8 @@ export function SecretsList({ secrets, owner, repo, branch }: { secrets: SecretF
 
   const types = useMemo(() => [...new Set(secrets.map((s) => s.type))].sort(), [secrets]);
   const testKeyCount = useMemo(() => secrets.filter((s) => s.triage?.verdict === "likely-test-key").length, [secrets]);
+  const genuineCount = useMemo(() => secrets.filter((s) => s.triage?.verdict === "likely-genuine-leak").length, [secrets]);
+  const uncertainCount = useMemo(() => secrets.filter((s) => verdictOf(s) === "uncertain").length, [secrets]);
   const indexed = useMemo(() => withIndex(secrets), [secrets]);
   const filtered = useMemo(
     () =>
@@ -297,11 +600,29 @@ export function SecretsList({ secrets, owner, repo, branch }: { secrets: SecretF
         ({ item: s }) =>
           (typeFilter === "all" || s.type === typeFilter) &&
           (sevFilter === "all" || s.severity === sevFilter) &&
-          (triageFilter === "all" || (s.triage?.verdict ?? "uncertain") === triageFilter) &&
+          (triageFilter === "all" || verdictOf(s) === triageFilter) &&
           (fileQuery === "" || s.file.toLowerCase().includes(fileQuery.toLowerCase())),
       ),
     [indexed, typeFilter, sevFilter, triageFilter, fileQuery],
   );
+  // Phase 11: the filtered list is partitioned by triage verdict, so a
+  // genuine leak is never shown in the same section as a test key.
+  const genuineEntries = useMemo(() => filtered.filter((e) => verdictOf(e.item) === "likely-genuine-leak"), [filtered]);
+  const uncertainEntries = useMemo(() => filtered.filter((e) => verdictOf(e.item) === "uncertain"), [filtered]);
+  const testEntries = useMemo(() => filtered.filter((e) => verdictOf(e.item) === "likely-test-key"), [filtered]);
+  // A shared #secret-N link opens the section holding that finding,
+  // even the collapsed test-keys section, so the anchor exists.
+  useEffect(() => {
+    if (hashTarget == null) return;
+    const v = verdictOf(secrets[hashTarget]);
+    if (v === "likely-test-key") setTestOpen(true);
+    else if (v === "likely-genuine-leak") setGenuineOpen(true);
+    else setUncertainOpen(true);
+  }, [hashTarget, secrets]);
+  // The triage filter also opens the section it selects.
+  const testEffectiveOpen = testOpen || triageFilter === "likely-test-key" || (hashTarget != null && verdictOf(secrets[hashTarget]) === "likely-test-key");
+  const genuineEffectiveOpen = genuineOpen || triageFilter === "likely-genuine-leak";
+  const uncertainEffectiveOpen = uncertainOpen || triageFilter === "uncertain";
   const fileCount = useMemo(() => new Set(filtered.map(({ item: s }) => s.file)).size, [filtered]);
   const byFile = useMemo(() => {
     const counts = new Map<string, number>();
@@ -309,11 +630,11 @@ export function SecretsList({ secrets, owner, repo, branch }: { secrets: SecretF
     return [...counts.entries()].map(([file, count]) => ({ file, count })).sort((a, b) => b.count - a.count || a.file.localeCompare(b.file));
   }, [filtered]);
 
-  const groups = useMemo(() => {
+  const groupEntries = (entries: Indexed<SecretFinding>[]) => {
     if (groupBy === "none") return [];
     const keyOf = groupBy === "type" ? (s: SecretFinding) => s.type : (s: SecretFinding) => s.file;
     const map = new Map<string, Indexed<SecretFinding>[]>();
-    for (const entry of filtered) {
+    for (const entry of entries) {
       const k = keyOf(entry.item);
       const arr = map.get(k) ?? [];
       arr.push(entry);
@@ -322,11 +643,44 @@ export function SecretsList({ secrets, owner, repo, branch }: { secrets: SecretF
     return [...map.entries()]
       .map(([key, items]) => ({ key, items }))
       .sort((a, b) => b.items.length - a.items.length || a.key.localeCompare(b.key));
-  }, [filtered, groupBy]);
+  };
 
   const selectFile = (file: string) => {
     setFileQuery(file);
     setView("list");
+  };
+  // From the map: jump to one finding in the list. Setting the hash
+  // reuses the shared-link handler above (clears filters, opens the
+  // finding's section, scrolls to it).
+  const showFinding = (idx: number) => {
+    setView("list");
+    window.location.hash = findingAnchorId("secret", idx);
+  };
+  const renderSectionItems = (entries: Indexed<SecretFinding>[]) => {
+    if (groupBy === "none") {
+      const pos = hashTarget != null ? entries.findIndex((e) => e.idx === hashTarget) : -1;
+      return (
+        <Paged
+          items={entries}
+          initialShown={pos >= 0 ? pos + 1 : PAGE_SIZE}
+          renderItem={(entry) => <SecretRow key={`${entry.item.type}-${entry.item.file}-${entry.item.line}-${entry.idx}`} entry={entry} owner={owner} repo={repo} branch={branch} />}
+        />
+      );
+    }
+    return groupEntries(entries).map((g) => (
+      <details key={g.key} className="group" open={entries.length <= GROUP_OPEN_BELOW}>
+        <summary>
+          <span className="chevron" aria-hidden="true">▸</span>
+          {g.key} <span className="count-badge">({g.items.length} finding{g.items.length === 1 ? "" : "s"})</span>
+        </summary>
+        <div className="group-body">
+          <Paged
+            items={g.items}
+            renderItem={(entry) => <SecretRow key={`${entry.item.type}-${entry.item.file}-${entry.item.line}-${entry.idx}`} entry={entry} owner={owner} repo={repo} branch={branch} />}
+          />
+        </div>
+      </details>
+    ));
   };
 
   return (
@@ -374,30 +728,43 @@ export function SecretsList({ secrets, owner, repo, branch }: { secrets: SecretF
       <p className="small" aria-live="polite">
         Showing {filtered.length} of {secrets.length} secrets{fileQuery !== "" ? ` matching “${fileQuery}”` : ""} · {fileCount} file{fileCount === 1 ? "" : "s"}.
         {testKeyCount > 0 ? ` Of the ${secrets.length} secrets, ${testKeyCount} look${testKeyCount === 1 ? "s" : ""} like test keys — still listed and still counted, with a test-key fix instead of "rotate it".` : ""}
+        {genuineCount > 0 || uncertainCount > 0 ? ` ${genuineCount} look${genuineCount === 1 ? "s" : ""} like genuine leaks, ${uncertainCount} uncertain.` : ""}
       </p>
       {view === "map" ? (
-        <FileMap byFile={byFile} onSelectFile={selectFile} />
-      ) : groupBy === "none" ? (
-        <Paged
-          items={filtered}
-          initialShown={hashTarget != null ? hashTarget + 1 : PAGE_SIZE}
-          renderItem={(entry) => <SecretRow key={`${entry.item.type}-${entry.item.file}-${entry.item.line}-${entry.idx}`} entry={entry} owner={owner} repo={repo} branch={branch} />}
-        />
+        <UsageMap findings={filtered} byFile={byFile} onSelectFile={selectFile} onShowFinding={showFinding} />
       ) : (
-        groups.map((g) => (
-          <details key={g.key} className="group" open={filtered.length <= GROUP_OPEN_BELOW}>
-            <summary>
-              <span className="chevron" aria-hidden="true">▸</span>
-              {g.key} <span className="count-badge">({g.items.length} finding{g.items.length === 1 ? "" : "s"})</span>
-            </summary>
-            <div className="group-body">
-              <Paged
-                items={g.items}
-                renderItem={(entry) => <SecretRow key={`${entry.item.type}-${entry.item.file}-${entry.item.line}-${entry.idx}`} entry={entry} owner={owner} repo={repo} branch={branch} />}
-              />
-            </div>
-          </details>
-        ))
+        <>
+          {genuineEntries.length > 0 && (
+            <details className="group verdict-section verdict-genuine" open={genuineEffectiveOpen} onToggle={(e) => setGenuineOpen(e.currentTarget.open)}>
+              <summary>
+                <span className="chevron" aria-hidden="true">▸</span>
+                Likely genuine leaks <span className="count-badge">({genuineEntries.length} finding{genuineEntries.length === 1 ? "" : "s"})</span>
+              </summary>
+              <p className="small">These look like real credentials. Treat each one as compromised until you have checked it.</p>
+              <div className="group-body">{renderSectionItems(genuineEntries)}</div>
+            </details>
+          )}
+          {uncertainEntries.length > 0 && (
+            <details className="group verdict-section verdict-uncertain" open={uncertainEffectiveOpen} onToggle={(e) => setUncertainOpen(e.currentTarget.open)}>
+              <summary>
+                <span className="chevron" aria-hidden="true">▸</span>
+                Uncertain — needs a human check <span className="count-badge">({uncertainEntries.length} finding{uncertainEntries.length === 1 ? "" : "s"})</span>
+              </summary>
+              <p className="small">Triage could not call these either way. Check each one by hand before deciding.</p>
+              <div className="group-body">{renderSectionItems(uncertainEntries)}</div>
+            </details>
+          )}
+          {testEntries.length > 0 && (
+            <details className="group verdict-section verdict-test" open={testEffectiveOpen} onToggle={(e) => setTestOpen(e.currentTarget.open)}>
+              <summary>
+                <span className="chevron" aria-hidden="true">▸</span>
+                Likely test keys <span className="count-badge">({testEntries.length} finding{testEntries.length === 1 ? "" : "s"})</span>
+              </summary>
+              <p className="small">These look like intentional test keys. They are still listed and still counted in the score — expand to check each one and its test-key fix.</p>
+              <div className="group-body">{renderSectionItems(testEntries)}</div>
+            </details>
+          )}
+        </>
       )}
     </div>
   );

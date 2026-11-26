@@ -53,6 +53,7 @@ import http from "isomorphic-git/http/node";
 import { diffLines } from "diff";
 import { scanLinesForSecrets, type ScannedLine } from "./secrets";
 import { triageFindings, triageHistoryFindings } from "./triage";
+import { computeUsageForFindings, type FindingContext } from "./usage";
 import { isSkippablePath } from "./paths";
 import type { SecretFinding } from "./types";
 
@@ -760,9 +761,76 @@ interface CachedHistory {
 
 const historyCache = new Map<string, CachedHistory>();
 
+/** Phase 11: the HEAD file corpus used to compute usage for history
+ *  findings, keyed by repo@branch with the tip it was read at. A
+ *  re-scan at the same tip reuses it (chunked history walks run one
+ *  clone per chunk); a moved tip re-reads it. Bounded — see
+ *  readHeadUsageCorpus — so a giant HEAD tree never blows up the
+ *  function. In-memory only, like historyCache. */
+const headUsageCorpusCache = new Map<string, { tip: string; corpus: Map<string, string> }>();
+/** Most HEAD files a corpus read will hold (and most total bytes).
+ *  Past either bound the read is abandoned and history findings
+ *  carry no usage annotation — an absent annotation, never a
+ *  half-searched one. */
+export const HEAD_USAGE_CORPUS_MAX_FILES = 20_000;
+export const HEAD_USAGE_CORPUS_MAX_BYTES = 100_000_000;
+
 /** Test/support hook: drop the whole in-memory history cache. */
 export function clearHistoryCache(): void {
   historyCache.clear();
+  headUsageCorpusCache.clear();
+}
+
+/** Read the HEAD tree's text files out of the cloned repo, for the
+ *  Phase 11 usage search (history findings are searched against the
+ *  HEAD files only — the old commit's files are gone). Same bounds
+ *  as scanHead's finding-content retention: binary files skipped,
+ *  skippable paths skipped, files over 1 MB skipped. Returns null
+ *  when the tree is over the corpus bounds or the read fails, so the
+ *  caller triages without usage instead of with a partial corpus. */
+async function readHeadUsageCorpus(
+  dir: string,
+  branch: string,
+  cache: object,
+  cacheKey: string,
+  tip: string,
+): Promise<Map<string, string> | null> {
+  const hit = headUsageCorpusCache.get(cacheKey);
+  if (hit && hit.tip === tip) return hit.corpus;
+  const corpus = new Map<string, string>();
+  let files = 0;
+  let bytes = 0;
+  let over = false;
+  try {
+    await git.walk({
+      fs,
+      dir,
+      cache,
+      trees: [git.TREE({ ref: branch })],
+      map: async (filepath, [head]) => {
+        if (over || !head || !filepath) return null;
+        if ((await head.type()) !== "blob") return null;
+        if (isSkippablePath(filepath)) return null;
+        const text = await readBlobText(dir, await head.oid(), cache);
+        if (text === null) return null; // binary
+        const size = Buffer.byteLength(text, "utf8");
+        if (size > 1_000_000) return null; // same 1 MB per-file rule as scanHead
+        files++;
+        bytes += size;
+        if (files > HEAD_USAGE_CORPUS_MAX_FILES || bytes > HEAD_USAGE_CORPUS_MAX_BYTES) {
+          over = true;
+          return null;
+        }
+        corpus.set(filepath, text);
+        return null;
+      },
+    });
+  } catch {
+    return null;
+  }
+  if (over) return null;
+  headUsageCorpusCache.set(cacheKey, { tip, corpus });
+  return corpus;
 }
 
 /** jsdiff added lines of newText vs oldText, with new-file line numbers.
@@ -903,6 +971,12 @@ export async function scanHistoryViaGit(
     let newPatchBytes = 0;
     let truncated = false;
     let stopSha: string | null = null;
+    // Phase 11: triage is DEFERRED until after the walk (see below).
+    // Each file that produced findings keeps its triage context
+    // (the full new-file content, capped at 1 MB like scanHead, plus
+    // the added lines) so usage can be computed from the HEAD corpus
+    // first and triage can consume it in one call.
+    const pendingTriage: { findings: SecretFinding[]; content?: string; lines: ScannedLine[] }[] = [];
     // Phase 9 chunking: the walk skips commits newer than (and including)
     // resumeAfterSha and stops at a chunk boundary (maxCommits / budget).
     // A chunk boundary is NOT a truncation — the next chunk continues
@@ -946,6 +1020,9 @@ export async function scanHistoryViaGit(
       newOrder.push(oid);
       const parents = entry.commit.parent ?? [];
       const changes = entry.commit.changes ?? [];
+      // Entries added for this commit are rolled back with it when
+      // the memory guard discards the commit whole (below).
+      const pendingBefore = pendingTriage.length;
       if (parents.length > 1) {
         newBySha.set(oid, []);
         newBytesBySha.set(oid, 0);
@@ -973,15 +1050,24 @@ export async function scanHistoryViaGit(
         else {
           const added = addedLines(oldText, newText);
           const found = scanLinesForSecrets({ path: filepath }, added, oid.slice(0, 7));
-          // Phase 10: triage from the full new-file content — a PEM
-          // block added by the commit is complete in it, and the
+          // Phase 11: triage is deferred until after the walk (usage
+          // needs the HEAD corpus, which is read once the walk is
+          // done). Keep the context — a PEM block added by the
+          // commit is complete in the new-file content, and the
           // path/filename signals come from the file path.
-          triageFindings(found, () => ({ content: newText, lines: added }));
+          if (found.length > 0) {
+            pendingTriage.push({
+              findings: found,
+              content: Buffer.byteLength(newText, "utf8") <= 1_000_000 ? newText : undefined,
+              lines: added,
+            });
+          }
           commitFindings.push(...found);
         }
       }
       if (truncated) {
         newOrder.pop();
+        pendingTriage.length = pendingBefore;
         break;
       }
       newBySha.set(oid, commitFindings);
@@ -1002,6 +1088,36 @@ export async function scanHistoryViaGit(
         cachedCommits: 0, commitsFetched: 0, restCalls: 0, gitRequests,
         lastScannedSha: null, complete: false, headMoved: true,
       };
+    }
+
+    // Phase 11: usage for the newly walked findings, searched
+    // against the HEAD files in this same clone (historyOnly) —
+    // then triage, with the full context, exactly once. A finding
+    // whose identifier is referenced by today's files is in use;
+    // one nothing references is a dead end. When no corpus is
+    // available (HEAD tree over the bounds, or the read failed),
+    // findings are triaged exactly as Phase 10 did and carry no
+    // usage annotation — absent, never half-searched. Cached-suffix
+    // findings (below) already carry the usage computed when they
+    // were first walked, at the same tip.
+    const newFindings = pendingTriage.flatMap((p) => p.findings);
+    if (newFindings.length > 0) {
+      const corpus = await readHeadUsageCorpus(dir, branch, cacheObj, cacheKey, tip);
+      if (corpus) {
+        const ctxByFinding = new Map<SecretFinding, FindingContext>();
+        for (const p of pendingTriage) {
+          for (const f of p.findings) {
+            ctxByFinding.set(f, {
+              content: p.content,
+              lineText: p.content !== undefined ? (p.content.split("\n")[f.line - 1] ?? null) : null,
+            });
+          }
+        }
+        computeUsageForFindings(newFindings, corpus, (f) => ctxByFinding.get(f) ?? {}, { historyOnly: true });
+      }
+      for (const p of pendingTriage) {
+        triageFindings(p.findings, (f) => ({ content: p.content, lines: p.lines, usage: f.usage }));
+      }
     }
 
     // Merge the newly walked commits with the cached suffix (if the walk

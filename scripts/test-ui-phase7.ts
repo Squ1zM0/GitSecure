@@ -187,6 +187,148 @@ check("report page renders the stat grid", reportView.includes("stat-grid"));
 check("report page renders the verdict", reportView.includes("biggestProblem"));
 check("report view labels a provisional score as provisional", reportView.includes("Provisional score"));
 
+// --- 2c. Phase 11: verdict sections + usage map --------------------
+// Fixtures carry `usage` via the shared contract (SecretUsage on the
+// finding). The type field is not in src/lib/types.ts yet — the engine
+// worker is adding it — so the fixtures are typed with the local
+// mirror from ReportLists and passed structurally.
+import { UsageMap, getUsage, type SecretUsage } from "../src/components/ReportLists";
+type SecretWithUsage = SecretFinding & { usage?: SecretUsage };
+const phase11Secrets: SecretWithUsage[] = [
+  {
+    id: "p1", type: "private-key", title: "Private key",
+    severity: "critical", confidence: "high", file: "tools/testing/selftests/sgx/sign_key.pem", line: 1,
+    commit: "HEAD", fragment: "----…--", fix: "Treat this key as compromised: generate a new key pair, replace it everywhere it was used, and remove the old one from git history.",
+    plainEnglish: "A private key in a public repo is no longer private. Anyone can impersonate whatever it unlocks.",
+    triage: {
+      verdict: "likely-test-key",
+      signals: ["test-path:testing"],
+      explanation: "This looks like an intentional test key: it lives in a test path (tools/testing/selftests). It is still listed and still counted — if it ever signs real artifacts or grants real access, treat it as compromised and rotate it.",
+      adjustedSeverity: "low",
+      adjustedConfidence: "low",
+      fix: "Confirm this key is only used by tests and never signs real artifacts; if it does, rotate it.",
+    },
+    usage: {
+      referencedBy: [{ file: "src/app.ts", line: 10 }],
+      referencedByTotal: 1,
+      referencedByTests: [{ file: "tests/app.test.ts", line: 5 }],
+      referencedByTestsTotal: 1,
+      deadEnd: false,
+    },
+  },
+  {
+    id: "p2", type: "private-key", title: "Private key",
+    severity: "critical", confidence: "high", file: "src/config/prod.key", line: 1,
+    commit: "HEAD", fragment: "----…--", fix: "Treat this key as compromised: generate a new key pair, replace it everywhere it was used, and remove the old one from git history.",
+    plainEnglish: "A private key in a public repo is no longer private. Anyone can impersonate whatever it unlocks.",
+    triage: {
+      verdict: "likely-genuine-leak",
+      signals: ["prod-filename:prod"],
+      explanation: "This looks like a genuine leak: its file name looks production (prod.key) with no test signals.",
+      adjustedSeverity: "critical",
+      adjustedConfidence: "high",
+      fix: "Treat this key as compromised: generate a new key pair, replace it everywhere it was used, and remove the old one from git history.",
+    },
+    usage: {
+      referencedBy: [{ file: "src/server.ts", line: 42 }],
+      referencedByTotal: 1,
+      referencedByTests: [],
+      referencedByTestsTotal: 0,
+      deadEnd: false,
+    },
+  },
+  {
+    id: "p3", type: "api-key", title: "API key",
+    severity: "high", confidence: "medium", file: "lib/old_client.py", line: 7,
+    commit: "HEAD", fragment: "abcd…yz", fix: "Rotate the key and move it to an environment variable.",
+    plainEnglish: "An API key is written in a source file anyone can read.",
+    triage: {
+      verdict: "uncertain",
+      signals: [],
+      explanation: "Nothing in this repo references this key — a true dead end. No test signals and no production signals either, so a human has to decide.",
+      adjustedSeverity: "high",
+      adjustedConfidence: "low",
+      fix: "Rotate the key and move it to an environment variable.",
+    },
+    usage: {
+      referencedBy: [],
+      referencedByTotal: 0,
+      referencedByTests: [],
+      referencedByTestsTotal: 0,
+      deadEnd: true,
+    },
+  },
+  {
+    id: "p4", type: "api-key", title: "API key",
+    severity: "medium", confidence: "low", file: "docs/example.md", line: 3,
+    commit: "HEAD", fragment: "efgh…ij", fix: "Remove it from the docs.",
+    plainEnglish: "An API key appears in a documentation example.",
+    // No triage, no usage: an older report's finding renders as
+    // uncertain and without usage info, never crashes.
+  },
+];
+const p11List = renderToString(
+  React.createElement(SecretsList, { secrets: phase11Secrets, owner: "Squ1zM0", repo: "TechDirect", branch: "main" }),
+).replace(/<!-- -->/g, "");
+// The opening <details …> tag of one verdict section.
+const sectionTag = (html: string, cls: string) => {
+  const i = html.indexOf(cls);
+  if (i < 0) return "";
+  const start = html.lastIndexOf("<details", i);
+  return html.slice(start, html.indexOf(">", start) + 1);
+};
+const testSection = p11List.slice(p11List.indexOf("verdict-test"));
+check("phase11: likely-test-keys section exists with its own count", p11List.includes("Likely test keys") && p11List.includes("(1 finding)"));
+check("phase11: genuine-leaks section exists with its own count", p11List.includes("Likely genuine leaks") && p11List.includes("(1 finding)"));
+check("phase11: uncertain section exists with its own count", p11List.includes("Uncertain — needs a human check") && p11List.includes("(2 findings)"));
+check("phase11: test-keys section is collapsed by default", !sectionTag(p11List, "verdict-test").includes("open"));
+check("phase11: genuine-leaks section is open by default", sectionTag(p11List, "verdict-genuine").includes("open"));
+check("phase11: uncertain section is open by default", sectionTag(p11List, "verdict-uncertain").includes("open"));
+const p11ListOpen = renderToString(
+  React.createElement(SecretsList, { secrets: phase11Secrets, owner: "Squ1zM0", repo: "TechDirect", branch: "main", defaultTestSectionOpen: true }),
+).replace(/<!-- -->/g, "");
+check("phase11: test-keys section expands (open when asked)", sectionTag(p11ListOpen, "verdict-test").includes("open"));
+check("phase11: genuine leak is not in the test-keys section", !testSection.includes("src/config/prod.key") && !testSection.includes("src/server.ts"));
+check("phase11: test key is in the test-keys section, with its test-key Fix", testSection.includes("tools/testing/selftests/sgx/sign_key.pem") && testSection.includes("Confirm this key is only used by tests"));
+check("phase11: counts line shows the honest split", p11List.includes("Of the 4 secrets, 1 looks like test keys") && p11List.includes("1 looks like genuine leaks, 2 uncertain."));
+check("phase11: dead-end finding carries the Dead end label", p11List.includes("Dead end"));
+check("phase11: dead-end explanation renders", p11List.includes("Nothing in this repo references this key — a true dead end"));
+check("phase11: in-use finding shows its references", p11List.includes("Used by: src/app.ts:10, tests/app.test.ts:5 (test)"));
+check("phase11: every finding keeps its GitHub link and anchor", p11List.includes("https://github.com/Squ1zM0/TechDirect/blob/main/src/config/prod.key#L1") && p11List.includes('id="secret-3"'));
+check("phase11: getUsage is defensive (absent -> undefined)", getUsage(phase11Secrets[3]) === undefined);
+check("phase11: getUsage is defensive (malformed -> undefined)", getUsage({ ...phase11Secrets[3], usage: { deadEnd: "yes" } } as unknown as SecretFinding) === undefined);
+
+// --- 2d. Phase 11 usage map ------------------------------------------
+const p11ByFile = [
+  { file: "tools/testing/selftests/sgx/sign_key.pem", count: 1 },
+  { file: "src/config/prod.key", count: 1 },
+  { file: "lib/old_client.py", count: 1 },
+  { file: "docs/example.md", count: 1 },
+  { file: "src/app.ts", count: 0 },
+  { file: "tests/app.test.ts", count: 0 },
+  { file: "src/server.ts", count: 0 },
+];
+const p11Findings = phase11Secrets.map((item, idx) => ({ item, idx }));
+const usageMap = renderToString(
+  React.createElement(UsageMap, { findings: p11Findings, byFile: p11ByFile, onSelectFile: () => {} }),
+).replace(/<!-- -->/g, "");
+check("phase11 map: renders an SVG usage graph", usageMap.includes("<svg") && usageMap.includes("Usage map"));
+check("phase11 map: legend names solid vs dashed edges and dead ends", usageMap.includes("Used in non-test code") && usageMap.includes("Used in tests only") && usageMap.includes("dead end"));
+check("phase11 map: in-use finding gets code + test edges", usageMap.includes("map-edge-code") && usageMap.includes("map-edge-test"));
+check("phase11 map: edges total 5 (test key: own+code+test, genuine: own+code, dead end: none)", (usageMap.match(/<line/g) ?? []).length === 5);
+check("phase11 map: dead-end finding is greyed and labelled", usageMap.includes("map-finding-deadend") && usageMap.includes(">dead end<"));
+check("phase11 map: finding nodes are keyboard reachable", usageMap.includes('role="button"') && usageMap.includes("tabindex=\"0\""));
+check("phase11 map: track hint renders when nothing is selected", usageMap.includes("Click a finding node to follow its track"));
+const noUsageMap = renderToString(
+  React.createElement(UsageMap, {
+    findings: [{ item: fakeSecrets[0], idx: 0 }],
+    byFile: [{ file: "config/settings.py", count: 5 }],
+    onSelectFile: () => {},
+  }),
+).replace(/<!-- -->/g, "");
+check("phase11 map: degrades gracefully with no usage data (file-count spider)", noUsageMap.includes("Map of files holding secrets") && !noUsageMap.includes("map-edge"));
+check("phase11 CSS: verdict sections, dead-end pill, map edges and track detail styled", css.includes(".verdict-test") && css.includes(".pill.dead-end") && css.includes(".map-edge-test") && css.includes(".map-edge-own") && css.includes(".map-finding-deadend") && css.includes(".map-track-detail"));
+
 // --- 5. No literal secret-pattern values in the UI files ------------
 const uiFiles = [
   "src/app/globals.css", "src/app/page.tsx", "src/app/layout.tsx",

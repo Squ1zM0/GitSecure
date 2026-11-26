@@ -1164,6 +1164,119 @@ finding above it (`drivers/of/unittest-data/tests-phandle.dtsi`, line
   triage never changes the score — the 22 test-key findings still count
   in full, shown separately as "of which 22 look like test keys".
 
+## Phase 11 status — secret usage: in use vs true dead end + the track through the spider web (built 2026-11-26, solo)
+
+Trigger: Freddy, voice message — separate the likely-test results so
+there is a way to click and see them, and, while scanning, determine
+what each finding is dependent on and whether anything else in the code
+uses it. If something else calls it, it is in use, not a test key; if
+nothing does, it is a true dead end. Follow that track through the
+spider web.
+
+- **Usage analysis (`src/lib/usage.ts`, new).** For every secret
+  finding, the scanner searches the repo's own HEAD files for
+  references to the finding's **identifier only** — variable/env name,
+  key filename, or config key — outside the file where it was found.
+  It never searches for or stores the secret value itself, and never
+  matches on the redacted fragment. Identifier extraction is
+  match-anchored: the name comes from the detector match itself
+  (password-style detectors include the name) or the `NAME =`
+  immediately preceding the match start, with the fragment identifying
+  the exact match when a line holds several; fallback to the line-start
+  assignment runs only when the line holds no detector match. Guards:
+  a URL scheme is not a name (bare `postgres://…` yields no
+  identifier); a match inside a string yields the name inside the
+  string, never the test's own variable; `.env` findings use only
+  their defined variable names (the bare `.env` basename is not an
+  identifier). References in test files (Phase 10 `isTestFilePath`)
+  go in `referencedByTests` and do NOT count as "in use"; non-test
+  references go in `referencedBy`. Lists capped at 10 with true
+  totals; `deadEnd: true` only when a usable identifier was found and
+  nothing anywhere references it (no identifier → `deadEnd: false`,
+  "liveness undetermined"). One prefilter pass per file, then exact
+  per-identifier attribution. HEAD usage is computed in `scanHead`
+  after the whole tree is scanned; history usage comes from HEAD files
+  only (`historyOnly: true`) in the git-protocol path of `history.ts`
+  (API/clone/patch paths leave `usage` absent — no HEAD files
+  available); `buildLimits` gains the plain-English history-usage line;
+  the provisional report carries usage through and stays client-safe
+  (no triage import).
+- **Triage feed-back (`src/lib/triage.ts`).** Applied after the Phase
+  10 verdict. (a) `likely-test-key` + non-test reference → at minimum
+  `uncertain`, explanation names the file. (b) Further →
+  `likely-genuine-leak` when the referencing non-test file is
+  production-ish (`src/`, `lib/`, `app/`, `config/`, `deploy/`,
+  `scripts/`, repo-root config) AND the detector type is a credential
+  type (AWS key, token, webhook, database URL, hardcoded password,
+  private key; `env-file` and `generic-high-entropy-secret` excluded)
+  — rule stated in a code comment. (c) Zero references → signal
+  `usage-dead-end` (+2 toward `likely-test-key`) + the exact sentence
+  "Nothing in this repo references this key — a true dead end." A
+  decisive fingerprint match is not overridden by a docs/examples-only
+  reference (stays `likely-test-key`, reference recorded);
+  production-path usage still upgrades it. Usage never changes the
+  score.
+- **Separated likely-test section (`ReportLists.tsx`).** The secrets
+  list partitions into three `<details>` verdict sections, in order:
+  Likely genuine leaks (open by default), Uncertain — needs a human
+  check (open by default; no-triage findings count as uncertain),
+  Likely test keys (collapsed by default, own count, expands on click;
+  only test-key findings, each with triage explanation and test-key
+  Fix). Group-by type/file works as sub-groups inside each section;
+  the verdict filter still works alongside and auto-opens its section;
+  a shared `#secret-N` link opens the section holding that finding.
+  Dead-end findings show a "Dead end" pill; in-use findings show
+  "Used by: file:line"; history-only findings note usage was checked
+  against the current files only. The honest counts line keeps the
+  split.
+- **The track through the spider web (`UsageMap`, replaces `FileMap`
+  in map view).** Repo node centre, finding nodes (S1…S12) inner ring,
+  file nodes outer ring (rendering caps only: 12 findings most-used
+  first, 24 files; the full list stays below). Edges: solid accent =
+  used in non-test code, dashed = test-only use, thin grey = the file
+  the finding itself lives in (the other hop of the track). Click a
+  finding node → its track stays full-strength, everything else dims,
+  detail panel names the finding, file:line, and references, with a
+  "Show this finding in the list" button (sets the `#secret-N` hash);
+  click again to deselect. Click a file node → filters the list to that
+  file. Dead-end findings are grey dashed nodes labelled "dead end"
+  with **no** edges. Legend; keyboard-reachable nodes (Tab +
+  Enter/Space); ≥44 px hit targets; 120–150 ms motion under the
+  existing prefers-reduced-motion rule; dark mode via existing CSS
+  vars. No `usage` data (older report) → the Phase 5 file-count spider
+  renders unchanged. API and MCP carry `usage` on every secret finding;
+  `list_checks` names "secret usage — in use vs dead end".
+- **Verification (2026-11-26, local):** `npm run build` exit 0 (one
+  blocker found at integration: `ReportLists.tsx:61` TS2352 on the UI
+  worker's local `SecretUsage` mirror cast — fixed by the coordinator
+  by deleting the mirror and importing the real `SecretUsage` from
+  `src/lib/types.ts`); `test:scanner` 73/73, `test:triage-phase10`
+  59/59, `test:tier3` 40/40, `test:history` 56/56,
+  `test:public-full` 56/56, `test:cursor-phase9` 181/181,
+  `test:usage-phase11` 64/64 (new — key referenced by src/ code,
+  test-only references, dead end, capped lists with true totals,
+  usage-never-matches-the-value regression, upgrade-rule cases),
+  `test:ui-phase7` 87/87 (was 62 — 29 new Phase 11 checks),
+  `test:mcp` 60/60 (was 58), `test:techdirect` 83/B with filesScanned
+  = 2,802, history 62/62 via git protocol. Dogfood self-scan (local):
+  0/F, 22 secrets, 22/22 likely-test-key — 6 false flips found during
+  the phase were fixed in `usage.ts` (3 database-url via the
+  URL-scheme guard, 2 hardcoded-password via match-anchoring, 1
+  env-file via dropping the `.env` basename; the env-file finding now
+  correctly shows `deadEnd: true`). No literal secret-pattern values
+  committed (grep-verified). UI visually verified via render harness +
+  headless Chromium screenshots at 360 px and 1280 px (light + dark),
+  zero horizontal overflow, in `test-results/phase11/`; two defects
+  found by looking and fixed (finding-node labels struck through by
+  their own edges; a no-usage finding mislabelled "unused").
+- **Live verification (2026-11-26, after <COMMIT>):** home 200; live
+  TechDirect 83/B, 0 secrets, 4 vulns, 2,802 files, 62/62 history;
+  live GitSecure self-scan 0/F, 22 secrets, all 22 likely-test-key —
+  the likely-test section is clickable and separate, dead-end findings
+  labelled, in-use findings show their track in the map; MCP
+  initialize 200, tools/list shows `scan_repo`, `get_report`,
+  `resume_scan`, `list_checks`.
+
 ## Phase 2 status — built and pushed 2026-11-25, commit 870f889f, live at https://gitsecure.vercel.app/ (verified serving: home 200, live TechDirect scan 200, 83/B)
 - Next.js 16 / React 19 / TypeScript + Auth.js (NextAuth 5.0.0-beta.32,
   GitHub provider), in ~/workspace/gitsecure/.

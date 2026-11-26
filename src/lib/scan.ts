@@ -66,7 +66,8 @@ import { isSkippablePath } from "./paths";
 import { computeScore, plainSummary } from "./score";
 import { envFileFinding, scanTextForSecrets, type ScannedFile } from "./secrets";
 import { fingerprintFrameworks, parseCargoLock, parseCargoToml, parseComposerJson, parseComposerLock, parseCsproj, parseGemfile, parseGemfileLock, parseGoMod, parseGradle, parsePackagesConfig, parsePackageJson, parsePackageLock, parsePomXml, parseRequirements, parseYamlLock, viteFindings } from "./frameworks";
-import { collectPublicKeyIdentities, ensureTriage, isTestPathSegment, triageFindings } from "./triage";
+import { collectPublicKeyIdentities, ensureTriage, triageFindings } from "./triage";
+import { computeUsageForFindings } from "./usage";
 import type { Dependency, Framework, FullReport, HeadPartial, PostureIssue, SecretFinding, Vulnerability } from "./types";
 
 export const HISTORY_DEPTH = "Full history, newest first.";
@@ -348,6 +349,9 @@ export interface BuildLimitsInput {
   detailCapped: number;
   treeTruncated: boolean;
   tarballFallback: boolean;
+  /** Phase 11: true when at least one history finding carries usage
+   *  computed from the HEAD files only (historyOnly). */
+  historyUsageFromHead?: boolean;
 }
 export function buildLimits(input: BuildLimitsInput): string[] {
   const limits: string[] = [];
@@ -380,6 +384,7 @@ export function buildLimits(input: BuildLimitsInput): string[] {
   }
   if (input.treeTruncated) limits.push("GitHub returned a truncated file tree — some files were not scanned. The tree was too large for GitHub to return in one response.");
   if (input.tarballFallback) limits.push("Tarball download was unavailable, so files were fetched one by one instead — same files, just slower.");
+  if (input.historyUsageFromHead) limits.push("For secrets found in history, usage (whether anything still references the key) was checked against the current files only — the old commit's files are gone, so a reference that existed then but not now is not counted.");
   limits.push("Public repos only. No secret is ever stored, logged, or shown in full.");
   return limits;
 }
@@ -788,6 +793,11 @@ export async function scanHead(
   };
 
   let tarballFallback = false;
+  // Phase 11: the whole-buffer tarball path returns the full file
+  // set as a Map — kept so the usage search below can run over every
+  // scanned file. Streaming mode never holds the full set, so it
+  // stays null and usage searches the retained files instead.
+  let headCorpus: Map<string, string> | null = null;
   if (streaming) {
     try {
       await streamHeadFilesViaTarball(owner, repo, branch, onEntry, { onCount, budgetMs: 50_000 });
@@ -815,10 +825,12 @@ export async function scanHead(
   } else {
     try {
       const full = await fetchHeadFilesViaTarball(owner, repo, branch, onCount);
+      headCorpus = full;
       for (const [path, content] of full) onEntry(path, content);
     } catch {
       tarballFallback = true;
       const full = await fetchHeadFiles(owner, repo, branch, chosen, onCount);
+      headCorpus = full;
       for (const [path, content] of full) onEntry(path, content);
     }
   }
@@ -829,43 +841,28 @@ export async function scanHead(
   // Phase 10 triage (HEAD): annotate every HEAD secret finding with
   // the layered triage verdict. Runs after the whole tree is scanned
   // so the public-counterpart and usage signals see the complete repo.
-  // Triage never removes a finding — headSecrets keeps its length,
-  // and the score still uses the detector severity (see triage.ts).
-  // Usage refs come from the retained files (manifests, configs,
-  // workflows, infra, source): a key file referenced only from test
-  // files is a test signal; one referenced from production code is a
-  // genuine signal. Retained files are a subset of the tree, so no
-  // reference found means no usage signal either way.
-  const usageByFinding = new Map<SecretFinding, { testOnly: boolean; prod: boolean }>();
-  {
-    const keyFindings = headSecrets.filter((f) => f.type === "private-key");
-    const byBasename = new Map<string, SecretFinding[]>();
-    for (const f of keyFindings) {
-      const b = f.file.split("/").pop() ?? f.file;
-      const arr = byBasename.get(b) ?? [];
-      arr.push(f);
-      byBasename.set(b, arr);
-    }
-    for (const [basename, findings] of byBasename) {
-      const refs: string[] = [];
-      for (const [retainedPath, retainedContent] of files) {
-        if (retainedPath === findings[0].file) continue;
-        if (retainedContent.includes(basename)) refs.push(retainedPath);
-      }
-      const testOnly = refs.length > 0 && refs.every((p) => p.split("/").some(isTestPathSegment));
-      const prod = refs.some((p) => !p.split("/").some(isTestPathSegment));
-      for (const f of findings) usageByFinding.set(f, { testOnly, prod });
-    }
-  }
-  triageFindings(headSecrets, (f) => {
-    const usage = usageByFinding.get(f);
+  // Phase 11 usage (HEAD) runs first — it needs the whole tree —
+  // then triage consumes it as a post-verdict signal. The search
+  // corpus is the full file set when the whole-buffer tarball path
+  // ran (its Map is still in memory); in streaming mode it is the
+  // retained files plus the files that produced findings — the same
+  // retained subset Phase 10 searched, so a reference in a file
+  // outside that subset cannot be seen there. Triage never removes
+  // a finding — headSecrets keeps its length — and the score still
+  // uses the detector severity (see triage.ts).
+  const usageCorpus = headCorpus ?? new Map<string, string>([...files, ...findingContents]);
+  computeUsageForFindings(headSecrets, usageCorpus, (f) => {
+    const content = findingContents.get(f.file) ?? files.get(f.file);
     return {
-      content: findingContents.get(f.file),
-      repoPublicKeyIdentities,
-      referencedByTestOnly: usage?.testOnly,
-      referencedByProd: usage?.prod,
+      content,
+      lineText: content !== undefined ? (content.split("\n")[f.line - 1] ?? null) : null,
     };
   });
+  triageFindings(headSecrets, (f) => ({
+    content: findingContents.get(f.file),
+    repoPublicKeyIdentities,
+    usage: f.usage,
+  }));
 
   // Frameworks + dependencies (Tier 1 + Tier 2) — priority order, so
   // the OSV query covers the same manifests run to run.
@@ -1017,6 +1014,9 @@ export async function assembleReport(
     detailCapped,
     treeTruncated: head.treeTruncated,
     tarballFallback: head.tarballFallback,
+    // Phase 11: the line appears only when a history finding
+    // actually carries HEAD-only usage.
+    historyUsageFromHead: dedupedSecrets.some((s) => s.usage?.historyOnly === true),
   });
   if (head.retainedIncomplete) {
     limits.push("Some config files could not be kept in memory during the current-files download, so framework detection may be incomplete — every file was still checked for leaked secrets.");

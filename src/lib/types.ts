@@ -28,6 +28,28 @@ export interface SecretTriage {
   fix: string;
 }
 
+export interface SecretUsage {
+  /** Non-test code that references this finding's identifier
+   *  (variable/env name, key filename, or config key) — first 10. */
+  referencedBy: { file: string; line: number }[];
+  /** True total of non-test references (the list above is capped). */
+  referencedByTotal: number;
+  /** Test code that references the identifier — first 10. Test-only
+   *  references do NOT count as "in use". */
+  referencedByTests: { file: string; line: number }[];
+  /** True total of test references (the list above is capped). */
+  referencedByTestsTotal: number;
+  /** True when an identifier was found to search for and nothing
+   *  anywhere in the repo references it. False when references exist
+   *  OR when no usable identifier could be extracted (then the lists
+   *  are empty and nothing about liveness was determined). */
+  deadEnd: boolean;
+  /** History finding: usage was computed from the HEAD files only —
+   *  the old commit's files are gone, so a reference that existed
+   *  then but not now is not counted. */
+  historyOnly?: boolean;
+}
+
 export interface SecretFinding {
   id: string;
   type: string; // e.g. "discord-webhook"
@@ -44,6 +66,11 @@ export interface SecretFinding {
   /** Phase 10 triage annotation — present on every finding a scan
    *  produces (HEAD and history alike). */
   triage?: SecretTriage;
+  /** Phase 11 usage annotation — whether anything in the repo still
+   *  references this finding's identifier (see SecretUsage). Present
+   *  when the scan could compute it; absent when no HEAD files were
+   *  available to search (API / patch-fallback history paths). */
+  usage?: SecretUsage;
 }
 
 export interface Framework {

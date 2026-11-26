@@ -405,11 +405,39 @@ details.group[open ] .group-body { animation: group-in 180ms ease; }
 .map-node { cursor: pointer; }
 .map-node circle { fill: var(--accent-soft); stroke: var(--accent); stroke-width: 2; transition: fill 120ms ease; }
 .map-node text { font-size: 10px; fill: var(--text); }
-.map-node:hover circle, .map-node:focus-visible circle { fill: var(--accent); }
+.map-node:hover circle:not(.map-hit), .map-node:focus-visible circle:not(.map-hit) { fill: var(--accent); }
 .map-node:focus-visible { outline: none; }
-.map-node:focus-visible circle { stroke: var(--focus); stroke-width: 3; }
+.map-node:focus-visible circle:not(.map-hit) { stroke: var(--focus); stroke-width: 3; }
 .map-centre { fill: var(--accent-strong); }
 .map-centre-text { fill: var(--on-accent); }
+
+/* ---- Phase 11: verdict sections, dead ends, usage map ------------ */
+.verdict-section { border-top: 1px solid var(--line); }
+.verdict-section > summary { font-size: 1rem; }
+.verdict-genuine > summary { color: var(--bad); }
+.verdict-uncertain > summary { color: var(--fair); }
+.verdict-test > summary { color: var(--sev-low-text); }
+.pill.dead-end {
+  background: var(--sev-info-bg);
+  color: var(--sev-info-text);
+  border: 1px dashed currentcolor;
+}
+.dead-end-note { background: var(--surface-muted); border-radius: 8px; padding: 8px 12px; }
+.usage-line { background: var(--surface-muted); border-radius: 8px; padding: 8px 12px; }
+.map-edge { stroke: var(--accent); stroke-width: 2; transition: opacity 150ms ease; }
+.map-edge-test { stroke-dasharray: 5 4; }
+.map-edge-own { stroke: var(--line); stroke-width: 1.5; }
+.map-edge-track { opacity: 1; }
+.map-edge-dim { opacity: 0.12; }
+.map-node circle.map-hit { fill: transparent; stroke: none; }
+.map-finding-node circle:not(.map-hit) { fill: var(--surface); stroke: var(--accent); stroke-width: 2; transition: fill 120ms ease, opacity 150ms ease; }
+.map-finding-node:hover circle:not(.map-hit), .map-finding-node:focus-visible circle:not(.map-hit) { fill: var(--accent-soft); }
+.map-finding-deadend circle:not(.map-hit) { fill: var(--surface-muted); stroke: var(--muted); stroke-dasharray: 3 3; }
+.map-finding-deadend text { fill: var(--muted); }
+.map-node-selected circle:not(.map-hit) { stroke: var(--focus); stroke-width: 3; }
+.map-dim { opacity: 0.35; }
+.map-track-detail { background: var(--surface-muted); border: 1px solid var(--line); border-radius: var(--radius-sm); padding: 10px 14px; margin-top: 10px; }
+.map-track-detail p { margin: var(--space-2) 0; }
 button.file-chip { margin: 3px; padding: 6px 10px; font-size: 13px; font-weight: 600; min-height: 36px; }
 .pager { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
 
