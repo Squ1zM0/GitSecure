@@ -523,6 +523,62 @@ commits while local scans read all 62 TechDirect commits.
   real GitHub API scans all 62 TechDirect commits in ~6 s,
   unauthenticated. Live numbers after the push are in GITSECURE.md.
 
+## Phase 7 — UI/UX redesign (built 2026-11-25, design only)
+
+No scan behaviour, caps, scoring, redaction, or API/MCP contracts
+changed — TechDirect is still 83/B, all suites still green. What
+changed is how the report looks and reads.
+
+- **Identity** (`src/app/globals.css`): one type scale
+  (clamp-based h1, 1.25rem h2), one spacing system (`--space-1`…`--space-6`),
+  one colour system as custom properties. Real dark mode via
+  `prefers-color-scheme` — every surface, input, code block, pill and
+  button is redefined for dark, including a dark-text-on-green button
+  (`--on-accent`) so the primary button keeps its contrast in both
+  themes. Inline code wraps only when it must (`overflow-wrap:
+  break-word`, no `word-break: break-all`) — no more mid-word breaks.
+- **Score dial** (`src/components/ScoreDial.tsx`, bands in
+  `src/lib/score.ts`: `gradeBand` A/B good, C fair, D/F poor): an SVG
+  arc 0–100 with the score and grade in the middle, colour-coded by
+  band with the grade word beside it — colour + label together, never
+  colour alone. The hero also carries a one-sentence verdict
+  (`biggestProblem`) and the counts as a clean stat grid (2 columns at
+  phone width, 3 on desktop); the secrets stat only turns red when
+  the count is above zero.
+- **Home**: hero first screen (lede, designed mirror-URL strip, one
+  big scan input), "What it checks" as four scannable cards, styled
+  error (`role=alert`) and scanning state (spinner + honest progress
+  text, `role=status`). `parseInput()` is byte-identical.
+- **Findings**: cards with a severity-coloured left border, clear
+  title, file:line, plain-English what + fix in a shaded block, and a
+  prominent GitHub file+line link next to the copy-link. Collapsible
+  groups get a rotating chevron and a fade on open; filter result
+  counts are `aria-live`. The spider map has a legend, a centre node
+  big enough for its label, hover/focus states, and keyboard-reachable
+  nodes (Tab + Enter to filter) plus the file-chip buttons.
+- **Loading / error**: loading is a designed screen (spinner + the
+  three real scan steps, honest wording); errors keep the
+  `errorCopy()` wording in a red-bordered card with a clear next
+  action.
+- **Motion & a11y**: 120–180 ms transitions on hover/focus/open only;
+  `prefers-reduced-motion` disables them all. Focus-visible rings
+  everywhere, skip link, tap targets ≥44px, input and button stack
+  cleanly at 360px, zero horizontal overflow at 1280px and 360px.
+- **Verification (2026-11-25):** `npm run build` exit 0;
+  `test:scanner` 68/68, `test:tier3` 40/40, `test:history` 23/23,
+  `test:public-full` 56/56, `test:ui-phase7` 52/52 (new — dial, lists,
+  map, CSS, no-sign-in copy), `test:techdirect` 83/B with "Scanned
+  all 2802 files in the tree", `test:mcp` 51/51. **Visually verified
+  in a real headless Chromium** (Playwright, cached Chromium build):
+  home / loading / TechDirect report / error page at 1280px light and
+  dark and at 360px, plus the GitSecure dogfood report (0/F) with the
+  secrets list and spider map — click a map node filters the list live
+  (2 of 8 secrets, 1 file). Screenshots in
+  `test-results/phase7/`. Three defects found by looking and fixed the
+  same run: the mobile scan input was 220px tall (column flex-basis),
+  inline code broke mid-word, and the dark-mode button was white text
+  on light green.
+
 ## Project notes
 
 Full spec and decisions: `GITSECURE.md`. Repo: https://github.com/Squ1zM0/GitSecure

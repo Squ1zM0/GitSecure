@@ -2,8 +2,9 @@
 // public repos, so the detail is information already public in the
 // repo. No login flow, no owner gate, no ?full flag.
 import { scanRepoWithTimeout, ScanError } from "@/lib/scan";
-import { explainScore } from "@/lib/score";
+import { biggestProblem, explainScore, gradeBand, gradeWord } from "@/lib/score";
 import McpSection from "@/components/McpSection";
+import ScoreDial from "@/components/ScoreDial";
 import { DependenciesList, FrameworksList, PostureList, SecretsList, VulnerabilitiesList } from "@/components/ReportLists";
 import type { FullReport } from "@/lib/types";
 
@@ -12,19 +13,29 @@ export const instant = false;
 export const maxDuration = 60;
 
 function ScoreCard({ report }: { report: FullReport }) {
+  const band = gradeBand(report.grade);
   return (
     <div className="card">
-      <div className="score-row">
-        <div className="score">{report.score}</div>
-        <div>
-          <span className="grade">Grade {report.grade}</span>
+      <div className="score-hero">
+        <ScoreDial score={report.score} grade={report.grade} />
+        <div className="score-copy">
+          <p>
+            <span className={`grade-chip ${band}`}>Grade {report.grade} — {gradeWord(report.grade)}</span>
+          </p>
           <p className="muted small">
             {report.owner}/{report.repo} · branch {report.branch} · commit <code className="inline">{String(report.commit).slice(0, 7)}</code>
           </p>
+          <p className="verdict">
+            {biggestProblem({
+              secrets: report.counts.secrets,
+              vulnerabilities: report.counts.vulnerabilities,
+              postureIssues: report.counts.postureIssues,
+            })}
+          </p>
+          <p className="score-explain">{report.summary}</p>
         </div>
       </div>
-      <p>{report.summary}</p>
-      <p>
+      <p className="score-explain">
         {explainScore({
           score: report.score,
           grade: report.grade,
@@ -33,15 +44,15 @@ function ScoreCard({ report }: { report: FullReport }) {
           postureIssues: report.counts.postureIssues,
         })}
       </p>
-      <div className="counts">
-        <div className="count"><b>{report.counts.secrets}</b><span>possible leaked secrets</span></div>
-        <div className="count"><b>{report.counts.vulnerabilities}</b><span>dependency vulnerabilities</span></div>
-        <div className="count"><b>{report.counts.frameworks}</b><span>frameworks detected</span></div>
-        <div className="count"><b>{report.counts.dependencies}</b><span>dependencies checked</span></div>
-        <div className="count"><b>{report.counts.postureIssues}</b><span>posture issues</span></div>
-        <div className="count"><b>{report.counts.filesScanned}</b><span>files scanned</span></div>
+      <div className="stat-grid" role="list" aria-label="Scan counts">
+        <div className={report.counts.secrets > 0 ? "stat stat-alert" : "stat"} role="listitem"><b>{report.counts.secrets}</b><span>possible leaked secrets</span></div>
+        <div className="stat" role="listitem"><b>{report.counts.vulnerabilities}</b><span>dependency vulnerabilities</span></div>
+        <div className="stat" role="listitem"><b>{report.counts.frameworks}</b><span>frameworks detected</span></div>
+        <div className="stat" role="listitem"><b>{report.counts.dependencies}</b><span>dependencies checked</span></div>
+        <div className="stat" role="listitem"><b>{report.counts.postureIssues}</b><span>posture issues</span></div>
+        <div className="stat" role="listitem"><b>{report.counts.filesScanned}</b><span>files scanned</span></div>
       </div>
-      <p className="small">
+      <p className="small scan-meta">
         Scanned {new Date(report.scannedAt).toLocaleString()} · History checked: {report.counts.historyCommitsScanned} commit{report.counts.historyCommitsScanned === 1 ? "" : "s"}, newest first.
       </p>
     </div>
@@ -105,9 +116,9 @@ export default async function ReportPage({
     const { title, body } = errorCopy(err, owner, repo);
     return (
       <div>
-        <p><a href="/">← Scan another repo</a></p>
+        <p className="back-link"><a href="/">← Scan another repo</a></p>
         <h1>{title}</h1>
-        <div className="card">
+        <div className="card error-card" role="alert">
           <p>{body}</p>
           <p><a className="button-link" href="/">Scan another repo</a></p>
         </div>
@@ -118,8 +129,8 @@ export default async function ReportPage({
   const report: FullReport = full;
 
   return (
-    <div>
-      <p><a href="/">← Scan another repo</a></p>
+    <div className="report-hero">
+      <p className="back-link"><a href="/">← Scan another repo</a></p>
       <h1>{owner}/{repo}</h1>
 
       <ScoreCard report={report} />

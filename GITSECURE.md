@@ -46,6 +46,13 @@ No install, no config — swap the URL, get a security report.
   API-based full-history path that fixes the Vercel no-git live caveat
   (live history fell back to 5 commits; now it pages the commits API
   for the full history). See "Phase 6 status" below.
+- PHASE 7 (built 2026-11-25, solo, design only): UI/UX redesign —
+  coherent identity, real dark mode, score dial, report hero with a
+  one-sentence verdict, actionable finding cards, usable spider map,
+  designed loading/error screens, motion + accessibility. No scan
+  behaviour, caps, scoring, redaction, or API/MCP contracts changed.
+  First phase visually verified in a real headless Chromium (earlier
+  phases could not render the UI). See "Phase 7 status" below.
 - DEPLOYED 2026-11-25 by Freddy: live at https://gitsecure.vercel.app/,
   verified live by Cobalt (home page + live TechDirect scan 83/B, matching
   the local test). Vercel MCP still returns 403 on team scope
@@ -573,6 +580,98 @@ Two spec items, in order:
   Action frameworks with versions, 27 vulnerabilities) and by
   `test:tier3` 40/40. Live MCP initialize 200 (protocol 2025-03-26,
   gitsecure 0.1.0).
+
+## Phase 7 status — UI/UX redesign, design only (built 2026-11-25, solo)
+
+No scan behaviour, caps, scoring, redaction, or API/MCP contracts
+changed. `parseInput()` byte-identical, `errorCopy()` wording kept,
+`computeScore`/`explainScore` untouched (only pure presentation
+helpers added: `gradeBand`, `gradeWord`, `biggestProblem` in
+`src/lib/score.ts`). TechDirect still 83/B.
+
+- **Identity** (`src/app/globals.css`, rewritten): one type scale
+  (clamp h1, 1.25rem h2), one spacing system (`--space-1`…`--space-6`),
+  one colour system as custom properties. REAL dark mode via
+  `prefers-color-scheme`: every surface, input, code block, pill and
+  button redefined for dark. Primary buttons use `--on-accent` text
+  (white on dark green in light mode, dark green on light green in
+  dark mode) so contrast holds in both themes. Inline code uses
+  `overflow-wrap: break-word` — it wraps only when it must, never
+  mid-word.
+- **Score dial** (`src/components/ScoreDial.tsx`): SVG arc 0–100 with
+  the score and grade in the middle, colour-coded by band (green A/B,
+  amber C, red D/F) with the grade word beside it — colour + label
+  together, never colour alone. `role="img"` with a full accessible
+  label ("Security score 83 out of 100, grade B, good").
+- **Report hero** (`src/app/[owner]/[repo]/page.tsx`): dial +
+  grade chip ("Grade B — good") + one-sentence verdict (the biggest
+  problem) + summary + `explainScore` + counts as a clean stat grid
+  (2 columns at phone width, 3 on desktop). The secrets stat only
+  turns red when its count is above zero — a 0 no longer looks like
+  an alarm.
+- **Home** (`src/app/page.tsx`): hero first screen — lede, the
+  mirror-URL strip as a designed element (struck-through github.com →
+  git-secure.com), one big scan input. "What it checks" is four
+  scannable cards. Error is a styled box (`role=alert`); scanning
+  state is a spinner + honest progress text (`role=status`).
+- **Findings** (`src/components/ReportLists.tsx`): cards with a
+  severity-coloured left border, title, file:line, plain-English what,
+  fix in a shaded block, prominent GitHub file+line link next to the
+  copy-link. Collapsible groups: rotating chevron, fade on open, clear
+  open/closed state. Filter result counts are `aria-live="polite"`.
+  Spider map: legend, centre node enlarged so "This repo" fits inside
+  it, hover/focus states, nodes keyboard-reachable (Tab, Enter/Space
+  to filter) with focus-visible rings, plus the file-chip buttons
+  below. "Show more" pager unchanged in behaviour, now a flex row.
+- **Loading / error**: `loading.tsx` is a designed screen — spinner +
+  the three real scan steps, honest wording ("A full scan usually
+  takes about 15 seconds… there is nothing to click"). Error pages
+  keep the `errorCopy()` wording in a red-bordered card with a "Scan
+  another repo" button.
+- **Motion & a11y**: 120–180 ms transitions (hover, focus, group
+  open) only; `prefers-reduced-motion` disables all transitions and
+  animations. Focus-visible rings everywhere, skip link to `#main`,
+  tap targets ≥44px, input and button stack cleanly at 360px.
+- **New test** (`scripts/test-ui-phase7.ts`, `npm run test:ui-phase7`,
+  52 checks): dial renders (SVG, band class, score + grade,
+  accessible label, dasharray gauge), grade bands, verdict, secrets
+  list (blob links incl. history-commit refs, anchors, copy buttons,
+  filters, List/Map toggle, aria-live counts, fragments only), map
+  (legend, keyboard-reachable nodes, file-chip buttons), stylesheet
+  (dark mode, reduced motion, focus-visible, ≥44px targets,
+  on-accent button text, no mid-word code breaks), no "Honest limits"
+  / sign-in copy on the human pages, no literal secret-pattern values
+  in the UI files.
+- **Visual verification — actually done this phase, in a real
+  headless Chromium** (Playwright 1.65.1 + cached Chromium headless
+  shell, local production server): home, loading (captured mid-scan),
+  TechDirect report, and an error page at 1280px light AND dark and
+  at 360px, plus the GitSecure dogfood report (0/F, 8 secrets) with
+  the secrets list and spider map — clicking a map node filters the
+  list live (2 of 8 secrets, 1 file). Zero horizontal overflow on
+  every render. Screenshots in `test-results/phase7/`:
+  home-desktop-light/dark, home-360, loading-desktop,
+  report-techdirect-desktop (+ dark), report-techdirect-360,
+  error-desktop, report-gitsecure-secrets-list,
+  report-gitsecure-secrets-map, report-gitsecure-map-closeup.
+  Three defects found by looking and fixed the same run: the mobile
+  scan input rendered 220px tall (column flex-basis leaking into
+  height), inline code broke mid-word (`github.com` → `gi/thub.com`),
+  and the dark-mode primary button was white text on light green.
+  One cosmetic fix after the map close-up: the centre "This repo"
+  label overflowed its circle (r 26 → 34, font 11 → 10).
+- **Verification (2026-11-25):** `npm run build` exit 0;
+  `test:scanner` 68/68, `test:tier3` 40/40, `test:history` 23/23,
+  `test:public-full` 56/56, `test:ui-phase7` 52/52,
+  `test:techdirect` 83/B with filesScanned = 2,802 ("Scanned all 2802
+  files in the tree"), `test:mcp` 51/51 against a local production
+  server. No literal secret-pattern values committed (grep-verified;
+  fixtures still use `__SECRET_n__` placeholders, test-assembled
+  fakes only). Dogfood note: local GitSecure scan is 0/F with 8
+  secrets, 196 vulns, 30 frameworks, 202 deps, 15 posture issues, 62
+  files, 13 history commits — the file count moved 68 → 62 because
+  the Phase 6 push changed the repo's contents; the 8 secret findings
+  are the same known-fake fixtures.
 
 ## Phase 2 status — built and pushed 2026-11-25, commit 870f889f, live at https://gitsecure.vercel.app/ (verified serving: home 200, live TechDirect scan 200, 83/B)
 - Next.js 16 / React 19 / TypeScript + Auth.js (NextAuth 5.0.0-beta.32,

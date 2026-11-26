@@ -47,3 +47,33 @@ export function explainScore(args: { score: number; grade: string; secrets: numb
   }
   return `${score} out of 100 (grade ${grade}) is a ${gradeWord} score. ${driver}`;
 }
+
+/* Phase 7 — presentation helpers only. Scoring is untouched: these
+ * map the existing grade to a colour band (colour + label together,
+ * never colour alone) and pull the one-sentence verdict — the biggest
+ * problem — out of explainScore's driver for the report hero. */
+export type GradeBand = "good" | "fair" | "poor";
+
+export function gradeBand(grade: string): GradeBand {
+  if (grade === "A" || grade === "B") return "good";
+  if (grade === "C") return "fair";
+  return "poor";
+}
+
+export function gradeWord(grade: string): string {
+  return grade === "A" ? "excellent" : grade === "B" ? "good" : grade === "C" ? "fair" : grade === "D" ? "poor" : "needs urgent attention";
+}
+
+/** The hero verdict: the single biggest problem, in one sentence. */
+export function biggestProblem(args: { secrets: number; vulnerabilities: number; postureIssues: number }): string {
+  if (args.secrets > 0) {
+    return `Biggest problem: ${args.secrets} possible leaked secret${args.secrets === 1 ? "" : "s"} — rotate and remove these first.`;
+  }
+  if (args.vulnerabilities > 0) {
+    return `Biggest problem: ${args.vulnerabilities} known flaw${args.vulnerabilities === 1 ? "" : "s"} in dependencies — upgrade the affected packages.`;
+  }
+  if (args.postureIssues > 0) {
+    return `Biggest problem: ${args.postureIssues} small security-hygiene issue${args.postureIssues === 1 ? "" : "s"} to fix.`;
+  }
+  return "Nothing found to fix — this repo looks clean in this scan.";
+}

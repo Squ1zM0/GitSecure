@@ -54,31 +54,51 @@ export default function Home() {
 
   return (
     <div>
-      <h1>Is this repo safe?</h1>
-      <p>
-        GitSecure is the security mirror for GitHub. Take any public repo, swap{" "}
-        <code className="inline">github.com</code> for <code className="inline">git-secure.com</code>,
-        and get a plain-English security report — no install, no sign-up.
-      </p>
-      <div className="url-example">
-        <s>github.com/Squ1zM0/TechDirect</s> → git-secure.com/Squ1zM0/TechDirect
-      </div>
+      <section className="hero" aria-labelledby="hero-heading">
+        <h1 id="hero-heading">Is this repo safe?</h1>
+        <p className="lede">
+          GitSecure is the security mirror for GitHub. Take any public repo, swap{" "}
+          <code className="inline">github.com</code> for <code className="inline">git-secure.com</code>,
+          and get a plain-English security report — no install, no sign-up.
+        </p>
+        <div className="url-example" aria-label="Example: swap github.com for git-secure.com">
+          <s>github.com/Squ1zM0/TechDirect</s> <span className="url-arrow" aria-hidden="true">→</span>{" "}
+          <span className="url-new">git-secure.com/Squ1zM0/TechDirect</span>
+        </div>
 
-      <form className="scan-form" onSubmit={go}>
-        <input type="text" value={value} onChange={(e) => { setValue(e.target.value); setScanning(false); }} aria-label="owner/repo" placeholder="owner/repo" disabled={scanning} />
-        <button type="submit" disabled={scanning}>{scanning ? "Scanning…" : "Scan repo"}</button>
-      </form>
-      {error && <p role="alert">{error}</p>}
-      {scanning && !error && <p role="status">Scanning… checking the files, then the full history, then dependencies. This usually takes about 15 seconds.</p>}
+        <form className="scan-form" onSubmit={go}>
+          <input type="text" value={value} onChange={(e) => { setValue(e.target.value); setScanning(false); }} aria-label="owner/repo" placeholder="owner/repo" disabled={scanning} />
+          <button type="submit" disabled={scanning}>{scanning ? "Scanning…" : "Scan repo"}</button>
+        </form>
+        {error && <p className="form-error" role="alert">{error}</p>}
+        {scanning && !error && (
+          <p className="scan-status" role="status">
+            <span className="spinner" aria-hidden="true" />
+            <span>Scanning… checking the files, then the full history, then dependencies. This usually takes about 15 seconds.</span>
+          </p>
+        )}
+      </section>
 
       <div className="card">
         <h2>What it checks</h2>
-        <ul>
-          <li><b>Leaked secrets</b> — Discord and Slack webhooks, AWS keys, GitHub tokens, Stripe and OpenAI keys, database URLs, private keys, committed .env files. Checked in current files and in full history (newest-first).</li>
-          <li><b>Frameworks</b> — what the repo is built with (Next.js, React, Vite, Django, Rust crates, Go, Rails, Laravel, Spring, ASP.NET Core and more), with exact versions from lockfiles where possible.</li>
-          <li><b>Dependency flaws</b> — known vulnerabilities in direct and transitive dependencies, checked against OSV.dev (a free public database of known software flaws), with full advisory detail — a plain summary, a severity score, and the version that fixes each one.</li>
-          <li><b>Security posture</b> — missing SECURITY.md, no Dependabot, .gitignore gaps, and risky GitHub Actions patterns.</li>
-        </ul>
+        <div className="checks-grid">
+          <div className="check-item">
+            <b>Leaked secrets</b>
+            <p>Discord and Slack webhooks, AWS keys, GitHub tokens, Stripe and OpenAI keys, database URLs, private keys, committed .env files. Checked in current files and in full history (newest-first).</p>
+          </div>
+          <div className="check-item">
+            <b>Frameworks</b>
+            <p>What the repo is built with (Next.js, React, Vite, Django, Rust crates, Go, Rails, Laravel, Spring, ASP.NET Core and more), with exact versions from lockfiles where possible.</p>
+          </div>
+          <div className="check-item">
+            <b>Dependency flaws</b>
+            <p>Known vulnerabilities in direct and transitive dependencies, checked against OSV.dev (a free public database of known software flaws), with full advisory detail — a plain summary, a severity score, and the version that fixes each one.</p>
+          </div>
+          <div className="check-item">
+            <b>Security posture</b>
+            <p>Missing SECURITY.md, no Dependabot, .gitignore gaps, and risky GitHub Actions patterns.</p>
+          </div>
+        </div>
       </div>
 
       <div className="card">

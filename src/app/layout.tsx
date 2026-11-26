@@ -11,11 +11,12 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
   return (
     <html lang="en">
       <body>
+        <a className="skip-link" href="#main">Skip to content</a>
         <header className="topbar">
           <a href="/" className="brand">GitSecure</a>
           <span className="tagline">is this repo safe?</span>
         </header>
-        <main className="container">{children}</main>
+        <main className="container" id="main">{children}</main>
         <footer className="footer">
           <p>
             GitSecure scans public repos only. Secrets are never shown in full, never stored, and never

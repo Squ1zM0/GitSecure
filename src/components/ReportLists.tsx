@@ -81,7 +81,7 @@ function Pager({ total, shown, onMore, onAll }: { total: number; shown: number; 
   const remaining = total - shown;
   if (remaining <= 0) return null;
   return (
-    <p>
+    <p className="pager">
       <button type="button" onClick={onMore}>
         Show more ({Math.min(PAGE_SIZE, remaining)} of {remaining} remaining)
       </button>{" "}
@@ -133,16 +133,16 @@ function SecretRow({ entry, owner, repo, branch }: { entry: Indexed<SecretFindin
   const anchor = findingAnchorId("secret", entry.idx);
   const blob = githubBlobUrl(owner, repo, branch, s.file, s.line, s.commit);
   return (
-    <div className="finding" id={anchor}>
-      <p><span className={`pill ${s.severity}`}>{s.severity}</span><b>{s.title}</b> <span className="muted">· {s.confidence} confidence</span></p>
+    <div className={`finding sev-${s.severity}`} id={anchor}>
+      <p className="finding-title"><span className={`pill ${s.severity}`}>{s.severity}</span><b>{s.title}</b> <span className="muted">· {s.confidence} confidence</span></p>
       <p>{s.plainEnglish}</p>
       <p className="small"><code className="inline">{s.file}:{s.line}</code> · commit <code className="inline">{s.commit ?? "HEAD"}</code> · fragment <code className="inline">{s.fragment}</code> (redacted — never the full secret)</p>
-      <p className="small">
-        <a href={blob} target="_blank" rel="noreferrer">View on GitHub — {s.file}, line {s.line}</a>
-        {" · "}<a href={`#${anchor}`}>Link to this finding</a>{" "}
+      <p className="small finding-actions">
+        <a className="github-link" href={blob} target="_blank" rel="noreferrer">View on GitHub — {s.file}, line {s.line}</a>
+        <a href={`#${anchor}`}>Link to this finding</a>
         <CopyLinkButton anchor={anchor} label={`secret finding ${entry.idx + 1}`} />
       </p>
-      <p><b>Fix:</b> {s.fix}</p>
+      <p className="fix"><b>Fix:</b> {s.fix}</p>
     </div>
   );
 }
@@ -172,10 +172,15 @@ export function FileMap({ byFile, onSelectFile }: { byFile: { file: string; coun
       <p className="small">
         Map of files holding secrets — node size is the finding count. Showing the {top.length} largest of {byFile.length} files with secrets. Click a file to filter the list to it.
       </p>
+      <p className="map-legend" aria-label="Map legend">
+        <span><b>●</b> Centre — this repo</span>
+        <span><b>●</b> Bigger node — more findings in that file</span>
+        <span>Every node is keyboard reachable: Tab to it, Enter to filter</span>
+      </p>
       <div className="map-wrap">
         <svg viewBox="0 0 400 300" role="group" aria-label="Map of files holding secrets">
-          <circle cx={cx} cy={cy} r={26} fill="#0b6e4f" />
-          <text x={cx} y={cy + 4} textAnchor="middle" fontSize={11} fill="#fff" fontWeight={700}>This repo</text>
+          <circle className="map-centre" cx={cx} cy={cy} r={34} />
+          <text className="map-centre-text" x={cx} y={cy + 4} textAnchor="middle" fontSize={10} fontWeight={700}>This repo</text>
           {top.map((f, i) => {
             const { x, y } = nodePos(i, top.length);
             const r = 9 + Math.min(15, Math.sqrt(f.count) * 2.2);
@@ -332,7 +337,7 @@ export function SecretsList({ secrets, owner, repo, branch }: { secrets: SecretF
           <button type="button" className="secondary" onClick={() => setFileQuery("")}>Clear file filter</button>
         )}
       </div>
-      <p className="small">
+      <p className="small" aria-live="polite">
         Showing {filtered.length} of {secrets.length} secrets{fileQuery !== "" ? ` matching “${fileQuery}”` : ""} · {fileCount} file{fileCount === 1 ? "" : "s"}.
       </p>
       {view === "map" ? (
@@ -347,12 +352,15 @@ export function SecretsList({ secrets, owner, repo, branch }: { secrets: SecretF
         groups.map((g) => (
           <details key={g.key} className="group" open={filtered.length <= GROUP_OPEN_BELOW}>
             <summary>
+              <span className="chevron" aria-hidden="true">▸</span>
               {g.key} <span className="count-badge">({g.items.length} finding{g.items.length === 1 ? "" : "s"})</span>
             </summary>
-            <Paged
-              items={g.items}
-              renderItem={(entry) => <SecretRow key={`${entry.item.type}-${entry.item.file}-${entry.item.line}-${entry.idx}`} entry={entry} owner={owner} repo={repo} branch={branch} />}
-            />
+            <div className="group-body">
+              <Paged
+                items={g.items}
+                renderItem={(entry) => <SecretRow key={`${entry.item.type}-${entry.item.file}-${entry.item.line}-${entry.idx}`} entry={entry} owner={owner} repo={repo} branch={branch} />}
+              />
+            </div>
           </details>
         ))
       )}
@@ -395,15 +403,15 @@ function VulnRow({ entry }: { entry: Indexed<Vulnerability> }) {
   const v = entry.item;
   const anchor = findingAnchorId("vuln", entry.idx);
   return (
-    <div className="finding" id={anchor}>
-      <p><span className={`pill ${v.severity}`}>{v.severity}</span><b>{v.id}</b> — {v.packageName} {v.installedVersion ?? ""}</p>
+    <div className={`finding sev-${v.severity}`} id={anchor}>
+      <p className="finding-title"><span className={`pill ${v.severity}`}>{v.severity}</span><b>{v.id}</b> — {v.packageName} {v.installedVersion ?? ""}</p>
       <p>{v.plainEnglish}</p>
-      <p className="small">
-        <a href={osvAdvisoryUrl(v.id)} target="_blank" rel="noreferrer">View advisory on OSV.dev</a>
-        {" · "}<a href={`#${anchor}`}>Link to this finding</a>{" "}
+      <p className="small finding-actions">
+        <a className="github-link" href={osvAdvisoryUrl(v.id)} target="_blank" rel="noreferrer">View advisory on OSV.dev</a>
+        <a href={`#${anchor}`}>Link to this finding</a>
         <CopyLinkButton anchor={anchor} label={`vulnerability ${entry.idx + 1}`} />
       </p>
-      <p><b>Fix:</b> {v.upgrade}</p>
+      <p className="fix"><b>Fix:</b> {v.upgrade}</p>
     </div>
   );
 }
@@ -453,7 +461,7 @@ export function VulnerabilitiesList({ vulnerabilities }: { vulnerabilities: Vuln
           <input type="search" value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Filter by advisory or package…" aria-label="Filter by advisory or package" />
         </label>
       </div>
-      <p className="small">
+      <p className="small" aria-live="polite">
         Showing {filtered.length} of {vulnerabilities.length} vulnerabilities.
       </p>
       {groupBy === "none" ? (
@@ -462,9 +470,12 @@ export function VulnerabilitiesList({ vulnerabilities }: { vulnerabilities: Vuln
         groups.map((g) => (
           <details key={g.key} className="group" open={filtered.length <= GROUP_OPEN_BELOW}>
             <summary>
+              <span className="chevron" aria-hidden="true">▸</span>
               {g.key} <span className="count-badge">({g.items.length} finding{g.items.length === 1 ? "" : "s"})</span>
             </summary>
-            <Paged items={g.items} renderItem={(entry) => <VulnRow key={`${entry.item.id}-${entry.item.packageName}-${entry.idx}`} entry={entry} />} />
+            <div className="group-body">
+              <Paged items={g.items} renderItem={(entry) => <VulnRow key={`${entry.item.id}-${entry.item.packageName}-${entry.idx}`} entry={entry} />} />
+            </div>
           </details>
         ))
       )}
@@ -516,7 +527,7 @@ export function DependenciesList({ dependencies }: { dependencies: Dependency[] 
           <input type="search" value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Filter by name…" aria-label="Filter by dependency name" />
         </label>
       </div>
-      <p className="small">
+      <p className="small" aria-live="polite">
         Showing {filtered.length} of {dependencies.length} dependencies.
       </p>
       <ul>
@@ -538,14 +549,14 @@ function PostureRow({ entry }: { entry: Indexed<PostureIssue> }) {
   const p = entry.item;
   const anchor = findingAnchorId("posture", entry.idx);
   return (
-    <div className="finding" id={anchor}>
-      <p><span className={`pill ${p.severity}`}>{p.severity}</span><b>{p.title}</b></p>
+    <div className={`finding sev-${p.severity}`} id={anchor}>
+      <p className="finding-title"><span className={`pill ${p.severity}`}>{p.severity}</span><b>{p.title}</b></p>
       <p>{p.detail}</p>
-      <p className="small">
-        <a href={`#${anchor}`}>Link to this finding</a>{" "}
+      <p className="small finding-actions">
+        <a href={`#${anchor}`}>Link to this finding</a>
         <CopyLinkButton anchor={anchor} label={`posture issue ${entry.idx + 1}`} />
       </p>
-      <p><b>Fix:</b> {p.fix}</p>
+      <p className="fix"><b>Fix:</b> {p.fix}</p>
     </div>
   );
 }
@@ -595,7 +606,7 @@ export function PostureList({ posture }: { posture: PostureIssue[] }) {
           <input type="search" value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Filter by title or detail…" aria-label="Filter posture issues" />
         </label>
       </div>
-      <p className="small">
+      <p className="small" aria-live="polite">
         Showing {filtered.length} of {posture.length} posture issues.
       </p>
       {groupBy === "none" ? (
@@ -604,9 +615,12 @@ export function PostureList({ posture }: { posture: PostureIssue[] }) {
         groups.map((g) => (
           <details key={g.key} className="group" open={filtered.length <= GROUP_OPEN_BELOW}>
             <summary>
+              <span className="chevron" aria-hidden="true">▸</span>
               {g.key} <span className="count-badge">({g.items.length} finding{g.items.length === 1 ? "" : "s"})</span>
             </summary>
-            <Paged items={g.items} renderItem={(entry) => <PostureRow key={`${entry.item.id}-${entry.idx}`} entry={entry} />} />
+            <div className="group-body">
+              <Paged items={g.items} renderItem={(entry) => <PostureRow key={`${entry.item.id}-${entry.idx}`} entry={entry} />} />
+            </div>
           </details>
         ))
       )}
