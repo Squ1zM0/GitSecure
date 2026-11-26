@@ -1322,7 +1322,9 @@ kept fixtures plus posture (84, untouched) still floor it. No
 critical or high vulns remain. New `npm run test:deps-phase13` 22/22;
 full suite green (scanner 73/73, tier3 40/40, history 56/56,
 public-full 56/56, cursor 181/181, triage 63/63, usage 77/77, score
-36/36, UI 110/110).
+36/36, UI 110/110, MCP 62/62, TechDirect 83/B). Live verification:
+self-scan 73 vulns, scoreDetail `{secrets 8, vulns 206, posture 84,
+unpinned 4}`, secrets still 34 (32 test keys, 2 uncertain).
 
 ## Project notes
 

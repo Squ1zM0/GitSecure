@@ -1491,7 +1491,16 @@ instead of relabelling them.
   updated (73 vulns, deduction 206). Full suite: build exit 0;
   scanner 73/73, tier3 40/40, history 56/56, public-full 56/56,
   cursor 181/181, triage 63/63, usage 77/77, score 36/36, deps 22/22,
-  UI 110/110 (test:mcp + test:techdirect run live after the push).
+  UI 110/110, MCP 62/62 (was 61, +1 for the 73-vuln count check),
+  techdirect 83/B (test:mcp + test:techdirect run live after the push).
+- **Live verification (2026-11-26, after the push).** Home 200;
+  live GitSecure self-scan 0/F, **73 vulnerabilities** (20 medium,
+  53 low), scoreDetail `{secretsDeduction 8, vulnDeduction 206,
+  postureDeduction 84, unpinnedDeduction 4}` — exactly the projected
+  numbers; secrets still 34 (32 test keys, 2 uncertain), files 86,
+  history 29 commits. Live TechDirect still 83/B, 2,802 files, 62/62
+  history. MCP 62/62 against the local production server, scanning
+  the live remote.
 
 ## Phase 2 status — built and pushed 2026-11-25, commit 870f889f, live at https://gitsecure.vercel.app/ (verified serving: home 200, live TechDirect scan 200, 83/B)
 - Next.js 16 / React 19 / TypeScript + Auth.js (NextAuth 5.0.0-beta.32,
