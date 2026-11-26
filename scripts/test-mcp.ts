@@ -6,9 +6,10 @@
 //
 // What it checks, against the live server:
 //   1. initialize handshake (client.connect) succeeds
-//   2. tools/list returns scan_repo, get_report, list_checks — and NO tool
-//      accepts a `full` or `owner` parameter (full detail is the default
-//      for everyone now; there is no gate to opt into)
+//   2. tools/list returns scan_repo, get_report, resume_scan, list_checks
+//      — and NO tool accepts a `full` or `owner` parameter (full detail
+//      is the default for everyone now; there is no gate to opt into).
+//      resume_scan takes a cursor and continues a still-running scan.
 //   3. tools/call list_checks returns the plain-English check descriptions
 //   4. tools/call scan_repo Squ1zM0/TechDirect returns the known FULL
 //      result (83/B, 0 secrets, 4 vulns) — with the full detail present
@@ -97,9 +98,9 @@ async function main() {
   // 2. tools/list.
   const listed = await client.listTools();
   const names = listed.tools.map((t) => t.name).sort();
-  check("tools/list returns scan_repo, get_report, list_checks", JSON.stringify(names) === JSON.stringify(["get_report", "list_checks", "scan_repo"]), `got ${names.join(", ")}`);
+  check("tools/list returns scan_repo, get_report, resume_scan, list_checks", JSON.stringify(names) === JSON.stringify(["get_report", "list_checks", "resume_scan", "scan_repo"]), `got ${names.join(", ")}`);
   const toolsByName = new Map(listed.tools.map((t) => [t.name, t]));
-  for (const name of ["scan_repo", "get_report", "list_checks"]) {
+  for (const name of ["scan_repo", "get_report", "resume_scan", "list_checks"]) {
     const tool = toolsByName.get(name);
     check(`tool ${name} has a plain-English description`, !!tool?.description && tool.description.length > 50, tool?.description ?? "(none)");
   }
@@ -209,6 +210,17 @@ async function main() {
     grReport = null;
   }
   check("get_report TechDirect returns the full report (83/B)", !gr.isError && grReport?.kind === "full" && grReport?.score === 83 && grReport?.grade === "B", toolText(gr).slice(0, 200));
+
+  // 5c. resume_scan: a bogus cursor is a plain-English error, never a
+  // crash — the cursor protocol's failure mode, proved over MCP.
+  const rsBad = await client.callTool({ name: "resume_scan", arguments: { cursor: "!!!not-a-cursor!!!" } });
+  const rsBadText = toolText(rsBad);
+  check("resume_scan with a bogus cursor is a tool error", !!rsBad.isError);
+  check("resume_scan bogus-cursor error is plain English", /doesn't look right|fresh scan/i.test(rsBadText), rsBadText.slice(0, 200));
+  check("resume_scan bogus-cursor error has no stack trace", !looksLikeStackTrace(rsBadText), rsBadText.slice(0, 200));
+  const resumeTool = toolsByName.get("resume_scan");
+  const resumeProps = (resumeTool?.inputSchema as { properties?: Record<string, unknown> }).properties ?? {};
+  check("resume_scan takes a cursor input", "cursor" in resumeProps);
 
   // 6. Plain-English errors, never a stack trace.
   const bad = await client.callTool({ name: "scan_repo", arguments: { owner: "bad owner!", repo: "x" } });

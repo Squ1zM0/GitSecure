@@ -9,7 +9,7 @@
 
 import { readFileSync, readdirSync } from "node:fs";
 import { join } from "node:path";
-import { envFileFinding, scanTextForSecrets } from "../src/lib/secrets";
+import { envFileFinding, scanLinesForSecrets, scanTextForSecrets } from "../src/lib/secrets";
 import { dedupeSecrets } from "../src/lib/scan";
 import { computeScore } from "../src/lib/score";
 import { findingAnchorId, githubBlobUrl, osvAdvisoryUrl } from "../src/lib/links";
@@ -70,6 +70,48 @@ for (const secret of FAKE_SECRETS) {
   check(`redaction: fragment is not the full value`, findings.every((f) => f.fragment.length < 12));
 }
 check("at least 8 findings in fixture", findings.length >= 8, `${findings.length} found`);
+
+// --- Whole-content scan equivalence (Phase 9 detector rewrite) ---
+// scanTextForSecrets runs each detector once over the whole content
+// instead of once per line. These cases prove it reports exactly what
+// the old per-line scan reports — including the tricky ones.
+const FAKEPW = FAKE.repeat(4); // 16 chars, inside quotes
+// A value split across lines is NOT a finding (no closing quote on
+// the assignment's own line).
+const split = scanTextForSecrets({ path: "split.js", content: `const a = 1;\npassword = "${FAKE.repeat(2)}\n${FAKE.repeat(3)}";\nconst b = 2;`, commit: "HEAD" });
+check("split-across-lines password is not flagged", !split.some((f) => f.type === "hardcoded-password"), `${split.length} findings`);
+// A real match hiding inside a cross-line span IS still found.
+const hidden = scanTextForSecrets({ path: "hidden.js", content: `password = "${FAKE.repeat(2)}\nFAKE"; password = "${FAKEPW}";\nconst b = 2;`, commit: "HEAD" });
+check("match inside a cross-line span is still found", hidden.filter((f) => f.type === "hardcoded-password").length === 1 && hidden[0].line === 2, `${hidden.length} findings, lines ${hidden.map((f) => f.line)}`);
+// Line numbers point at the right line.
+const lined = scanTextForSecrets({ path: "lined.js", content: `// one\n// two\nconst token = "ghp_${FAKE.repeat(8)}1234";\n// four\n`, commit: "HEAD" });
+check("finding lands on the right line", lined.some((f) => f.type === "github-token" && f.line === 3), lined.map((f) => `${f.type}:${f.line}`).join(","));
+// Two different assignments on one line are two findings (the dedup
+// key is the redacted fragment, so the values must differ in their
+// first/last chars to count as distinct — same as the old per-line
+// scan; identical values on one line dedupe to one).
+const twoOnLine = scanTextForSecrets({ path: "two.js", content: `password = "${FAKE.repeat(4)}A"; password = "${FAKE.repeat(4)}B";`, commit: "HEAD" });
+check("two assignments on one line are two findings", twoOnLine.filter((f) => f.type === "hardcoded-password").length === 2, `${twoOnLine.length}`);
+// Direct equivalence: whole-content vs per-line over a mixed doc.
+const mixedLines = [
+  `// plain code, nothing here`,
+  `const x = "${"AKIA" + "IOSFODNN7EXAMPLE"}";`,
+  `password = "${FAKE.repeat(2)}`,
+  `${FAKE.repeat(3)}"; // closes the split value, no finding on either line`,
+  `const token = "ghp_${FAKE.repeat(8)}1234";`,
+  `// https://discord.com/api/webhooks/123456789012345678/${FAKE.repeat(6)}123456`,
+  `const jwt = "eyJ${FAKE.repeat(3)}.eyJ${FAKE.repeat(3)}.eyJ${FAKE.repeat(3)}";`,
+  `api_key = "${FAKEPW}"; api_key = "${FAKEPW}";`,
+  ``,
+  "-----BEGIN RSA " + "PRIVATE KEY-----",
+  `postgres://fakeuser:FAKEPASSWORD123@localhost:5432/fakedb`,
+  `// trailing plain line`,
+];
+const mixedContent = mixedLines.join("\n");
+const wholeFindings = scanTextForSecrets({ path: "mixed.js", content: mixedContent, commit: "HEAD" });
+const lineFindings = scanLinesForSecrets({ path: "mixed.js" }, mixedLines.map((text, i) => ({ line: i + 1, text })), "HEAD");
+const norm = (fs: SecretFinding[]) => JSON.stringify(fs.map((f) => [f.type, f.file, f.line, f.fragment]).sort());
+check("whole-content scan equals per-line scan", norm(wholeFindings) === norm(lineFindings), `whole ${wholeFindings.length} vs per-line ${lineFindings.length}`);
 
 // --- Framework fingerprinting ---
 const deps: Dependency[] = [

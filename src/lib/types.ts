@@ -69,6 +69,37 @@ export interface ReportCounts {
   historyCommitsScanned: number;
 }
 
+/** The HEAD chunk's result (Phase 9). Everything the scan learns from
+ *  the current files, before history or the dependency flaw check run:
+ *  HEAD secrets, frameworks, dependencies, posture (without the
+ *  OSV-unavailable item — assemble adds that), and the counts the
+ *  report needs. The client keeps this in sessionStorage between
+ *  chunks; the server never stores it. */
+export interface HeadPartial {
+  owner: string;
+  repo: string;
+  branch: string;
+  headSha: string;
+  filesScanned: number;
+  filesTotal: number;
+  treeTruncated: boolean;
+  tarballFallback: boolean;
+  secrets: SecretFinding[];
+  frameworks: Framework[];
+  dependencies: Dependency[];
+  posture: PostureIssue[];
+  unpinnedCount: number;
+  repoSizeKb: number;
+  /** Which history path the scan will use ("git" for repos small enough
+   *  to clone, "api" for repos above the clone size gate). */
+  historyMethod: "git" | "api";
+  /** Streaming HEAD mode only: true when some retainable config files
+   *  could not be kept in memory (retained-bytes budget) — framework
+   *  detection may be incomplete, though every file was still checked
+   *  for secrets. The report says so. */
+  retainedIncomplete: boolean;
+}
+
 export interface FullReport {
   kind: "full";
   repo: string;
@@ -87,4 +118,9 @@ export interface FullReport {
   dependencies: Dependency[];
   vulnerabilities: Vulnerability[];
   posture: PostureIssue[];
+  /** Phase 9: true on the provisional report the page shows while
+   *  history / dependency checks are still streaming in — the score
+   *  counts HEAD secrets + posture only and will change when the rest
+   *  lands. Absent (or false) on a finished report. */
+  provisional?: boolean;
 }

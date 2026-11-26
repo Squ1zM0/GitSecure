@@ -3,50 +3,53 @@
 // information already public in the repo. Secrets are still redacted
 // fragments only (see src/lib/scan.ts / redact.ts).
 //
-// Phase 8: async scan jobs. GET starts (or joins) a scan job and
-// waits up to ~50 s for it — the fast path, so a small repo still
-// answers 200 with the full report in a single request. If the job
-// is still running after that, the API answers 202 with a jobId and
-// live progress; the client polls GET /api/scan/jobs/{jobId} until
-// the job is done (200, report included) or errors. No scan is ever
-// killed for taking too long — the job keeps running in the
-// background (after() keeps this invocation alive past the response).
+// Phase 9: stateless chunked scans (see src/lib/chunks.ts). There is
+// NO server-side job any more — GET drives chunks in-process for up to
+// ~50 s (the fast path, so a small repo still answers 200 with the
+// full report in a single request). If the scan is still running after
+// that, the API answers 202 with a CURSOR and the partial results so
+// far; the caller resumes by passing the cursor back (?cursor=... on
+// this endpoint, or POST /api/scan/chunk). A server restart, cold
+// start, or a poll landing on a different instance loses nothing —
+// the next request simply continues from the cursor. The old
+// the old unknown-job dead-end is gone: there is no job to lose.
 import { NextResponse } from "next/server";
-import { after } from "next/server";
-import { FAST_PATH_WAIT_MS, getOrStartJob, jobSnapshot, waitForJob } from "@/lib/jobs";
+import { FAST_PATH_WAIT_MS, runScanLoop } from "@/lib/chunks";
 import { ScanError } from "@/lib/scan";
 
 export const maxDuration = 60;
 
 export async function GET(
-  _req: Request,
+  req: Request,
   ctx: { params: Promise<{ owner: string; repo: string }> },
 ) {
   const { owner, repo } = await ctx.params;
-  let job;
+  const url = new URL(req.url);
+  const cursor = url.searchParams.get("cursor");
   try {
-    job = getOrStartJob(owner, repo);
+    const result = await runScanLoop(owner, repo, {
+      cursor: cursor || null,
+      budgetMs: FAST_PATH_WAIT_MS,
+    });
+    if (result.status === "done" && result.report) {
+      return NextResponse.json(result.report);
+    }
+    // Still running: 202 with the cursor and the partial results so
+    // far. Resume with ?cursor=... — nothing is lost by waiting.
+    return NextResponse.json(
+      {
+        cursor: result.cursor,
+        partial: result.partial,
+        progress: result.progress,
+        note: result.note ?? undefined,
+        status: "running",
+      },
+      { status: 202 },
+    );
   } catch (err) {
     if (err instanceof ScanError) {
       return NextResponse.json({ error: err.message, kind: err.kind }, { status: err.status });
     }
     return NextResponse.json({ error: "Scan failed. Try again in a bit.", kind: "unknown" }, { status: 500 });
   }
-  // Keep the job alive past this response on Vercel: after() runs
-  // after the response is sent, inside the same invocation.
-  after(async () => {
-    await job.promise.catch(() => undefined);
-  });
-  const finished = await waitForJob(job, FAST_PATH_WAIT_MS);
-  if (finished.status === "done" && finished.report) {
-    return NextResponse.json(finished.report);
-  }
-  if (finished.status === "error" && finished.error) {
-    // 404 repo not found/private, 429 GitHub rate limit, 502 GitHub
-    // upstream error, 400 bad owner/repo format.
-    return NextResponse.json({ error: finished.error.message, kind: finished.error.kind }, { status: finished.error.status });
-  }
-  // Still running: 202 with the job ID and honest live progress.
-  // The scan continues in the background — poll the job endpoint.
-  return NextResponse.json(jobSnapshot(finished), { status: 202 });
 }

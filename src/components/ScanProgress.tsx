@@ -1,82 +1,222 @@
-// Live scan progress (Phase 8) — client component.
+// Live scan progress (Phase 9) — client component.
 //
-// The report page renders this when a scan job is still running after
-// the ~50 s fast path. It polls GET /api/scan/jobs/{jobId} and shows
-// honest live progress — the current step, files scanned so far,
-// commits checked so far, dependencies checked — never a spinner
-// that pretends to know. When the job finishes, the page reloads and
-// the finished report renders server-side (the job record is kept in
-// memory for 10 minutes, so the reload does not re-scan). If the job
-// is gone (404 — cold start, redeploy, or a poll on another instance),
-// it says so plainly and offers a retry instead of spinning forever.
+// The report page renders this when a scan is still running after the
+// ~50 s server fast path. It drives the scan chunk by chunk through
+// POST /api/scan/chunk, carrying the cursor forward — the server holds
+// no state, so a restart, cold start, or a chunk landing on a
+// different instance loses nothing. After every chunk it saves the
+// cursor + accumulated results in sessionStorage (see resume.ts), so
+// a reload or a closed tab resumes from the last completed chunk and
+// says so plainly ("Resumed — picked up where it left off"). When the
+// HEAD chunk is done the provisional HEAD report renders above the
+// progress card, and history streams in underneath it — live counts,
+// secrets found so far — until the assemble chunk returns the finished
+// report, which swaps in without a reload.
+//
+// There is no lost-scan dead-end any more:
+// a bad cursor or a moved HEAD restarts cleanly from the beginning
+// (saved progress is discarded and the page reloads once), and any
+// other failure offers a retry from the same cursor.
 "use client";
 
-import { useEffect, useState } from "react";
-import { stepLabel, type ScanProgress } from "@/lib/progress";
+import { useEffect, useRef, useState } from "react";
+import { stepLabel, type ScanProgress as ScanProgressType } from "@/lib/progress";
+import { buildProvisionalReport } from "@/lib/provisional";
+import {
+  clearProgress,
+  clearReport,
+  loadProgress,
+  loadReport,
+  resumedLine,
+  saveProgress,
+  saveReport,
+} from "@/lib/resume";
+import ReportView from "@/components/ReportView";
+import type { FullReport, HeadPartial, SecretFinding } from "@/lib/types";
 
 function formatCount(n: number): string {
   return n.toLocaleString("en-US");
 }
 
+function dedupeKey(s: SecretFinding): string {
+  return `${s.type}:${s.file}:${s.line}:${s.fragment}:${s.commit}`;
+}
+
+function dedupeFindings(list: SecretFinding[]): SecretFinding[] {
+  const seen = new Set<string>();
+  return list.filter((s) => {
+    const key = dedupeKey(s);
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+}
+
+/** Lenient cursor read, just to learn the pinned HEAD sha for the
+ *  saved-report check. Any failure means "unknown" — never a crash. */
+function cursorHeadSha(cursor: string): string | null {
+  try {
+    const b64 = cursor.replace(/-/g, "+").replace(/_/g, "/");
+    const json = atob(b64 + "=".repeat((4 - (b64.length % 4)) % 4));
+    const parsed = JSON.parse(json) as { headSha?: unknown };
+    return typeof parsed.headSha === "string" ? parsed.headSha : null;
+  } catch {
+    return null;
+  }
+}
+
+/** Lenient cursor read for the stage ("history" | "assemble"), so a
+ *  resumed provisional report says whether history was already done. */
+function cursorStage(cursor: string): string | null {
+  try {
+    const b64 = cursor.replace(/-/g, "+").replace(/_/g, "/");
+    const json = atob(b64 + "=".repeat((4 - (b64.length % 4)) % 4));
+    const parsed = JSON.parse(json) as { stage?: unknown };
+    return typeof parsed.stage === "string" ? parsed.stage : null;
+  } catch {
+    return null;
+  }
+}
+
+type ChunkResponse =
+  | { status: "partial"; cursor: string; partial: { head: HeadPartial | null; historyScanned: number; historyComplete: boolean; historyStopped: string | null }; chunkFindings: SecretFinding[]; progress: ScanProgressType; note: string | null }
+  | { status: "done"; report: FullReport };
+
 export default function ScanProgress({
-  jobId,
   owner,
   repo,
+  cursor: initialCursor,
+  head: initialHead,
+  historyFindings: initialFindings,
+  historyScanned: initialScanned,
   initial,
+  provisional: initialProvisional,
 }: {
-  jobId: string;
   owner: string;
   repo: string;
-  initial: ScanProgress;
+  cursor: string;
+  head: HeadPartial | null;
+  historyFindings: SecretFinding[];
+  historyScanned: number;
+  initial: ScanProgressType;
+  provisional: FullReport | null;
 }) {
-  const [progress, setProgress] = useState<ScanProgress>(initial);
-  const [gone, setGone] = useState(false);
+  const [progress, setProgress] = useState<ScanProgressType>(initial);
+  const [provisional, setProvisional] = useState<FullReport | null>(initialProvisional);
+  const [finalReport, setFinalReport] = useState<FullReport | null>(null);
+  const [resumed, setResumed] = useState<string | null>(null);
+  const [secretsFound, setSecretsFound] = useState<number>(() => dedupeFindings([...(initialHead?.secrets ?? []), ...initialFindings]).length);
   const [error, setError] = useState<string | null>(null);
+  const [retryKey, setRetryKey] = useState(0);
+  const startedRef = useRef(false);
 
   useEffect(() => {
+    if (startedRef.current) return;
+    startedRef.current = true;
     let stopped = false;
-    const tick = async () => {
-      try {
-        const res = await fetch(`/api/scan/jobs/${encodeURIComponent(jobId)}`, { cache: "no-store" });
-        if (res.status === 404) {
-          if (!stopped) setGone(true);
-          return;
+
+    const drive = async () => {
+      // 1. A finished report saved from an earlier visit, for the same
+      // HEAD, renders immediately — no re-scan.
+      const savedReport = loadReport(sessionStorage, owner, repo);
+      const headSha = cursorHeadSha(initialCursor);
+      if (savedReport && headSha && savedReport.headSha === headSha) {
+        const report = savedReport.report as FullReport;
+        if (!stopped) setFinalReport(report);
+        return;
+      }
+      // 2. Saved progress further ahead than the server's fresh
+      // partial wins — resume from it, and say so.
+      let cursor = initialCursor;
+      let head: HeadPartial | null = initialHead;
+      let findings: SecretFinding[] = dedupeFindings(initialFindings);
+      let scanned = initialScanned;
+      const saved = loadProgress(sessionStorage, owner, repo);
+      if (saved && saved.historyScanned > initialScanned) {
+        const savedHead = saved.head as HeadPartial;
+        if (typeof savedHead === "object" && savedHead !== null && typeof (savedHead as HeadPartial).headSha === "string") {
+          cursor = saved.cursor;
+          head = savedHead;
+          findings = dedupeFindings(saved.historyFindings as SecretFinding[]);
+          scanned = saved.historyScanned;
+          if (!stopped) {
+            setResumed(resumedLine(scanned, findings.length));
+            setSecretsFound(dedupeFindings([...(head.secrets ?? []), ...findings]).length);
+            setProvisional(buildProvisionalReport(head, findings, scanned, cursorStage(cursor) === "assemble"));
+          }
         }
-        if (!res.ok) return; // transient failure: keep polling
-        const snap = (await res.json()) as { status: string; progress: ScanProgress; error?: { message: string } };
+      } else {
+        saveProgress(sessionStorage, owner, repo, { cursor, head, historyFindings: findings, historyScanned: scanned });
+      }
+
+      // 3. Drive chunks until the assemble chunk returns the report.
+      let failures = 0;
+      for (;;) {
         if (stopped) return;
-        if (snap.status === "done") {
+        let res: Response;
+        try {
+          res = await fetch("/api/scan/chunk", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            cache: "no-store",
+            body: JSON.stringify({ cursor, head, historyFindings: findings }),
+          });
+        } catch {
+          failures++;
+          if (failures >= 3) {
+            if (!stopped) setError("The scan couldn't be reached — check your connection and try again. Nothing was lost: the scan picks up from the last finished chunk.");
+            return;
+          }
+          await new Promise((r) => setTimeout(r, 2000));
+          continue;
+        }
+        if (res.status === 400 || res.status === 409) {
+          // Bad cursor, or the repo moved: discard saved progress and
+          // start a fresh scan for the current HEAD.
+          clearProgress(sessionStorage, owner, repo);
+          clearReport(sessionStorage, owner, repo);
           window.location.reload();
           return;
         }
-        if (snap.status === "error") {
-          setError(snap.error?.message ?? "The scan failed. Try again in a bit.");
+        if (!res.ok) {
+          failures++;
+          if (failures >= 3) {
+            if (!stopped) setError("GitHub didn't answer as expected. Try again in a bit — the scan picks up from the last finished chunk.");
+            return;
+          }
+          await new Promise((r) => setTimeout(r, 2000));
+          continue;
+        }
+        failures = 0;
+        const data = (await res.json()) as ChunkResponse;
+        if (stopped) return;
+        if (data.status === "done") {
+          saveReport(sessionStorage, owner, repo, data.report, data.report.commit);
+          clearProgress(sessionStorage, owner, repo);
+          setFinalReport(data.report);
           return;
         }
-        setProgress(snap.progress);
-      } catch {
-        // Network blip: keep polling.
+        cursor = data.cursor;
+        if (data.partial.head) head = data.partial.head;
+        findings = dedupeFindings([...findings, ...data.chunkFindings]);
+        scanned = data.partial.historyScanned;
+        setProgress(data.progress);
+        setSecretsFound(dedupeFindings([...(head?.secrets ?? []), ...findings]).length);
+        if (head) {
+          setProvisional(buildProvisionalReport(head, findings, scanned, data.partial.historyComplete));
+        }
+        saveProgress(sessionStorage, owner, repo, { cursor, head, historyFindings: findings, historyScanned: scanned });
       }
     };
-    const timer = setInterval(() => void tick(), 2000);
-    void tick();
+    void drive();
     return () => {
       stopped = true;
-      clearInterval(timer);
     };
-  }, [jobId]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [retryKey]);
 
-  if (gone) {
-    return (
-      <div>
-        <p className="back-link"><a href="/">← Scan another repo</a></p>
-        <h1>That scan is no longer running</h1>
-        <div className="card error-card" role="alert">
-          <p>The server restarted while the scan of {owner}/{repo} was running, so the scan was interrupted. Nothing was half-reported — start it again and it will run from the beginning.</p>
-          <p><a className="button-link" href={`/${owner}/${repo}`}>Run the scan again</a></p>
-        </div>
-      </div>
-    );
+  if (finalReport) {
+    return <ReportView report={finalReport} />;
   }
 
   if (error) {
@@ -86,17 +226,36 @@ export default function ScanProgress({
         <h1>Couldn&apos;t scan {owner}/{repo}</h1>
         <div className="card error-card" role="alert">
           <p>{error}</p>
-          <p><a className="button-link" href="/">Scan another repo</a></p>
+          <p>
+            <button
+              className="button-link"
+              type="button"
+              onClick={() => {
+                setError(null);
+                startedRef.current = false;
+                setRetryKey((k) => k + 1);
+              }}
+            >
+              Retry from where it left off
+            </button>{" "}
+            <a className="button-link" href="/">Scan another repo</a>
+          </p>
         </div>
+        {provisional ? <ReportView report={provisional} /> : null}
       </div>
     );
   }
 
   return (
     <div>
-      <p className="back-link"><a href="/">← Scan another repo</a></p>
-      <h1>Scanning {owner}/{repo}…</h1>
+      {provisional ? <ReportView report={provisional} /> : (
+        <>
+          <p className="back-link"><a href="/">← Scan another repo</a></p>
+          <h1>Scanning {owner}/{repo}…</h1>
+        </>
+      )}
       <div className="card" role="status" aria-live="polite">
+        {resumed ? <p><b>{resumed}</b></p> : null}
         <p className="scan-status">
           <span className="spinner" aria-hidden="true" />
           <span><b>{stepLabel(progress.step)}…</b></span>
@@ -116,6 +275,12 @@ export default function ScanProgress({
           </li>
           <li>
             <span className="step-dot" aria-hidden="true" />
+            {secretsFound > 0
+              ? `${formatCount(secretsFound)} possible leaked secret${secretsFound === 1 ? "" : "s"} found so far`
+              : "No leaked secrets found so far"}
+          </li>
+          <li>
+            <span className="step-dot" aria-hidden="true" />
             {progress.depsTotal > 0
               ? `${formatCount(progress.depsChecked)} of ${formatCount(progress.depsTotal)} dependencies checked for known flaws`
               : progress.step === "dependencies"
@@ -124,7 +289,7 @@ export default function ScanProgress({
           </li>
         </ul>
         <p className="muted">
-          This is a big repo, so the scan keeps running in the background — the report will appear here as soon as it is done. There is nothing to click.
+          This is a big repo, so the scan continues chunk by chunk — the report will appear here as soon as it is done. If you close this page, the scan picks up where it left off when you come back. There is nothing to click.
         </p>
       </div>
     </div>

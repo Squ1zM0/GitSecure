@@ -72,24 +72,92 @@ env var gates it.
 - `/[owner]/[repo]` — full scan report for a public repo. Streams a loading
   state first ("Scanning the repo… checking files, then history, then
   dependencies") while the ~15 s live scan runs. A large repo that is
-  still running after the ~50 s fast-path wait shows live progress
-  instead (files and commits scanned so far) and polls until the job
-  finishes — it never times out.
+  still running after the ~50 s fast-path wait shows the HEAD report
+  first (provisional score, clearly labelled) with live progress
+  underneath it, and the scan continues chunk by chunk until it is
+  done — it never times out, and closing the page loses nothing: it
+  picks up where it left off when you come back.
 - `/api/scan/[owner]/[repo]` — the full JSON report, same detail as the page.
   No sign-in, no `?full` flag. A small repo answers 200 in one request;
-  a large repo answers **202 with a `jobId` and live progress** — poll
-  `GET /api/scan/jobs/{jobId}` until the job is done (200, report
-  included) or errors. Errors carry honest statuses: 400 bad
-  owner/repo format, 404 repo not found or private, 404 job not found
-  (the server restarted — start the scan again), 429 GitHub rate limit,
-  502 GitHub upstream error. There is no 504 scan timeout any more.
-- `/api/scan/jobs/{jobId}` — live state of one async scan job: running
-  (current step, files/commits/deps/advisories so far), done (with the
-  full report), or error (plain-English message). Job IDs are random
-  UUIDs and carry no owner, repo, or secret fragment.
+  a large repo answers **202 with a cursor and the partial results so
+  far** — resume with `?cursor=...` on the same endpoint, or advance
+  one chunk at a time with `POST /api/scan/chunk` (see "Scan cursors"
+  below). Errors carry honest statuses: 400 bad owner/repo format or
+  bad cursor, 404 repo not found or private, 409 repo changed mid-scan
+  (start a fresh scan for the new HEAD), 429 GitHub rate limit, 502
+  GitHub upstream error. There is no 504 scan timeout any more, and
+  there is no "scan no longer running" dead-end: the server holds no
+  scan state to lose.
+- `POST /api/scan/chunk` — advance a scan by exactly one chunk.
+  Body `{ cursor, head?, historyFindings? }`; returns the partial
+  results plus the next cursor, or the finished report. See "Scan
+  cursors" below.
 - `/mcp` — MCP server for AI assistants (Streamable HTTP transport,
   stateless). `/api/mcp` is an alias for the same handler. See
   "Use with your AI assistant (MCP)" below.
+
+## Scan cursors (Phase 9)
+
+A scan is a sequence of **chunks**, and the server holds **no scan
+state** between them — no job, no database, no paid KV store, no new
+env var. Instead, every chunk response returns a **cursor**: a small
+base64url JSON object that says exactly where the scan got to
+(owner/repo/branch, the pinned HEAD sha, the stage, and the position
+inside the stage). The caller passes the cursor back with the next
+request and the scan continues from that point. A server restart, cold
+start, redeploy, or a request landing on a different instance changes
+nothing — there is no job to lose.
+
+The three stages:
+
+1. **head** — the current files: secrets, frameworks, dependencies,
+   posture. One chunk. The HEAD report renders first and fast, with a
+   provisional score (clearly labelled — it counts HEAD secrets +
+   posture only, and changes when the rest lands).
+2. **history** — newest-first, in commit chunks: up to 200 commits per
+   chunk over the git protocol, 10 per chunk over the GitHub API.
+   Live progress throughout (commits scanned so far, secrets found so
+   far). A rate limit stops cleanly at the next unscanned commit — the
+   cursor points at it, and a later call retries it when quota returns.
+3. **assemble** — merge HEAD + history, run the OSV flaw check, score.
+   Idempotent: safe to retry with the same inputs.
+
+What a cursor carries: the repo, the pinned HEAD sha, the stage, and
+the resume position (git path: the last commit scanned; API path: the
+next list page / index / that page's SHAs). What it never carries:
+findings, file contents, or any secret fragment — partial results live
+with the caller (the browser keeps them in `sessionStorage`; an API
+caller keeps them and sends the accumulated history findings back with
+the assemble call). A cursor is safe to put in a URL or share.
+
+```bash
+# Start: a small repo answers 200 with the full report.
+curl https://gitsecure.vercel.app/api/scan/Squ1zM0/TechDirect
+
+# A huge repo answers 202 with a cursor + partial results.
+# Resume it — as many times as it takes, on any instance:
+curl "https://gitsecure.vercel.app/api/scan/torvalds/linux?cursor=<cursor>"
+
+# Or advance exactly one chunk at a time:
+curl -X POST https://gitsecure.vercel.app/api/scan/chunk \
+  -H 'Content-Type: application/json' \
+  -d '{"cursor": "<cursor>", "historyFindings": [...]}'
+```
+
+A bogus cursor answers 400 with plain English ("That scan link
+doesn't look right…") — the caller discards it and starts fresh,
+never a crash. If the repo changes mid-scan (new commits land), the
+assemble step answers 409 and the scan restarts cleanly for the new
+HEAD. A partial history is never presented as complete: the report
+says exactly how many commits were checked and why it stopped.
+
+Honest bound: `torvalds/linux` is ~4 GB with ~1M commits. Its HEAD
+report renders (the tarball is streamed, never materialised whole —
+see "How scans run"), and history streams newest-first and survives
+restarts — but a full 1M-commit history walk takes a very long time
+even chunked, and the unauthenticated GitHub API quota (60 req/hour)
+bounds the API path to a few chunks per hour. The scan says exactly
+how far it got; it does not fake completion.
 
 ## Use with your AI assistant (MCP)
 
@@ -110,10 +178,16 @@ Tools (all return the full report — see below):
   (file names, line numbers, redacted secret fragments, framework
   versions, vulnerability IDs). Use when someone asks whether a repo is safe.
 - `get_report` (owner, repo) — read or refresh the full report for a
-  repo. If a scan of the repo is already running it picks up that same
-  scan; if one finished in the last few minutes it returns that result
-  from memory; otherwise it runs a fresh live scan. GitSecure never
-  stores reports on disk or in a database.
+  repo. It runs a fresh live scan — GitSecure never stores reports on
+  disk or in a database, so the result is always current. If a scan is
+  already running, resume it with `resume_scan` and the cursor instead
+  of starting over.
+- `resume_scan` (cursor) — continue a scan that is still running, from
+  the cursor `scan_repo` or `get_report` returned. The cursor carries
+  the whole resume position, so the scan continues from the last
+  finished chunk instead of starting over, even if the server
+  restarted since. Returns the full report when the scan finishes, or
+  another still-running message with a fresh cursor.
 - `list_checks` (no args) — what GitSecure checks, in plain English, plus
   the scan notes. Use before a scan, or to explain a score.
 
@@ -122,15 +196,16 @@ redacted fragments only — never shown in full. There is no `full`
 parameter and no login. A scan takes about 15 seconds for a small repo; owner/repo names
 are validated the same way as on the site, and a bad name, a missing/private
 repo, or a GitHub rate limit comes back as a plain-English error, never a
-stack trace. A large repo keeps running in the background: the tool polls
-the scan job server-side for ~50 s, and if it is still running it says so
-with its live progress — call `get_report` again for the same repo and it
-picks up the same scan instead of starting over. The endpoint is stateless
-(a fresh server per request, no session state, no git binary needed — the
-scan falls back to API patches when git is unavailable), so it works on
-the Vercel serverless runtime. Scan jobs themselves live in memory only
-(see "How scans run" below): a job does not survive a cold start, and a
-call that lands on another instance starts a fresh scan.
+stack trace. A large repo keeps running in chunks: the tool drives the chunks
+server-side with the cursor for ~50 s, and if it is still running it
+says so with its live progress and the cursor — call `resume_scan`
+with that cursor to continue it from the last finished chunk. The
+endpoint is stateless (a fresh server per request, no session state,
+no git binary needed — the scan falls back to API patches when git is
+unavailable), so it works on the Vercel serverless runtime. The scan
+itself holds no server-side state either (see "Scan cursors" above):
+a resume that lands on another instance simply continues from the
+cursor.
 A plain `GET /mcp` is refused with a 4xx: in stateless mode the server
 holds no SSE stream (MCP clients use POST).
 
@@ -139,7 +214,7 @@ the SDK client — initialize, tools/list, live `scan_repo` calls):
 
 ```bash
 npm run build && npm start     # in one terminal
-npm run test:mcp               # in another — 51 checks
+npm run test:mcp               # in another — 56 checks
 ```
 
 ## No login
@@ -152,29 +227,34 @@ only scans public repos, so the full detail is information already public
 in the repo. The redaction rule did not change: a secret is never shown
 in full.
 
-## How scans run (Phase 8 — developer notes)
+## How scans run (Phase 9 — developer notes)
 
-There are no scan caps left to list. A scan runs as an **async job**
-(`src/lib/jobs.ts`): the API / report page / MCP start one, wait up to
-~50 s for it (the fast path — TechDirect answers 200 in ~12–19 s), and
-if it is still running answer 202 with a job ID; the client polls
-`GET /api/scan/jobs/{jobId}` for live progress (current step, files
-scanned so far, commits checked so far, dependencies checked) until
-the job finishes. **No scan is ever killed for taking too long** — the
-old 55 s timeout race is gone, and the job keeps running in the
-background (`after()` keeps the invocation alive past the response).
+There are no scan caps left to list. A scan runs as **stateless
+chunks** (`src/lib/chunks.ts`, cursor in `src/lib/cursor.ts`): the API
+/ report page / MCP drive chunks for up to ~50 s (the fast path —
+TechDirect answers 200 in one request), and if the scan is still
+running answer 202 with a cursor and the partial results so far; the
+caller resumes with the cursor (`?cursor=...` or
+`POST /api/scan/chunk`) until the scan finishes. **No scan is ever
+killed for taking too long** — the old 55 s timeout race is gone, and
+there is no background job to keep alive.
 
-- **Jobs are in-memory only.** No durable store, no paid service, no
-  database. A job does NOT survive a cold start, a redeploy, or a poll
-  that lands on a different serverless instance — a poll for an unknown
-  ID answers 404 telling the client to start the scan again. Finished
-  jobs are kept for 10 minutes (so the report page can reload without
-  re-scanning), then dropped. That is the only sense in which GitSecure
-  "stores" a report: in memory, for minutes, never on disk. Job IDs are
-  random UUIDs and carry no owner, repo, or secret fragment.
-- **One job per repo.** Starting a scan while one is already running (or
-  recently finished) returns the same job — MCP `get_report` picks up a
-  running scan instead of starting a second one.
+- **The server holds no scan state.** No durable store, no paid
+  service, no database, no in-memory job map. A chunk response's
+  cursor carries the whole resume position, and the partial results
+  live with the caller (the browser: `sessionStorage` — a reload or a
+  closed tab resumes from the last finished chunk, with a plain
+  "Resumed — picked up where it left off" line; an API caller: its own
+  memory, sending accumulated history findings back at assemble time).
+  A server restart, cold start, redeploy, or a request landing on a
+  different instance loses nothing. The Phase 8 in-memory job store
+  (`src/lib/jobs.ts`) is deleted; the "scan is no longer running"
+  dead-end it caused is impossible now, because there is no job to lose.
+- **HEAD first, history streams.** The HEAD chunk renders first
+  (provisional score, labelled); history then streams newest-first
+  with live progress, and the finished report swaps in without a
+  reload. The report page never re-scans on reload once a finished
+  report is saved in `sessionStorage` for the same HEAD.
 - **History depth:** full history, newest-first, to the oldest commit —
   no commit cap, no patch-size cap, no time cap. The scan uses the
   **git-protocol path** first (pure JS, no git binary, no GitHub REST
@@ -202,9 +282,12 @@ background (`after()` keeps the invocation alive past the response).
   generated/vendored paths, not source files. The tarball download has
   a **streaming memory guard** (the download aborts mid-stream past
   500 MB and the per-file fallback still scans every file) — a guard,
-  not a cap. GitHub rate limits still exist; if a fetch fails, the
-  report says plainly how many files were actually scanned, never
-  pretending it scanned everything.
+  not a cap. Repos over 1 GB (torvalds/linux, ~4 GB) stream the tarball
+  instead of materialising it: entries are secret-scanned as they
+  arrive and only manifests/configs/workflows/infra files are kept in
+  memory, so the HEAD step cannot OOM the function. GitHub rate limits
+  still exist; if a fetch fails, the report says plainly how many files
+  were actually scanned, never pretending it scanned everything.
 - **No result-count caps (Phase 5).** Every secret finding, every
   dependency, every advisory, every posture and framework finding is
   listed — no 100-secret cap, no 200-dependency slice, no 100-advisory
@@ -217,7 +300,7 @@ background (`after()` keeps the invocation alive past the response).
   budget on either phase**. The old 15 s query / 12 s detail budgets
   existed to fit the 55 s scan timeout, and that timeout is gone. A
   repo with thousands of deps (e.g. DefinitelyTyped, 9,401) is now
-  fully queried and fully detailed inside the background job. If OSV is
+  fully queried and fully detailed inside the assemble chunk. If OSV is
   unreachable the scan continues and says so.
 - **"About this scan" (was "Scan limits").** The report page no longer
   lists caps. A complete scan says so once, with the exact counts
@@ -380,14 +463,17 @@ scans 83/B (verified locally and over MCP).
 ```bash
 npm run test:scanner     # synthetic fixture with FAKE planted secrets only
                          # (tests/fixtures/fake-repo + fake-repo-tier2) —
-                         # 68 checks: detection, redaction, Tier 1 + Tier 2
+                         # 73 checks: detection, redaction, Tier 1 + Tier 2
                          # fingerprinting, the Phase 4 full report, Phase 5
-                         # 150-finding no-cap proof + score floor + nav links
+                         # 150-finding no-cap proof + score floor + nav links,
+                         # Phase 9 whole-content detector equivalence
+                         # (incl. cross-line values and matches hiding
+                         # inside a cross-line span)
 npm run test:history     # full-history regression: a fake secret planted in
                          # an old commit of a throwaway local repo, removed
-                         # from HEAD — 23 checks, clone + API path (mock
+                         # from HEAD — 56 checks, clone + API path (mock
                          # GitHub API: pagination, per-commit attribution,
-                         # rate-limit behaviour)
+                         # rate-limit behaviour) + the 100 MB size gate
 npm run test:tier3       # Tier 3 infra detectors on fixtures (Docker,
                          # Kubernetes, Terraform, GitHub Actions, Vercel /
                          # Supabase) — 40 checks, no network
@@ -400,22 +486,23 @@ npm run test:techdirect  # live scan of the real public repo Squ1zM0/TechDirect
                          # (score 83/B, 62 history commits, filesScanned =
                          # full scannable tree — 2,802, ~12 s via tarball)
 npm run test:ui-phase7   # Phase 7: dial, lists, map, CSS, no-sign-in copy —
-                         # 52 checks, no network
-npm run test:jobs-phase8 # Phase 8: async scan jobs — a slow scan completes
-                         # via the job/poll path (fake runner, no network),
-                         # dedupe, job-ID safety, TTL eviction, error jobs,
-                         # the rewritten "About this scan" copy (buildLimits),
-                         # live progress text (ScanProgress render), OSV
-                         # detail with no time budget (stubbed slow OSV:
-                         # 160 advisories, ~14 s of detail fetches, all
-                         # detailed) — 44 checks
+                         # 53 checks, no network (incl. the provisional
+                         # report label)
+npm run test:cursor-phase9 # Phase 9: stateless chunked scans — cursor
+                         # round-trip + bogus cursors, chunked API-path and
+                         # git-path history resume with identical final
+                         # reports, rate-limit mid-history resume, assemble
+                         # equivalence, sessionStorage resume helpers,
+                         # provisional reports, no in-memory job store
+                         # anywhere in src — 181 checks
 npm run test:mcp         # MCP end-to-end: needs a running production server
                          # (npm run build && npm start) — real SDK-client
                          # handshake, tools/list, live scan_repo calls for
                          # TechDirect (83/B, full detail) and GitSecure
                          # (0/F, 8 secrets, full detail, no full fake
-                         # secret), error cases, snippet JSON validity —
-                         # 51 checks. Set MCP_BASE_URL to test another server.
+                         # secret), error cases, snippet JSON validity,
+                         # resume_scan with a bogus cursor — 56 checks.
+                         # Set MCP_BASE_URL to test another server.
 ```
 
 The fixture uses invented credentials only (including the official AWS example
@@ -718,6 +805,121 @@ time budgets, and the tarball whole-buffer read, and all three are gone.
   the fast path from this machine — DefinitelyTyped fits in ~30 s); the
   job/poll path is proved by the fake-slow-runner test instead. Not
   pushed, not deployed — another worker owns the push.
+
+## Phase 9 — resumable chunked scans, no in-memory jobs (built 2026-11-25)
+
+Trigger: Freddy screenshotted the live site failing on torvalds/linux —
+"That scan is no longer running — The server restarted while the scan of
+torvalds/linux was running, so the scan was interrupted. Nothing was
+half-reported — start it again and it will run from the beginning." That
+was the exact failure Phase 8 predicted honestly (jobs are in-memory
+only; a poll landing on a different serverless instance gets 404
+job-not-found and restarts). Phase 9 fixes it for real: **the server
+holds no scan state between requests at all**, so there is no job to
+lose and the old dead-end is impossible.
+
+- **Stateless, client-driven chunked scan** (`src/lib/cursor.ts`,
+  `src/lib/chunks.ts`, `src/app/api/scan/chunk/route.ts`;
+  `src/lib/jobs.ts` and the jobs route are deleted). The scan API
+  returns a session/cursor after the first chunk; each subsequent
+  request advances exactly one chunk — HEAD in the first chunk,
+  history in commit-range chunks newest-first (API path: 10 commits
+  per chunk; git path: 200 commits or ~30 s per chunk), assemble last
+  (OSV runs inside the assemble chunk) — and returns the partial
+  results plus the next cursor. The client accumulates results and
+  drives the next chunk. A server restart, cold start, or a poll
+  landing on a different instance changes nothing: the next request
+  simply continues from the cursor. The 202 + polling shape stays,
+  but the poll carries the cursor, not a server-side job ID. A bogus
+  cursor answers 400 in plain English with a clean restart, never a
+  crash; a repo whose HEAD moved mid-scan answers 409
+  (`head-moved`).
+- **The cursor** is base64url JSON, v1, strictly validated. It
+  carries owner/repo/branch, the pinned HEAD sha, the stage
+  (`head` | `history` | `assemble`), the history method and resume
+  point (git: last scanned commit sha; API: next list page + index +
+  that page's SHAs), commits scanned so far, and the stop reason
+  (rate-limit / truncated). It never carries findings, file contents,
+  or secret fragments. Full protocol, with curl examples, in "Scan
+  cursors" above.
+- **Progress persists in the browser** (`src/lib/resume.ts`):
+  the report page saves cursor + accumulated results in
+  sessionStorage after every chunk, so a reload or a closed tab
+  resumes from the last completed chunk and says plainly
+  "Resumed — picked up where it left off (N history commits checked,
+  M secrets found so far)". A finished report saved for the same HEAD
+  renders immediately with no re-scan.
+- **HEAD first, history streams** (`src/components/ReportView.tsx`,
+  `src/components/ScanProgress.tsx`): the HEAD report (score,
+  frameworks, deps, HEAD secrets) renders first as a provisional
+  report, clearly labelled; history streams newest-first underneath
+  with live progress (commits scanned so far, secrets found so far).
+  The user is never stuck on a spinner with nothing to show.
+- **MCP gets the same resumability** (`src/lib/mcp.ts`): `scan_repo`
+  drives the chunk loop server-side with the cursor and returns the
+  cursor + progress when still running; new tool `resume_scan`
+  (`{ cursor }`) continues it. Plain API callers get partial +
+  nextCursor on every call. No server-side job state anywhere.
+- **HEAD streaming for giant repos** (`src/lib/scan.ts`): repos over
+  1 GB stream the tarball (gunzip + incremental tar parse, files
+  secret-scanned as they arrive, only retainable files kept —
+  peak memory is the largest single file, not the whole tree).
+  Measured on torvalds/linux from disk (no network): gunzip 4.7 s,
+  tar parse 6.9 s, parse + secret scan 34.5 s for 103,737 files /
+  1.68 GB, 20 HEAD secrets — the whole HEAD step fits in one ~50 s
+  chunk when the tarball arrives promptly. Two fixes made that fit:
+  the secret detector runs each pattern once over the whole file
+  instead of once per line (was ~56 s of regex on Linux, now ~28 s;
+  results identical — guarded by an equivalence test that compares
+  the new scan against the old per-line scan, including values split
+  across lines and matches hiding inside a cross-line span), and the
+  tar parser uses 1 MB gunzip chunks plus a memcmp end-of-archive
+  check (was ~31 s of parse overhead, now ~2 s over gunzip). The
+  streaming path also skips the recursive-tree call (it costs ~4 s
+  and comes back truncated at 71k of ~97k entries for Linux — the
+  tarball is the complete file list), and manifests/configs are
+  always retained even when the 100 MB retained-bytes budget runs
+  out (a flood of .ts/.js files must not crowd out the files the
+  dependency step needs; the report still says when retention was
+  incomplete). Validated end-to-end on microsoft/vscode (1.8 GB,
+  streaming path): HEAD completes in 25–33 s, 20,648 files scanned =
+  20,648 total, 474 HEAD secrets, 1,714 deps.
+- **Honest bound on torvalds/linux-scale histories.** Linux is ~4 GB
+  with ~1M commits; the size gate (repos >100 MB skip clone paths)
+  still applies, so history goes through the API path, newest-first,
+  10 commits per chunk, and a full history walk will take a very long
+  time even chunked. The fix is resumability, not pretending the
+  whole history finishes in one visit: the scan makes steady
+  newest-first progress, survives restarts, and says exactly how far
+  it got. A partial history is never presented as complete. One
+  physical bound remains: the HEAD chunk needs the 275 MB tarball
+  inside its ~50 s budget. Measured from this VM, codeload delivered
+  it in 8 s one day and ~90 s the next (repeated downloads from one
+  IP get throttled); on a slow-download day the HEAD chunk stops
+  cleanly at 50 s and retries from its cursor — nothing lost, no
+  dead-end — until a fast window lets it through. Vercel's network
+  may differ; the live torvalds/linux check below is the proof.
+- **Rules unchanged:** unlimited files, unlimited findings, full
+  detail to anyone, no login, secrets redacted fragments only, never
+  stored/logged/live-validated, public repos only, git-protocol
+  history first, no caps. Phase 7 UI untouched (dial, verdict, stat
+  grid, collapsible groups, filters, spider map, GitHub links,
+  copy-link anchors, dark mode, 360 px mobile, ≥44 px tap targets,
+  reduced-motion).
+- **Verification (2026-11-25, local):** `npm run build` exit 0;
+  `test:scanner` 73/73 (68 + 5 new detector-equivalence checks),
+  `test:tier3` 40/40, `test:history` 56/56, `test:public-full` 56/56,
+  `test:ui-phase7` 53/53, `test:cursor-phase9` 181/181 (new:
+  chunked API-path and git-path resume produce the identical final
+  report to an uninterrupted scan, rate-limit mid-history resume,
+  bogus cursors, sessionStorage resume helpers, provisional
+  reports, no `lib/jobs` import / jobs route / "no longer running"
+  copy anywhere in src), `test:techdirect` 83/B with "Scanned all
+  2802 files in the tree" and 62/62 history via git protocol,
+  `test:mcp` 56/56 (51 + 5 resume_scan checks) against a local
+  production server. Secret-pattern grep clean (fixtures assemble
+  fakes from fragments, as before). Live verification: pending the
+  push below.
 
 ## Project notes
 

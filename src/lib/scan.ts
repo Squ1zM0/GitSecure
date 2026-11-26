@@ -55,16 +55,18 @@
 // per-file fallback. No secret values are stored or logged — findings
 // carry redacted fragments only (see secrets.ts / redact.ts).
 
+import { createGunzip } from "node:zlib";
+import { Readable } from "node:stream";
 import { gunzipSync } from "node:zlib";
 import { checkDependencies } from "./osv";
 import { emptyProgress, type ScanProgress } from "./progress";
-import { scanHistory } from "./history";
+import { scanHistory, HISTORY_CLONE_SIZE_LIMIT_KB, type HistoryScanResult } from "./history";
 import { detectInfraFrameworks, infraFindings, parseWorkflowActions } from "./infra";
 import { isSkippablePath } from "./paths";
 import { computeScore, plainSummary } from "./score";
 import { envFileFinding, scanTextForSecrets, type ScannedFile } from "./secrets";
 import { fingerprintFrameworks, parseCargoLock, parseCargoToml, parseComposerJson, parseComposerLock, parseCsproj, parseGemfile, parseGemfileLock, parseGoMod, parseGradle, parsePackagesConfig, parsePackageJson, parsePackageLock, parsePomXml, parseRequirements, parseYamlLock, viteFindings } from "./frameworks";
-import type { Dependency, Framework, FullReport, PostureIssue, SecretFinding, Vulnerability } from "./types";
+import type { Dependency, Framework, FullReport, HeadPartial, PostureIssue, SecretFinding, Vulnerability } from "./types";
 
 export const HISTORY_DEPTH = "Full history, newest first.";
 // NOTE (Phase 8): history is scanned by scanHistory() in history.ts —
@@ -82,7 +84,7 @@ const HISTORY_COMMITS = 5;
 /** Error kind a scan can fail with, mapped to an honest HTTP status.
  *  The report page and the scan API both render from `kind` + `message`,
  *  so a failed scan says plainly what happened instead of a bare 404. */
-export type ScanErrorKind = "not-found" | "private" | "rate-limit" | "timeout" | "bad-format" | "upstream";
+export type ScanErrorKind = "not-found" | "private" | "rate-limit" | "timeout" | "bad-format" | "upstream" | "head-moved";
 export class ScanError extends Error {
   readonly status: number;
   readonly kind: ScanErrorKind;
@@ -381,128 +383,427 @@ export function buildLimits(input: BuildLimitsInput): string[] {
   return limits;
 }
 
-export async function scanRepo(owner: string, repo: string, options: ScanOptions = {}): Promise<FullReport> {
+
+/** Fetch the branch HEAD sha (one commits-list call, newest commit
+ *  only). Throws ScanError 404 when the repo has no commits at all —
+ *  an empty repo has no HEAD to scan. */
+export async function fetchHeadSha(owner: string, repo: string, branch: string): Promise<string> {
+  const commits = await ghJson<{ sha: string }[]>(
+    `${GH_API}/repos/${owner}/${repo}/commits?per_page=1&sha=${encodeURIComponent(branch)}`,
+  );
+  const sha = commits[0]?.sha;
+  if (!sha) throw new ScanError(404, "not-found", "Repository not found (or it is private). GitSecure scans public repos only.");
+  return sha;
+}
+
+// ---------------------------------------------------------------------------
+// Streaming HEAD tarball (Phase 9).
+//
+// The whole-buffer tarball path above (fetchHeadFilesViaTarball) works
+// for repos up to ~1 GB, but a repo like torvalds/linux (~4 GB) would
+// OOM-crash a 1 GB serverless function when its ~1.4 GB decompressed
+// tree is materialised whole. The streaming path below processes the
+// tarball as it downloads: entries are gunzipped incrementally, each
+// file is secret-scanned the moment its bytes arrive, and only the
+// files the later steps actually READ (manifests, configs, workflows,
+// infra files — see retainHeadFile) are kept in memory. Peak memory
+// is roughly the largest single file plus the gunzip window, not the
+// whole tree. A chunked scan of a giant repo therefore survives the
+// HEAD step instead of dying in it.
+// ---------------------------------------------------------------------------
+
+/** Repos larger than this (GitHub repo `size`, KB) use the streaming
+ *  HEAD path instead of the whole-buffer tarball path. */
+export const STREAMING_HEAD_SIZE_LIMIT_KB = 1024 * 1024; // 1 GB
+/** Retained manifest/config bytes cap in streaming mode — a bound on
+ *  memory, not on coverage: files past it are still secret-scanned,
+ *  just not kept for framework/infra reading (and the report says so). */
+export const RETAINED_HEAD_BYTES_BUDGET = 100_000_000;
+
+/** Which files the post-HEAD steps actually read content from, so the
+ *  streaming path knows what to keep. Everything else is secret-scanned
+ *  on the fly and dropped. The list is the exact union of what the
+ *  downstream readers touch: manifests (priority 0), workflows and
+ *  configs (priority 1–2), Docker / compose / Terraform / K8s files
+ *  (infra.ts reads those by name), and .env / .ts / .js files (the
+ *  VITE_ scan in frameworks.ts reads those). */
+export function retainHeadFile(path: string): boolean {
+  const base = path.split("/").pop() ?? "";
+  if (priority(path) <= 2) return true;
+  if (base === "Dockerfile" || base.startsWith("Dockerfile.")) return true;
+  if (["docker-compose.yml", "docker-compose.yaml", "compose.yml", "compose.yaml", "vercel.json"].includes(base)) return true;
+  if (path.endsWith("supabase/config.toml")) return true;
+  if (/\.tf$/.test(path) || /\.ya?ml$/.test(path)) return true;
+  if (/\.(ts|tsx|js|jsx)$/.test(path)) return true;
+  return false;
+}
+
+interface TarEntry {
+  rel: string;
+  size: number;
+  typeflag: string;
+}
+
+/** One all-zero 512-byte block, for the end-of-archive check — memcmp
+ *  instead of a per-byte JS callback over every header (torvalds/linux
+ *  has ~97k headers; `header.every` cost seconds there). */
+const ZERO_BLOCK = Buffer.alloc(512);
+
+/** Parse one 512-byte tar header. Returns null on the end-of-archive
+ *  marker (all-zero block). */
+function parseTarHeader(header: Buffer, longName: string | null): TarEntry | null {
+  if (header.equals(ZERO_BLOCK)) return null;
+  const readString = (b: Buffer, start: number, len: number) => b.toString("utf8", start, start + len).split("\0")[0];
+  const size = parseInt(readString(header, 124, 12).trim() || "0", 8);
+  const typeflag = String.fromCharCode(header[156]);
+  const nameField = readString(header, 0, 100);
+  const prefix = readString(header, 345, 155);
+  const name = longName ?? (prefix ? `${prefix}/${nameField}` : nameField);
+  const slash = name.indexOf("/");
+  const rel = slash >= 0 ? name.slice(slash + 1) : name;
+  return { rel, size, typeflag };
+}
+
+/** Stream the HEAD tarball and call onEntry(path, content) for every
+ *  non-skipped file, in tarball order, as its bytes arrive. Nothing is
+ *  held after onEntry returns. Throws on any transport/parse failure
+ *  (the caller falls back to per-file fetches) or ScanError 504 when
+ *  the chunk's time budget runs out mid-download — the HEAD chunk is
+ *  then retried cleanly from its cursor, never half-reported. */
+export async function streamHeadFilesViaTarball(
+  owner: string,
+  repo: string,
+  branch: string,
+  onEntry: (path: string, content: string) => void,
+  opts?: { onCount?: (scanned: number) => void; budgetMs?: number },
+): Promise<{ scanned: number }> {
+  const started = Date.now();
+  const budgetMs = opts?.budgetMs ?? 50_000;
+  const url = `https://codeload.github.com/${owner}/${repo}/tar.gz/refs/heads/${encodeURIComponent(branch)}`;
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), 55_000);
+  let res: Response;
+  try {
+    res = await fetch(url, { signal: controller.signal, cache: "no-store" });
+    if (!res.ok) throw new Error(`tarball fetch ${res.status}`);
+    if (!res.body) throw new Error("tarball has no body");
+  } finally {
+    clearTimeout(timer);
+  }
+  const input = Readable.fromWeb(res.body as unknown as Parameters<typeof Readable.fromWeb>[0]);
+  // Large zlib chunks: the default 16 KB chunkSize made the async
+  // iterator turn ~1.7 GB of Linux into ~260k tiny chunks, each paying
+  // iterator + Buffer.concat overhead. 1 MB chunks cut that to ~1.7k
+  // without holding more than one chunk at a time.
+  const gunzip = createGunzip({ chunkSize: 1024 * 1024 });
+  input.pipe(gunzip);
+  let pending = Buffer.alloc(0);
+  let longName: string | null = null;
+  let cur: { rel: string; size: number; received: number; chunks: Buffer[]; discard: boolean } | null = null;
+  let padRemaining = 0;
+  let scanned = 0;
+  let done = false;
+  try {
+    for await (const chunk of gunzip) {
+      pending = Buffer.concat([pending, chunk as Buffer]);
+      for (;;) {
+        if (done) break;
+        if (padRemaining > 0) {
+          const take = Math.min(padRemaining, pending.length);
+          pending = pending.subarray(take);
+          padRemaining -= take;
+          if (padRemaining > 0) break;
+          continue;
+        }
+        if (cur) {
+          const need = cur.size - cur.received;
+          const take = Math.min(need, pending.length);
+          if (take > 0) {
+            cur.chunks.push(pending.subarray(0, take));
+            cur.received += take;
+            pending = pending.subarray(take);
+          }
+          if (cur.received < cur.size) break; // wait for more bytes
+          // File complete: hand it over, then skip its padding.
+          const content = Buffer.concat(cur.chunks).toString("utf8");
+          if (!cur.discard) {
+            onEntry(cur.rel, content);
+            scanned++;
+            opts?.onCount?.(scanned);
+          } else if (cur.rel === "__GS_LONGNAME__") {
+            longName = content.split("\0")[0];
+          }
+          padRemaining = (512 - (cur.size % 512)) % 512;
+          cur = null;
+          continue;
+        }
+        // Header mode.
+        if (pending.length < 512) break;
+        const header = pending.subarray(0, 512);
+        pending = pending.subarray(512);
+        const entry = parseTarHeader(header, longName);
+        longName = null;
+        if (entry === null) {
+          done = true; // end-of-archive marker
+          break;
+        }
+        if (entry.typeflag === "L") {
+          cur = { rel: "__GS_LONGNAME__", size: entry.size, received: 0, chunks: [], discard: true };
+          continue;
+        }
+        if (entry.typeflag !== "0" && entry.typeflag !== "\0") {
+          // Directory, symlink, extended header — skip its data.
+          cur = { rel: "", size: entry.size, received: 0, chunks: [], discard: true };
+          continue;
+        }
+        const rel = entry.rel;
+        const discard = !rel || rel.startsWith("../") || rel.startsWith("/") || isSkippable(rel);
+        cur = { rel, size: entry.size, received: 0, chunks: [], discard };
+      }
+      if (done) break;
+      if (Date.now() - started > budgetMs) {
+        controller.abort();
+        throw new ScanError(
+          504,
+          "timeout",
+          "The current-files download took too long, so this chunk stopped before finishing. Nothing was half-reported — run the scan again and it picks up from the start of the current-files step.",
+        );
+      }
+    }
+  } catch (err) {
+    if (err instanceof ScanError) throw err;
+    if (err instanceof Error && (err.name === "AbortError" || /aborted/i.test(err.message))) {
+      throw new ScanError(
+        504,
+        "timeout",
+        "The current-files download took too long, so this chunk stopped before finishing. Nothing was half-reported — run the scan again and it picks up from the start of the current-files step.",
+      );
+    }
+    throw err;
+  } finally {
+    input.destroy();
+    gunzip.destroy();
+  }
+  return { scanned };
+}
+
+/** Per-file fallback for streaming mode: same onEntry contract as the
+ *  streaming tarball path, but files are fetched one by one (pool of
+ *  10) and handed over the moment they land, so memory stays bounded.
+ *  Used only when the tarball download fails. */
+export async function streamHeadFilesPerFile(
+  owner: string,
+  repo: string,
+  branch: string,
+  chosen: { path: string; size?: number }[],
+  onEntry: (path: string, content: string) => void,
+  opts?: { onCount?: (scanned: number) => void; budgetMs?: number },
+): Promise<{ scanned: number }> {
+  const started = Date.now();
+  const budgetMs = opts?.budgetMs ?? 50_000;
+  let scanned = 0;
+  let next = 0;
+  const workers = Array.from({ length: HEAD_FETCH_CONCURRENCY }, async () => {
+    while (next < chosen.length) {
+      if (Date.now() - started > budgetMs) {
+        throw new ScanError(
+          504,
+          "timeout",
+          "The current-files download took too long, so this chunk stopped before finishing. Nothing was half-reported — run the scan again and it picks up from the start of the current-files step.",
+        );
+      }
+      const entry = chosen[next++];
+      const content = await fetchRaw(owner, repo, branch, entry.path);
+      if (content == null) continue;
+      onEntry(entry.path, content);
+      scanned++;
+      opts?.onCount?.(scanned);
+    }
+  });
+  await Promise.all(workers);
+  return { scanned };
+}
+
+/** Security posture from the retained HEAD files (no OSV input — the
+ *  OSV-unavailable item is appended by assembleReport, which is the
+ *  only place that knows whether OSV answered). Pure function of the
+ *  files map, so the HEAD chunk and the assembler share it exactly. */
+export function buildPosture(files: Map<string, string>): PostureIssue[] {
+  const posture: PostureIssue[] = [];
+  const paths = new Set(files.keys());
+  const has = (p: string) => [...paths].some((x) => x === p || x.endsWith(`/${p}`));
+  if (!has("SECURITY.md")) posture.push({ id: "no-security-md", title: "No SECURITY.md", severity: "low", detail: "There is no SECURITY.md telling people how to report a vulnerability.", fix: "Add a SECURITY.md with a contact address and a response timeframe." });
+  if (![...paths].some((p) => p.includes("dependabot"))) posture.push({ id: "no-dependabot", title: "No Dependabot config", severity: "low", detail: "No .github/dependabot.yml was found, so dependency updates are not automated.", fix: "Add .github/dependabot.yml to get automated security update pull requests." });
+  const gitignore = files.get(".gitignore") ?? [...files.entries()].find(([p]) => p.endsWith("/.gitignore"))?.[1];
+  if (!gitignore) {
+    posture.push({ id: "no-gitignore", title: "No .gitignore", severity: "medium", detail: "There is no .gitignore, so secrets and build output can be committed by accident.", fix: "Add a .gitignore covering .env, node_modules, *.pem and build output." });
+  } else {
+    const missing = [".env", "node_modules", "*.pem"].filter((pat) => !gitignore.includes(pat));
+    if (missing.length > 0) posture.push({ id: "gitignore-gaps", title: ".gitignore gaps", severity: "medium", detail: `.gitignore does not cover: ${missing.join(", ")}.`, fix: `Add ${missing.join(", ")} to .gitignore.` });
+  }
+  if ([...paths].some((p) => /(^|\/)\.env(\.|$)/.test(p) && !p.endsWith(".env.example"))) {
+    posture.push({ id: "env-committed", title: ".env file committed", severity: "high", detail: "An environment file is committed to the repo.", fix: "Remove it from the repo and git history, add .env to .gitignore, and rotate every credential in it." });
+  }
+  // GitHub Actions dangers.
+  for (const [path, content] of files) {
+    if (!path.startsWith(".github/workflows/")) continue;
+    if (/pull_request_target/.test(content)) posture.push({ id: "actions-pr-target", title: "Workflow uses pull_request_target", severity: "high", detail: `${path} runs on pull_request_target, which can expose secrets to fork pull requests if it checks out untrusted code.`, fix: "Avoid pull_request_target unless you need it, and never check out PR code in that workflow." });
+    if (/permissions:\s*write-all/.test(content)) posture.push({ id: "actions-write-all", title: "Workflow grants write-all permissions", severity: "medium", detail: `${path} grants write-all permissions to the workflow token.`, fix: "Grant only the permissions each job needs." });
+    if (/echo\s+.*\$\{\{\s*secrets\./.test(content)) posture.push({ id: "actions-secret-echo", title: "Workflow may print a secret", severity: "high", detail: `${path} echoes a secret value, which can leak it into workflow logs.`, fix: "Never echo secrets. Mask them and pass them only to the step that needs them." });
+  }
+  for (const v of viteFindings(files)) {
+    posture.push({ id: `vite-${v.title.toLowerCase().replace(/[^a-z0-9]+/g, "-")}`, title: v.title, severity: v.severity, detail: v.detail, fix: v.title.includes("VITE_") ? "Move real secrets out of VITE_ variables — use server-side secrets instead." : "Restrict the dev server to localhost and review the plugins you install." });
+  }
+  // Phase 6, Tier 3 infra findings (Docker / K8s / Terraform / Actions).
+  // Each detail ends with "Fix: …" — split it out into the fix field.
+  for (const v of infraFindings(files)) {
+    const fixIdx = v.detail.indexOf("Fix: ");
+    posture.push({
+      id: `infra-${v.title.toLowerCase().replace(/[^a-z0-9]+/g, "-")}`,
+      title: v.title,
+      severity: v.severity,
+      detail: fixIdx >= 0 ? v.detail.slice(0, fixIdx).trim() : v.detail,
+      fix: fixIdx >= 0 ? v.detail.slice(fixIdx + 5).trim() : v.detail,
+    });
+  }
+  return posture;
+}
+
+/** HEAD chunk (Phase 9): everything the scan learns from the current
+ *  files, in one invocation — repo info, the pinned HEAD sha, the
+ *  file list (from the recursive tree, or from the tarball itself in
+ *  streaming mode — the tree truncates past ~71k entries, so for a
+ *  repo like torvalds/linux the tarball is the only complete list),
+ *  HEAD secrets, frameworks, dependencies, and posture.
+ *  This is the first chunk of every scan and the only chunk that
+ *  touches the tree: later chunks (history, assemble) never re-fetch
+ *  it. The caller keeps the returned partial and passes it back at
+ *  assemble time; the server never stores it.
+ *
+ *  Two transports, chosen by repo size: repos up to 1 GB use the
+ *  whole-buffer tarball path (as before — TechDirect and
+ *  DefinitelyTyped both scan this way); larger repos stream the
+ *  tarball (see streamHeadFilesViaTarball) so the HEAD step cannot
+ *  OOM the function. Either way every non-skipped file is checked
+ *  for secrets — the transport only changes how the bytes arrive. */
+export async function scanHead(
+  owner: string,
+  repo: string,
+  options: ScanOptions = {},
+): Promise<HeadPartial> {
   validateOwnerRepo(owner, repo);
   const progress: ScanProgress = emptyProgress();
   const emit = () => options.onProgress?.({ ...progress });
-  const historyCount = options.historyCommits ?? HISTORY_COMMITS;
   const repoInfo = await ghJson<{ default_branch: string; description: string | null; private: boolean; size: number }>(`${GH_API}/repos/${owner}/${repo}`);
   if (repoInfo.private) throw new ScanError(404, "private", "This repository is private. GitSecure scans public repos only.");
   const branch = repoInfo.default_branch || "main";
+  const headSha = await fetchHeadSha(owner, repo, branch);
+  const repoSizeKb = repoInfo.size ?? 0;
+  const streaming = repoSizeKb > STREAMING_HEAD_SIZE_LIMIT_KB;
 
-  // Start the history scan NOW so it runs concurrently with the HEAD
-  // fetch below (history ~10 s, HEAD fetch ~11 s in parallel instead
-  // of ~22 s in series). The git-protocol path reports live progress;
-  // other paths report their count when they return.
-  const historyPromise = scanHistory({
-    owner, repo, branch,
-    repoSizeKb: repoInfo.size ?? 0,
-    onProgress: (n) => {
-      progress.commitsScanned = n;
-      emit();
-    },
-  });
-
-  const tree = await ghJson<{ tree: { path: string; type: string; size?: number }[]; truncated?: boolean }>(
-    `${GH_API}/repos/${owner}/${repo}/git/trees/${encodeURIComponent(branch)}?recursive=1`,
-  );
-  const allFiles = tree.tree.filter((t) => t.type === "blob" && !isSkippable(t.path));
-  const sorted = [...allFiles].sort((a, b) => priority(a.path) - priority(b.path) || a.path.localeCompare(b.path));
-  // UNLIMITED: the whole non-skipped tree, no slice, no count cap.
-  const chosen = sorted;
-  progress.filesTotal = chosen.length;
-  emit();
-
-  // Primary path: one tarball download. Fallback: per-file fetches.
-  // Either way every file in `chosen` is scanned — the fallback only
-  // costs time, never coverage.
-  let tarballFallback = false;
-  let files: Map<string, string>;
-  const onFiles = (fetched: number) => {
-    progress.filesScanned = fetched;
+  // The file list: non-streaming mode takes it from GitHub's recursive
+  // tree (one call, whole tree). Streaming mode does NOT fetch the
+  // tree — for a repo like torvalds/linux the tree call costs ~4 s
+  // AND comes back truncated (71k of ~97k entries), understating the
+  // file count. The tarball is the complete, authoritative file list
+  // there, so the list is collected from its entries as they arrive
+  // (see streamedPaths below) and the tree is fetched only if the
+  // tarball fails and the per-file fallback needs it.
+  let treeTruncated = false;
+  let chosen: { path: string; size?: number }[] = [];
+  if (!streaming) {
+    const tree = await ghJson<{ tree: { path: string; type: string; size?: number }[]; truncated?: boolean }>(
+      `${GH_API}/repos/${owner}/${repo}/git/trees/${encodeURIComponent(branch)}?recursive=1`,
+    );
+    const allFiles = tree.tree.filter((t) => t.type === "blob" && !isSkippable(t.path));
+    treeTruncated = tree.truncated ?? false;
+    chosen = [...allFiles].sort((a, b) => priority(a.path) - priority(b.path) || a.path.localeCompare(b.path));
+    // UNLIMITED: the whole non-skipped tree, no slice, no count cap.
+    progress.filesTotal = chosen.length;
     emit();
-  };
-  try {
-    files = await fetchHeadFilesViaTarball(owner, repo, branch, onFiles);
-  } catch {
-    tarballFallback = true;
-    files = await fetchHeadFiles(owner, repo, branch, chosen, onFiles);
   }
-  progress.filesScanned = files.size;
-  progress.step = "history";
-  emit();
 
-  // Secrets: HEAD files — iterate in priority (chosen) order, not fetch
-  // completion order, so findings are deterministic run to run.
-  const secrets: SecretFinding[] = [];
-  for (const entry of chosen) {
-    const content = files.get(entry.path);
-    if (content === undefined) continue;
-    const path = entry.path;
+  // Every file is secret-scanned the moment its content arrives, and
+  // only retainable files (manifests, configs, workflows, infra — see
+  // retainHeadFile) are kept for the framework / posture steps.
+  const headSecrets: SecretFinding[] = [];
+  const files = new Map<string, string>();
+  let retainedBytes = 0;
+  let retainedIncomplete = false;
+  let scannedCount = 0;
+  // Streaming mode: the tarball's own file list, in arrival order.
+  const streamedPaths: string[] = [];
+  const scannedPaths = new Set<string>();
+  const onEntry = (path: string, content: string) => {
+    scannedCount++;
+    scannedPaths.add(path);
+    if (streaming) streamedPaths.push(path);
     if (/(^|\/)\.env(\.|$)/.test(path) && !path.endsWith(".env.example")) {
-      secrets.push(envFileFinding(path, "HEAD"));
+      headSecrets.push(envFileFinding(path, "HEAD"));
     }
-    secrets.push(...scanTextForSecrets({ path, content, commit: "HEAD" }));
-  }
-
-  // Secrets: full history first (git protocol, newest-first, via the
-  // scanHistory() orchestrator), with API patches of the most recent
-  // commits as a last resort when every history path fails.
-  const commits = await ghJson<{ sha: string; commit: { message: string } }[]>(
-    `${GH_API}/repos/${owner}/${repo}/commits?per_page=50&sha=${encodeURIComponent(branch)}`,
-  ).catch(() => []);
-  const headSha = commits[0]?.sha ?? "HEAD";
-  let historyScanned = 0;
-  let historyNote: string | null = null;
-  const historyStarted = Date.now();
-  // Phase 8: scanHistory already tried git protocol, then the clone,
-  // then the API — so a failed result means every path failed, and only
-  // then do we fall back to patches of the most recent commits.
-  // Phase 8.1: history must never kill the scan — if the orchestrator
-  // itself throws (it should not: it catches per path), degrade to the
-  // patch fallback below instead of 500ing the whole report.
-  let history;
-  try {
-    history = await historyPromise;
-  } catch (e) {
-    history = {
-      ok: false, findings: [], commitsScanned: 0, patchBytes: 0,
-      truncated: false, timedOut: false,
-      note: `History scan failed (${e instanceof Error ? e.message : "unknown error"}).`,
-      ms: 0, method: "git" as const, cachedCommits: 0, commitsFetched: 0,
-      restCalls: 0, gitRequests: 0,
-    };
-  }
-  if (history.ok) {
-    historyScanned = history.commitsScanned;
-    secrets.push(...history.findings);
-    if (history.note) historyNote = history.note;
-  } else {
-    historyNote = `${history.note ?? "Full-history scan unavailable."} Used API patches of the ${historyCount} most recent commits instead.`;
-    for (const commit of commits.slice(0, historyCount)) {
-      try {
-        const detail = await ghJson<{ files?: { filename: string; patch?: string }[] }>(`${GH_API}/repos/${owner}/${repo}/commits/${commit.sha}`);
-        historyScanned++;
-        for (const f of detail.files ?? []) {
-          if (!f.patch || isSkippable(f.filename)) continue;
-          // Patches are diffs: scan added lines only (lines starting with +).
-          const added = f.patch.split("\n").filter((l) => l.startsWith("+") && !l.startsWith("+++")).map((l) => l.slice(1)).join("\n");
-          secrets.push(...scanTextForSecrets({ path: f.filename, content: added, commit: commit.sha.slice(0, 7) }));
-        }
-      } catch {
-        // One bad commit must not fail the whole scan.
+    headSecrets.push(...scanTextForSecrets({ path, content, commit: "HEAD" }));
+    if (retainHeadFile(path)) {
+      // Manifests / configs / workflows (priority <= 2) are the files
+      // the dependency and posture steps MUST have — they are small
+      // and always retained, so a flood of big .ts/.js files early in
+      // the tarball cannot crowd them out of the budget. Everything
+      // else is kept only while the retained-bytes budget lasts; when
+      // it runs out the report says framework detection may be
+      // incomplete (secrets were still checked in every file).
+      const mustKeep = priority(path) <= 2;
+      if (!mustKeep && streaming && retainedBytes + Buffer.byteLength(content, "utf8") > RETAINED_HEAD_BYTES_BUDGET) {
+        retainedIncomplete = true;
+      } else {
+        files.set(path, content);
+        retainedBytes += Buffer.byteLength(content, "utf8");
       }
     }
+    progress.filesScanned = scannedCount;
+    emit();
+  };
+  const onCount = (n: number) => {
+    progress.filesScanned = n;
+    emit();
+  };
+
+  let tarballFallback = false;
+  if (streaming) {
+    try {
+      await streamHeadFilesViaTarball(owner, repo, branch, onEntry, { onCount, budgetMs: 50_000 });
+    } catch (err) {
+      if (err instanceof ScanError && err.kind === "timeout") throw err;
+      tarballFallback = true;
+      // Per-file fallback needs a file list: fetch the tree now (it
+      // was skipped above), and skip the files the tarball already
+      // delivered so nothing is scanned twice.
+      const tree = await ghJson<{ tree: { path: string; type: string; size?: number }[]; truncated?: boolean }>(
+        `${GH_API}/repos/${owner}/${repo}/git/trees/${encodeURIComponent(branch)}?recursive=1`,
+      );
+      treeTruncated = tree.truncated ?? false;
+      const remaining = tree.tree
+        .filter((t) => t.type === "blob" && !isSkippable(t.path) && !scannedPaths.has(t.path))
+        .sort((a, b) => priority(a.path) - priority(b.path) || a.path.localeCompare(b.path));
+      await streamHeadFilesPerFile(owner, repo, branch, remaining, onEntry, { onCount, budgetMs: 50_000 });
+    }
+    // The tarball is the complete file list in streaming mode — the
+    // tree is never consulted, so it cannot truncate the count.
+    chosen = streamedPaths
+      .map((path) => ({ path }))
+      .sort((a, b) => priority(a.path) - priority(b.path) || a.path.localeCompare(b.path));
+    progress.filesTotal = chosen.length;
+  } else {
+    try {
+      const full = await fetchHeadFilesViaTarball(owner, repo, branch, onCount);
+      for (const [path, content] of full) onEntry(path, content);
+    } catch {
+      tarballFallback = true;
+      const full = await fetchHeadFiles(owner, repo, branch, chosen, onCount);
+      for (const [path, content] of full) onEntry(path, content);
+    }
   }
-  const historyMs = Date.now() - historyStarted;
-  // The git path already reported live progress; the count is set
-  // definitively here now that the step has returned.
-  progress.commitsScanned = historyScanned;
-  progress.step = "dependencies";
+  progress.filesScanned = scannedCount;
+  progress.step = "history";
   emit();
-  // Dedupe secrets (same type/file/line/fragment, HEAD vs history).
-  // Phase 5: no cap — HEAD + history findings are ALL listed.
-  const dedupedSecrets = dedupeSecrets(secrets);
 
   // Frameworks + dependencies (Tier 1 + Tier 2) — priority order, so
   // the OSV query covers the same manifests run to run.
@@ -544,10 +845,8 @@ export async function scanRepo(owner: string, repo: string, options: ScanOptions
     }
   }
   const dedupedDeps = [...depByKey.values()];
-  deps.length = 0;
-  deps.push(...dedupedDeps);
 
-  const frameworks: Framework[] = fingerprintFrameworks(deps, files);
+  const frameworks: Framework[] = fingerprintFrameworks(dedupedDeps, files);
   // Phase 6, Tier 3: infra frameworks (Docker, Kubernetes, Terraform,
   // GitHub Actions, CI/infra configs). One entry per framework name,
   // preferring a known version — same rule as fingerprintFrameworks'
@@ -559,9 +858,60 @@ export async function scanRepo(owner: string, repo: string, options: ScanOptions
     else if (!existing.version && f.version) Object.assign(existing, f);
   }
   frameworks.sort((a, b) => a.name.localeCompare(b.name));
-  const unpinnedCount = deps.filter((d) => d.direct && (!d.version || d.version === "*" || d.version.toLowerCase() === "latest")).length;
+  const unpinnedCount = dedupedDeps.filter((d) => d.direct && (!d.version || d.version === "*" || d.version.toLowerCase() === "latest")).length;
 
-  const { vulnerabilities, unavailable: osvUnavailable, detailCapped, depsChecked, depsQueryable } = await checkDependencies(deps, {
+  return {
+    owner,
+    repo,
+    branch,
+    headSha,
+    filesScanned: scannedCount,
+    filesTotal: chosen.length,
+    treeTruncated,
+    tarballFallback,
+    secrets: headSecrets,
+    frameworks,
+    dependencies: dedupedDeps,
+    posture: buildPosture(files),
+    unpinnedCount,
+    repoSizeKb,
+    historyMethod: repoSizeKb > HISTORY_CLONE_SIZE_LIMIT_KB ? "api" : "git",
+    retainedIncomplete,
+  };
+}
+
+export interface AssembleHistoryInput {
+  findings: SecretFinding[];
+  commitsScanned: number;
+  ok: boolean;
+  method: "clone" | "api" | "git";
+  /** Final limits note for the history step (rate-limit stop, guard
+   *  trip, size-gate reason, or the patch-fallback sentence). */
+  note: string | null;
+  /** Milliseconds the history step took (only shown when it failed). */
+  historyMs?: number;
+}
+
+/** Assemble (Phase 9): the last chunk. Merges the HEAD partial with
+ *  the accumulated history findings, runs the dependency flaw check,
+ *  and produces the finished FullReport. Idempotent: calling it twice
+ *  with the same inputs produces the same report, so a client whose
+ *  assemble call is interrupted simply calls it again with the same
+ *  cursor and accumulated findings. */
+export async function assembleReport(
+  head: HeadPartial,
+  history: AssembleHistoryInput,
+  options: ScanOptions = {},
+): Promise<FullReport> {
+  const progress: ScanProgress = emptyProgress();
+  progress.step = "dependencies";
+  progress.filesScanned = head.filesScanned;
+  progress.filesTotal = head.filesTotal;
+  progress.commitsScanned = history.commitsScanned;
+  const emit = () => options.onProgress?.({ ...progress });
+
+  const dedupedSecrets = dedupeSecrets([...head.secrets, ...history.findings]);
+  const { vulnerabilities, unavailable: osvUnavailable, detailCapped, depsChecked, depsQueryable } = await checkDependencies(head.dependencies, {
     queryBudgetMs: options.osv?.queryBudgetMs ?? null,
     detailBudgetMs: options.osv?.detailBudgetMs ?? null,
     onProgress: (p) => {
@@ -579,93 +929,173 @@ export async function scanRepo(owner: string, repo: string, options: ScanOptions
   progress.step = "done";
   emit();
 
-  // Posture.
-  const posture: PostureIssue[] = [];
-  const paths = new Set(files.keys());
-  const has = (p: string) => [...paths].some((x) => x === p || x.endsWith(`/${p}`));
-  if (!has("SECURITY.md")) posture.push({ id: "no-security-md", title: "No SECURITY.md", severity: "low", detail: "There is no SECURITY.md telling people how to report a vulnerability.", fix: "Add a SECURITY.md with a contact address and a response timeframe." });
-  if (![...paths].some((p) => p.includes("dependabot"))) posture.push({ id: "no-dependabot", title: "No Dependabot config", severity: "low", detail: "No .github/dependabot.yml was found, so dependency updates are not automated.", fix: "Add .github/dependabot.yml to get automated security update pull requests." });
-  const gitignore = files.get(".gitignore") ?? [...files.entries()].find(([p]) => p.endsWith("/.gitignore"))?.[1];
-  if (!gitignore) {
-    posture.push({ id: "no-gitignore", title: "No .gitignore", severity: "medium", detail: "There is no .gitignore, so secrets and build output can be committed by accident.", fix: "Add a .gitignore covering .env, node_modules, *.pem and build output." });
-  } else {
-    const missing = [".env", "node_modules", "*.pem"].filter((pat) => !gitignore.includes(pat));
-    if (missing.length > 0) posture.push({ id: "gitignore-gaps", title: ".gitignore gaps", severity: "medium", detail: `.gitignore does not cover: ${missing.join(", ")}.`, fix: `Add ${missing.join(", ")} to .gitignore.` });
-  }
-  if ([...paths].some((p) => /(^|\/)\.env(\.|$)/.test(p) && !p.endsWith(".env.example"))) {
-    posture.push({ id: "env-committed", title: ".env file committed", severity: "high", detail: "An environment file is committed to the repo.", fix: "Remove it from the repo and git history, add .env to .gitignore, and rotate every credential in it." });
-  }
-  // GitHub Actions dangers.
-  for (const [path, content] of files) {
-    if (!path.startsWith(".github/workflows/")) continue;
-    if (/pull_request_target/.test(content)) posture.push({ id: "actions-pr-target", title: "Workflow uses pull_request_target", severity: "high", detail: `${path} runs on pull_request_target, which can expose secrets to fork pull requests if it checks out untrusted code.`, fix: "Avoid pull_request_target unless you need it, and never check out PR code in that workflow." });
-    if (/permissions:\s*write-all/.test(content)) posture.push({ id: "actions-write-all", title: "Workflow grants write-all permissions", severity: "medium", detail: `${path} grants write-all permissions to the workflow token.`, fix: "Grant only the permissions each job needs." });
-    if (/echo\s+.*\$\{\{\s*secrets\./.test(content)) posture.push({ id: "actions-secret-echo", title: "Workflow may print a secret", severity: "high", detail: `${path} echoes a secret value, which can leak it into workflow logs.`, fix: "Never echo secrets. Mask them and pass them only to the step that needs them." });
-  }
-  for (const v of viteFindings(files)) {
-    posture.push({ id: `vite-${v.title.toLowerCase().replace(/[^a-z0-9]+/g, "-")}`, title: v.title, severity: v.severity, detail: v.detail, fix: v.title.includes("VITE_") ? "Move real secrets out of VITE_ variables — use server-side secrets instead." : "Restrict the dev server to localhost and review the plugins you install." });
-  }
-  // Phase 6, Tier 3 infra findings (Docker / K8s / Terraform / Actions).
-  // Each detail ends with "Fix: …" — split it out into the fix field.
-  for (const v of infraFindings(files)) {
-    const fixIdx = v.detail.indexOf("Fix: ");
-    posture.push({
-      id: `infra-${v.title.toLowerCase().replace(/[^a-z0-9]+/g, "-")}`,
-      title: v.title,
-      severity: v.severity,
-      detail: fixIdx >= 0 ? v.detail.slice(0, fixIdx).trim() : v.detail,
-      fix: fixIdx >= 0 ? v.detail.slice(fixIdx + 5).trim() : v.detail,
-    });
-  }
+  const posture: PostureIssue[] = [...head.posture];
   if (osvUnavailable) {
     posture.push({ id: "osv-unavailable", title: "Dependency check unavailable", severity: "info", detail: "The public flaw database (OSV.dev) could not be reached, so dependency vulnerabilities could not be checked in this scan.", fix: "Re-run the scan later." });
   }
 
-  const { score, grade } = computeScore({ secrets: dedupedSecrets, vulnerabilities, posture, unpinnedCount });
+  const { score, grade } = computeScore({ secrets: dedupedSecrets, vulnerabilities, posture, unpinnedCount: head.unpinnedCount });
   const limits = buildLimits({
-    filesScanned: files.size,
-    filesTotal: allFiles.length,
+    filesScanned: head.filesScanned,
+    filesTotal: head.filesTotal,
     historyOk: history.ok,
     historyMethod: history.method,
-    historyCommitsScanned: historyScanned,
-    historyMs,
-    historyNote,
+    historyCommitsScanned: history.commitsScanned,
+    historyMs: history.historyMs ?? 0,
+    historyNote: history.note,
     depsChecked,
     depsQueryable,
-    depsTotal: deps.length,
+    depsTotal: head.dependencies.length,
     advisoriesTotal: vulnerabilities.length,
     detailCapped,
-    treeTruncated: tree.truncated ?? false,
-    tarballFallback,
+    treeTruncated: head.treeTruncated,
+    tarballFallback: head.tarballFallback,
   });
-
-  const base = {
-    repo,
-    owner,
-    branch,
-    commit: headSha,
-    score,
-    grade,
-    counts: {
-      secrets: dedupedSecrets.length,
-      vulnerabilities: vulnerabilities.length,
-      frameworks: frameworks.length,
-      dependencies: deps.length,
-      postureIssues: posture.length,
-      filesScanned: files.size,
-      historyCommitsScanned: historyScanned,
-    },
-    summary: plainSummary({ secrets: dedupedSecrets.length, vulnerabilities: vulnerabilities.length, postureIssues: posture.length, frameworks: frameworks.length }),
-    scannedAt: new Date().toISOString(),
-    historyDepth: HISTORY_DEPTH,
-    limits,
-  };
+  if (head.retainedIncomplete) {
+    limits.push("Some config files could not be kept in memory during the current-files download, so framework detection may be incomplete — every file was still checked for leaked secrets.");
+  }
+  if (!history.ok) {
+    limits.push(`History incomplete: ${history.commitsScanned} newest commit${history.commitsScanned === 1 ? "" : "s"} checked — older commits were not checked in this report.`);
+  }
 
   // Phase 4: every caller gets the full report — the repo is public, so
   // the detail is information already public in the repo. Secrets are
   // still redacted fragments only (see secrets.ts / redact.ts).
   // Phase 5: the full report lists EVERYTHING — all secrets, all
   // dependencies, all advisories. No slice, no cap.
-  const full: FullReport = { kind: "full", ...base, secrets: dedupedSecrets, frameworks, dependencies: deps, vulnerabilities, posture };
+  const full: FullReport = {
+    kind: "full",
+    repo: head.repo,
+    owner: head.owner,
+    branch: head.branch,
+    commit: head.headSha,
+    score,
+    grade,
+    counts: {
+      secrets: dedupedSecrets.length,
+      vulnerabilities: vulnerabilities.length,
+      frameworks: head.frameworks.length,
+      dependencies: head.dependencies.length,
+      postureIssues: posture.length,
+      filesScanned: head.filesScanned,
+      historyCommitsScanned: history.commitsScanned,
+    },
+    summary: plainSummary({ secrets: dedupedSecrets.length, vulnerabilities: vulnerabilities.length, postureIssues: posture.length, frameworks: head.frameworks.length }),
+    scannedAt: new Date().toISOString(),
+    historyDepth: HISTORY_DEPTH,
+    limits,
+    secrets: dedupedSecrets,
+    frameworks: head.frameworks,
+    dependencies: head.dependencies,
+    vulnerabilities,
+    posture,
+  };
   return full;
+}
+
+/** Last-resort history fallback (unchanged from Phase 8): when every
+ *  history path fails, scan API patches of the most recent commits.
+ *  One bad commit never fails the scan. */
+export async function scanHistoryPatchFallback(
+  owner: string,
+  repo: string,
+  branch: string,
+  count: number,
+): Promise<{ findings: SecretFinding[]; commitsScanned: number }> {
+  const commits = await ghJson<{ sha: string; commit: { message: string } }[]>(
+    `${GH_API}/repos/${owner}/${repo}/commits?per_page=50&sha=${encodeURIComponent(branch)}`,
+  ).catch(() => []);
+  const findings: SecretFinding[] = [];
+  let scanned = 0;
+  for (const commit of commits.slice(0, count)) {
+    try {
+      const detail = await ghJson<{ files?: { filename: string; patch?: string }[] }>(`${GH_API}/repos/${owner}/${repo}/commits/${commit.sha}`);
+      scanned++;
+      for (const f of detail.files ?? []) {
+        if (!f.patch || isSkippable(f.filename)) continue;
+        // Patches are diffs: scan added lines only (lines starting with +).
+        const added = f.patch.split("\n").filter((l) => l.startsWith("+") && !l.startsWith("+++")).map((l) => l.slice(1)).join("\n");
+        findings.push(...scanTextForSecrets({ path: f.filename, content: added, commit: commit.sha.slice(0, 7) }));
+      }
+    } catch {
+      // One bad commit must not fail the whole scan.
+    }
+  }
+  return { findings, commitsScanned: scanned };
+}
+
+export async function scanRepo(owner: string, repo: string, options: ScanOptions = {}): Promise<FullReport> {
+  validateOwnerRepo(owner, repo);
+  const progress: ScanProgress = emptyProgress();
+  const emit = () => options.onProgress?.({ ...progress });
+
+  // HEAD first (chunk 1), then history, then assemble. Sequential now
+  // (Phase 8 ran history concurrently with the HEAD fetch); the chunked
+  // driver is the source of truth for ordering, and scanRepo is just
+  // its in-process form. Same inputs, same report.
+  const head = await scanHead(owner, repo, {
+    ...options,
+    onProgress: (p) => {
+      progress.filesScanned = p.filesScanned;
+      progress.filesTotal = p.filesTotal;
+      progress.step = p.step;
+      emit();
+    },
+  });
+  progress.step = "history";
+  emit();
+
+  const historyCount = options.historyCommits ?? HISTORY_COMMITS;
+  const historyStarted = Date.now();
+  // Phase 8.1: history must never kill the scan — if the orchestrator
+  // itself throws (it should not: it catches per path), degrade to the
+  // patch fallback below instead of 500ing the whole report.
+  let history: HistoryScanResult;
+  try {
+    history = await scanHistory({
+      owner, repo, branch: head.branch,
+      repoSizeKb: head.repoSizeKb,
+      onProgress: (n) => {
+        progress.commitsScanned = n;
+        emit();
+      },
+    });
+  } catch (e) {
+    history = {
+      ok: false, findings: [], commitsScanned: 0, patchBytes: 0,
+      truncated: false, timedOut: false,
+      note: `History scan failed (${e instanceof Error ? e.message : "unknown error"}).`,
+      ms: 0, method: "git", cachedCommits: 0, commitsFetched: 0,
+      restCalls: 0, gitRequests: 0,
+    };
+  }
+  let historyFindings = history.findings;
+  let historyScanned = history.commitsScanned;
+  let historyOk = history.ok;
+  let historyNote: string | null = history.note ?? null;
+  if (!history.ok) {
+    historyNote = `${history.note ?? "Full-history scan unavailable."} Used API patches of the ${historyCount} most recent commits instead.`;
+    const fallback = await scanHistoryPatchFallback(owner, repo, head.branch, historyCount);
+    historyFindings = fallback.findings;
+    historyScanned = fallback.commitsScanned;
+  }
+  progress.commitsScanned = historyScanned;
+  progress.step = "dependencies";
+  emit();
+
+  return assembleReport(
+    head,
+    { findings: historyFindings, commitsScanned: historyScanned, ok: historyOk, method: history.method, note: historyNote, historyMs: Date.now() - historyStarted },
+    {
+      ...options,
+      onProgress: (p) => {
+        progress.depsChecked = p.depsChecked;
+        progress.depsTotal = p.depsTotal;
+        progress.advisoriesDetailed = p.advisoriesDetailed;
+        progress.advisoriesTotal = p.advisoriesTotal;
+        progress.step = p.step;
+        emit();
+      },
+    },
+  );
 }

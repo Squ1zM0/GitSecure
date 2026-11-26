@@ -52,6 +52,10 @@ check("home page has no sign-in copy", !/sign in/i.test(home));
 check("home page says everyone gets the full report", /everyone gets the .*full report/i.test(home));
 
 const reportPage = src("src/app/[owner]/[repo]/page.tsx");
+// Phase 9: the report rendering moved from the page into ReportView
+// (so the chunk driver can swap a provisional report for the finished
+// one without a reload) — the rendering checks read that file now.
+const reportView = src("src/components/ReportView.tsx");
 check("report page has no sign-in copy", !/sign in/i.test(reportPage));
 check("report page has no 'Owner view' banner", !/Owner view/i.test(reportPage));
 check("report page has no 'Public view' banner", !/Public view/i.test(reportPage));
@@ -72,8 +76,12 @@ check("scanner has no per-file/total size cap", !/MAX_FILE_BYTES|MAX_TOTAL_BYTES
 check("scanner mentions no '250 files' limit", !/250 files/.test(scanSrc));
 check("scanner mentions no '200 KB' / '3 MB' cap", !/200 KB|3 MB/.test(scanSrc));
 
-// --- 2. No file-count cap: scan.ts fetches the whole chosen tree ---
-check("scanner fetches the whole tree (no slice cap on chosen)", /const chosen = sorted;/.test(scanSrc));
+// --- 2. No file-count cap: scan.ts uses the whole file list ---
+// Non-streaming: the whole recursive tree, sorted. Streaming (huge
+// repos): the whole tarball file list — the tree truncates past ~71k
+// entries, so the tarball is the complete list there. Neither path
+// slices the list.
+check("scanner fetches the whole tree (no slice cap on chosen)", /chosen = \[\.\.\.allFiles\]\.sort\(/.test(scanSrc) && /chosen = streamedPaths/.test(scanSrc) && !/chosen = [^\n]*\.slice\(/.test(scanSrc));
 
 // --- 2b. Phase 5: no result-count caps anywhere ---
 check("Phase 5: scanner has no 100-secret slice", !/slice\(0, 100\)/.test(scanSrc));
@@ -87,9 +95,9 @@ check("Phase 5: OSV queries every pinned dep (no 60 slice)", !/slice\(0, 60\)/.t
 const mcpSrc = src("src/lib/mcp.ts");
 check("Phase 5: MCP notes state no 100-finding cap", !/At most 100 secret findings/.test(mcpSrc));
 check("Phase 5: MCP notes state no 50-detail cap", !/up to 50 advisories per scan/i.test(mcpSrc));
-check("Phase 5: report page renders lists progressively (Show more)", /Show more/.test(reportPage) || /ReportLists/.test(reportPage));
-check("Phase 5: report page lists dependencies, not just counts", /DependenciesList/.test(reportPage));
-check("Phase 5: report page passes owner/repo/branch to the secrets list (GitHub links)", /SecretsList secrets=\{full\.secrets\} owner=\{full\.owner\} repo=\{full\.repo\} branch=\{full\.branch\}/.test(reportPage));
+check("Phase 5: report page renders lists progressively (Show more)", /Show more/.test(reportView) || /ReportLists/.test(reportView));
+check("Phase 5: report page lists dependencies, not just counts", /DependenciesList/.test(reportView));
+check("Phase 5: report page passes owner/repo/branch to the secrets list (GitHub links)", /SecretsList secrets=\{report\.secrets\} owner=\{report\.owner\} repo=\{report\.repo\} branch=\{report\.branch\}/.test(reportView));
 
 // --- 2c. Phase 5 navigation: groups, filters, map, anchors, GitHub links ---
 const listsSrc = src("src/components/ReportLists.tsx");

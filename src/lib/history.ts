@@ -109,6 +109,18 @@ export interface HistoryScanResult {
    *  HTTP client and are not counted here; they hit github.com, never
    *  the REST API, so they cost zero REST quota either way. */
   gitRequests: number;
+  /** Phase 9 (git chunked walk only): full sha of the last commit
+   *  scanned in this call, or null when nothing was scanned. The next
+   *  chunk resumes older than this sha. */
+  lastScannedSha?: string | null;
+  /** Phase 9: true when the walk reached the oldest commit (or a
+   *  cached suffix covering the rest) — the history is complete.
+   *  False when a chunk limit or budget stopped the walk early. */
+  complete?: boolean;
+  /** Phase 9: true when the resume point (`resumeAfterSha`) is no
+   *  longer in the log — the repo's history moved since the scan
+   *  started, so the scan must restart history cleanly. */
+  headMoved?: boolean;
 }
 
 const NAME_RE = /^[A-Za-z0-9][A-Za-z0-9_.-]*$/;
@@ -338,7 +350,7 @@ function isApiRateLimited(res: Response): boolean {
   return res.status === 429 || (res.status === 403 && res.headers.get("x-ratelimit-remaining") === "0");
 }
 
-function rateLimitNote(commitsScanned: number): string {
+export function rateLimitNote(commitsScanned: number): string {
   return `GitHub API rate limit was hit — scanned ${commitsScanned} commit${commitsScanned === 1 ? "" : "s"} before stopping. Setting a GITHUB_TOKEN raises the limit.`;
 }
 
@@ -507,6 +519,200 @@ export async function scanHistoryViaApi(
 }
 
 // ---------------------------------------------------------------------------
+// API history CHUNK (Phase 9) — one resumable slice of the API path.
+//
+// The whole-API scan (above) pages the commits list and fetches every
+// commit's patch in a single call, which is why a 92k-commit repo can
+// only ever report a partial history with a note. The chunk version
+// scans exactly `count` commits (default 10) and returns a cursor
+// (next page / next index / that page's SHAs) so the caller can resume
+// with zero server state. One chunk costs ~count+1 REST calls, so it
+// fits the unauthenticated quota a few chunks at a time, and a rate
+// limit mid-chunk stops cleanly at the next unscanned commit — the
+// cursor points at it, and a later call retries it when quota returns.
+// A chunk ALWAYS advances (a commit whose detail fetch fails for any
+// other reason is skipped and counted, never retried forever), so a
+// chunked scan cannot stall on one bad commit. The HEAD check (when
+// expectedHeadSha is given) costs one extra call and guarantees a scan
+// whose repo moved mid-flight restarts instead of reporting stale
+// history for the old HEAD.
+// ---------------------------------------------------------------------------
+
+export interface ApiHistoryChunkState {
+  /** Next commits-list page (1-based). */
+  page: number;
+  /** Next index into pageShas. */
+  idx: number;
+  /** SHAs of the current list page (empty = list it first). */
+  pageShas: string[];
+}
+
+export interface ApiHistoryChunkResult {
+  findings: SecretFinding[];
+  /** Commits whose detail was fetched in this chunk. */
+  commitsScanned: number;
+  /** Commits attempted but not fetched (detail fetch failed) — the
+   *  chunk moved past them, so the report can say so honestly. */
+  skipped: number;
+  nextPage: number;
+  nextIdx: number;
+  nextPageShas: string[];
+  /** True when the oldest commit was reached — history is complete. */
+  done: boolean;
+  /** True when the GitHub API rate limit stopped this chunk early. */
+  rateLimited: boolean;
+  /** True when the branch HEAD moved since the scan started. */
+  headMoved: boolean;
+  /** True when the chunk could not run at all (bad input, list failed). */
+  failed: boolean;
+  note: string | null;
+  restCalls: number;
+}
+
+export async function scanHistoryApiChunk(
+  owner: string,
+  repo: string,
+  branch: string,
+  state: ApiHistoryChunkState,
+  count: number,
+  opts?: { apiBase?: string; expectedHeadSha?: string },
+): Promise<ApiHistoryChunkResult> {
+  const apiBase = (opts?.apiBase ?? "https://api.github.com").replace(/\/$/, "");
+  const stats = { restCalls: 0 };
+  const empty: ApiHistoryChunkResult = {
+    findings: [], commitsScanned: 0, skipped: 0,
+    nextPage: state.page, nextIdx: state.idx, nextPageShas: state.pageShas,
+    done: false, rateLimited: false, headMoved: false, failed: false, note: null, restCalls: 0,
+  };
+  const fail = (note: string): ApiHistoryChunkResult => ({ ...empty, failed: true, note, restCalls: stats.restCalls });
+  if (!NAME_RE.test(owner) || !NAME_RE.test(repo) || owner.includes("..") || repo.includes("..")) {
+    return fail("Invalid owner/repo name — history API scan skipped.");
+  }
+  if (!Number.isInteger(count) || count < 1 || count > 100) {
+    return fail("Invalid history chunk size.");
+  }
+
+  // HEAD check: one list call, newest commit only. A moved HEAD means
+  // the scan's pinned sha is stale — the caller restarts cleanly.
+  if (opts?.expectedHeadSha) {
+    const headRes = await apiFetch(`${apiBase}/repos/${owner}/${repo}/commits?per_page=1&sha=${encodeURIComponent(branch)}`, API_FETCH_TIMEOUT_MS, stats);
+    if (headRes && headRes.ok) {
+      try {
+        const headPage = (await headRes.json()) as { sha?: string }[];
+        const headSha = Array.isArray(headPage) ? headPage[0]?.sha : undefined;
+        if (typeof headSha === "string" && headSha !== opts.expectedHeadSha) {
+          return {
+            ...empty, headMoved: true, failed: true, restCalls: stats.restCalls,
+            note: "The repo changed while the scan was running (new commits landed). History will restart cleanly from the newest commit.",
+          };
+        }
+      } catch {
+        // Unreadable HEAD response: proceed — the list/detail calls
+        // below will fail honestly if the repo is really gone.
+      }
+    } else if (headRes && isApiRateLimited(headRes)) {
+      return { ...empty, rateLimited: true, restCalls: stats.restCalls };
+    }
+    // Any other HEAD failure (404, network): proceed — the list call
+    // below reports the real failure with its own note.
+  }
+
+  // List the current page if the cursor does not already hold its SHAs.
+  let pageShas = state.pageShas;
+  let page = state.page;
+  let idx = state.idx;
+  if (idx >= pageShas.length) {
+    const listRes = await apiFetch(
+      `${apiBase}/repos/${owner}/${repo}/commits?per_page=100&sha=${encodeURIComponent(branch)}&page=${page}`,
+      API_FETCH_TIMEOUT_MS,
+      stats,
+    );
+    if (!listRes) return fail("GitHub API could not be reached — history API scan skipped.");
+    if (listRes.status === 404) return fail("Repository not found (or it is private).");
+    if (isApiRateLimited(listRes)) return { ...empty, rateLimited: true, restCalls: stats.restCalls };
+    if (!listRes.ok) return fail(`GitHub API answered with an unexpected error (${listRes.status}) — history API scan skipped.`);
+    let listPage: { sha?: string }[];
+    try {
+      listPage = (await listRes.json()) as { sha?: string }[];
+    } catch {
+      return fail("GitHub API returned an unreadable response — history API scan skipped.");
+    }
+    if (!Array.isArray(listPage)) return fail("GitHub API returned an unexpected response — history API scan skipped.");
+    pageShas = listPage.filter((c) => typeof c.sha === "string").map((c) => c.sha as string);
+    idx = 0;
+    if (pageShas.length === 0) {
+      // No commits at all on this page — history is complete.
+      return { ...empty, done: true, nextPage: page, nextIdx: 0, nextPageShas: [], restCalls: stats.restCalls };
+    }
+  }
+  // A page shorter than 100 is the last page — whether it was listed
+  // just now or carried over in the cursor.
+  const lastPage = pageShas.length < 100;
+
+  // Scan the next `count` commits from this page, SEQUENTIALLY: a chunk
+  // is small (10 commits), and sequential keeps the cursor exact — the
+  // rate-limited commit is the one the cursor points at on retry, and
+  // no commit is ever counted twice. (The whole-API path above keeps
+  // its pool of 5; the chunk path trades that for exact resume.)
+  const take = Math.min(count, pageShas.length - idx);
+  const shas = pageShas.slice(idx, idx + take);
+  const findings: SecretFinding[] = [];
+  let commitsScanned = 0;
+  let rateLimited = false;
+  let nextIdx = idx;
+  for (const sha of shas) {
+    const res = await apiFetch(`${apiBase}/repos/${owner}/${repo}/commits/${sha}`, API_FETCH_TIMEOUT_MS, stats);
+    if (!res) {
+      nextIdx++; // one bad commit must not fail the chunk — move past it
+      continue;
+    }
+    if (isApiRateLimited(res)) {
+      // Stop here WITHOUT advancing: the cursor points at this commit,
+      // so a later call retries it when quota returns.
+      rateLimited = true;
+      break;
+    }
+    if (!res.ok) {
+      nextIdx++; // skip this commit, keep going
+      continue;
+    }
+    let detail: { files?: { filename?: string; patch?: string }[] };
+    try {
+      detail = (await res.json()) as { files?: { filename?: string; patch?: string }[] };
+    } catch {
+      nextIdx++;
+      continue;
+    }
+    commitsScanned++;
+    nextIdx++;
+    for (const f of detail.files ?? []) {
+      if (!f.patch || typeof f.filename !== "string" || isSkippablePath(f.filename)) continue;
+      findings.push(...scanLinesForSecrets({ path: f.filename }, parsePatchAddedLines(f.patch), sha.slice(0, 7)));
+    }
+  }
+
+  const pageDone = nextIdx >= pageShas.length;
+  const done = !rateLimited && pageDone && lastPage;
+  // Attempted = how far the cursor advanced on this page; skipped =
+  // attempted commits whose detail could not be fetched.
+  const attempted = nextIdx - idx;
+  return {
+    findings,
+    commitsScanned,
+    skipped: Math.max(0, attempted - commitsScanned),
+    nextPage: pageDone ? page + 1 : page,
+    nextIdx: pageDone ? 0 : nextIdx,
+    nextPageShas: pageDone ? [] : pageShas,
+    done,
+    rateLimited,
+    headMoved: false,
+    failed: false,
+    note: null,
+    restCalls: stats.restCalls,
+  };
+}
+
+// ---------------------------------------------------------------------------
 // Git-protocol history path + per-commit cache (Phase 8).
 //
 // Why: the API path (above) needs ~1 REST request per commit plus the
@@ -599,6 +805,22 @@ export interface GitHistoryOptions {
   headSha?: string;
   /** Live progress: called with the number of commits walked so far. */
   onProgress?: (commitsScanned: number) => void;
+  /** Phase 9 chunking: full sha of the last commit already scanned
+   *  (exclusive) — the walk skips newer commits and continues older.
+   *  When it is no longer in the log, the result carries
+   *  headMoved: true and the caller restarts history cleanly. */
+  resumeAfterSha?: string | null;
+  /** Phase 9 chunking: stop after scanning this many commits (a chunk
+   *  boundary, not a truncation — the result carries complete: false
+   *  and lastScannedSha so the next chunk continues). Unset = walk to
+   *  the oldest commit, as before. */
+  maxCommits?: number;
+  /** Phase 9 chunking: stop the walk after this many milliseconds
+   *  (chunk boundary, same as maxCommits). Unset = no chunk budget. */
+  budgetMs?: number;
+  /** Phase 9 chunking: added to the onProgress count, so progress
+   *  reports the scan-wide total, not just this chunk's count. */
+  progressBase?: number;
 }
 
 /** Full history over the git protocol, no REST API calls, no git binary.
@@ -647,6 +869,8 @@ export async function scanHistoryViaGit(
       patchBytes: cached.patchBytes,
       truncated: false, timedOut: false, note: null, ms: Date.now() - started, method: "git",
       cachedCommits: cached.order.length, commitsFetched: 0, restCalls: 0, gitRequests,
+      lastScannedSha: cached.order.length > 0 ? cached.order[cached.order.length - 1] : null,
+      complete: true, headMoved: false,
     };
   }
 
@@ -665,9 +889,20 @@ export async function scanHistoryViaGit(
     let newPatchBytes = 0;
     let truncated = false;
     let stopSha: string | null = null;
+    // Phase 9 chunking: the walk skips commits newer than (and including)
+    // resumeAfterSha and stops at a chunk boundary (maxCommits / budget).
+    // A chunk boundary is NOT a truncation — the next chunk continues
+    // from lastScannedSha, and the report never calls it incomplete.
+    let pastResumePoint = !opts.resumeAfterSha;
+    let chunkStopped = false;
+    const progressBase = opts.progressBase ?? 0;
 
     for (const entry of commits) {
       const oid = entry.oid;
+      if (!pastResumePoint) {
+        if (oid === opts.resumeAfterSha) pastResumePoint = true;
+        continue; // already scanned in an earlier chunk — skip, no blob reads
+      }
       if (cached?.bySha.has(oid)) {
         // Everything from here on is already cached — reuse it.
         stopSha = oid;
@@ -684,13 +919,23 @@ export async function scanHistoryViaGit(
           break;
         }
       }
+      // Phase 9 chunk boundary: stop here, keep what was scanned, and
+      // let the next chunk continue from the last scanned commit.
+      if (opts.maxCommits != null && newOrder.length >= opts.maxCommits) {
+        chunkStopped = true;
+        break;
+      }
+      if (opts.budgetMs != null && newOrder.length > 0 && newOrder.length % 16 === 0 && Date.now() - started > opts.budgetMs) {
+        chunkStopped = true;
+        break;
+      }
       newOrder.push(oid);
       const parents = entry.commit.parent ?? [];
       const changes = entry.commit.changes ?? [];
       if (parents.length > 1) {
         newBySha.set(oid, []);
         newBytesBySha.set(oid, 0);
-        opts.onProgress?.(newOrder.length);
+        opts.onProgress?.(progressBase + newOrder.length);
         continue; // merge commit: no diff, like `git log -p`.
       }
       const commitFindings: SecretFinding[] = [];
@@ -720,7 +965,21 @@ export async function scanHistoryViaGit(
       newBySha.set(oid, commitFindings);
       newBytesBySha.set(oid, commitBytes);
       newPatchBytes += commitBytes;
-      opts.onProgress?.(newOrder.length);
+      opts.onProgress?.(progressBase + newOrder.length);
+    }
+
+    // Phase 9: the resume point is gone from the log — the repo's
+    // history moved (force-push / rebase) since the scan started.
+    // Nothing scanned in this chunk is usable as a continuation.
+    if (opts.resumeAfterSha && !pastResumePoint) {
+      return {
+        ok: false, findings: [], commitsScanned: 0, patchBytes: 0,
+        truncated: false, timedOut: false,
+        note: "The repo's history changed while the scan was running (the commit it was resuming from is no longer in the log). History will restart cleanly from the newest commit.",
+        ms: Date.now() - started, method: "git",
+        cachedCommits: 0, commitsFetched: 0, restCalls: 0, gitRequests,
+        lastScannedSha: null, complete: false, headMoved: true,
+      };
     }
 
     // Merge the newly walked commits with the cached suffix (if the walk
@@ -743,7 +1002,14 @@ export async function scanHistoryViaGit(
     }
     const patchBytes = [...mergedBytes.values()].reduce((a, b) => a + b, 0);
     const findings = mergedOrder.flatMap((sha) => mergedBySha.get(sha) ?? []);
-    historyCache.set(cacheKey, { tip, order: mergedOrder, bySha: mergedBySha, bytesBySha: mergedBytes, patchBytes });
+    // Phase 9: only a COMPLETE walk may be cached as the repo's history.
+    // Caching a partial (chunk-stopped or truncated) order would make a
+    // later scan mistake it for the whole history and silently miss the
+    // older commits. A chunk that stops early simply does not write.
+    const complete = !truncated && !chunkStopped;
+    if (complete) {
+      historyCache.set(cacheKey, { tip, order: mergedOrder, bySha: mergedBySha, bytesBySha: mergedBytes, patchBytes });
+    }
 
     let note: string | null = null;
     if (truncated) {
@@ -754,6 +1020,8 @@ export async function scanHistoryViaGit(
       ok: true, findings, commitsScanned: mergedOrder.length, patchBytes,
       truncated, timedOut: false, note, ms: Date.now() - started, method: "git",
       cachedCommits: cachedSuffix.length, commitsFetched: newOrder.length, restCalls: 0, gitRequests,
+      lastScannedSha: newOrder.length > 0 ? newOrder[newOrder.length - 1] : (opts.resumeAfterSha ?? null),
+      complete, headMoved: false,
     };
   } catch {
     return fail("History git-protocol clone failed (repo may be too large or unreachable).");

@@ -128,21 +128,27 @@ check("CSS inline code wraps only when it must (no mid-word breaks)", !css.inclu
 
 const home = src("src/app/page.tsx");
 const reportPage = src("src/app/[owner]/[repo]/page.tsx");
+// Phase 9: the report rendering moved from the page into ReportView
+// (so the chunk driver can swap a provisional report for the finished
+// one without a reload) — the rendering checks read that file now.
+const reportView = src("src/components/ReportView.tsx");
 check("home has no 'Honest limits' copy", !/Honest limits/i.test(home));
 check("home has no sign-in copy", !/sign in/i.test(home));
 check("report page has no sign-in copy", !/sign in/i.test(reportPage));
 check("home keeps the designed URL example", home.includes("url-example") && home.includes("git-secure.com/Squ1zM0/TechDirect"));
 check("home error is styled and role=alert", home.includes('className="form-error"') && home.includes('role="alert"'));
 check("home scanning state is role=status with a spinner", home.includes('role="status"') && home.includes("spinner"));
-check("report page renders the score dial", reportPage.includes("ScoreDial"));
-check("report page renders the stat grid", reportPage.includes("stat-grid"));
-check("report page renders the verdict", reportPage.includes("biggestProblem"));
+check("report page renders the score dial", reportView.includes("ScoreDial"));
+check("report page renders the stat grid", reportView.includes("stat-grid"));
+check("report page renders the verdict", reportView.includes("biggestProblem"));
+check("report view labels a provisional score as provisional", reportView.includes("Provisional score"));
 
 // --- 5. No literal secret-pattern values in the UI files ------------
 const uiFiles = [
   "src/app/globals.css", "src/app/page.tsx", "src/app/layout.tsx",
   "src/app/[owner]/[repo]/page.tsx", "src/app/[owner]/[repo]/loading.tsx",
   "src/components/ScoreDial.tsx", "src/components/ReportLists.tsx",
+  "src/components/ReportView.tsx",
   "src/components/McpSection.tsx", "src/components/ScanProgress.tsx",
   "src/lib/score.ts",
 ];

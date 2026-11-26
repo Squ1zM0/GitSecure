@@ -941,6 +941,62 @@ Phase 5 never hit this: live history then was only 5 commits.
   public-full 56/56, jobs-phase8 44/44, ui-phase7 52/52, techdirect
   83/B, mcp 51/51, history-git live proof 62/62 with 0 REST calls.
 
+## Phase 9 status — resumable chunked scans, no in-memory jobs (built 2026-11-25, solo)
+
+Trigger: Freddy screenshotted the live site failing on torvalds/linux —
+"That scan is no longer running". That was the exact failure Phase 8
+predicted honestly (jobs in-memory only; a poll on another instance
+gets 404 job-not-found). Phase 9 removes the job store entirely: the
+server holds NO scan state between requests. The scan API returns a
+cursor after the first chunk; each request advances exactly one chunk
+(HEAD, then history in commit-range chunks newest-first, then
+assemble with OSV inside it) and returns partial results plus the
+next cursor; the client accumulates and drives the next chunk. A
+restart, cold start, or different instance changes nothing. Progress
+persists in sessionStorage (cursor + accumulated results), so a reload
+or closed tab resumes from the last completed chunk and says so
+("Resumed — picked up where it left off", with counts). HEAD renders
+first as a clearly-labelled provisional report; history streams
+newest-first with live progress. MCP gets the same resumability
+(`scan_repo` drives the chunk loop with the cursor; new `resume_scan`
+tool continues it). Cursor protocol documented in README.md ("Scan
+cursors"). Rules unchanged: unlimited files/findings, full detail to
+anyone, no login, fragments only, public repos only, git-protocol
+history first, no caps. Phase 7 UI untouched.
+
+HEAD performance (the blocker found mid-phase): the Linux HEAD chunk
+exceeded its 50 s budget. Measured from disk (no network): gunzip
+4.7 s, tar parse 6.9 s, parse + secret scan 34.5 s for 103,737 files /
+1.68 GB, 20 HEAD secrets. Fixes: the secret detector runs each
+pattern once over the whole file instead of once per line (~56 s of
+regex → ~28 s; results identical, guarded by an equivalence test
+against the old per-line scan, including cross-line values and
+matches hiding inside a cross-line span); the tar parser uses 1 MB
+gunzip chunks + a memcmp end-of-archive check (parse overhead ~31 s
+→ ~2 s over gunzip). Streaming mode skips the recursive-tree call
+(~4 s, and truncated at 71k of ~97k entries for Linux — the tarball
+is the complete file list) and always retains manifests/configs even
+when the 100 MB retained-bytes budget runs out. Validated end-to-end
+on microsoft/vscode (1.8 GB, streaming path): HEAD in 25–33 s,
+20,648 files = 20,648 total, 474 HEAD secrets, 1,714 deps.
+
+Honest bound: Linux is ~4 GB / ~1M commits; the >100 MB size gate
+still sends history through the API path, 10 commits per chunk, so a
+full history walk takes a very long time even chunked — resumability,
+not instant completion, is the fix, and a partial history is never
+presented as complete. The HEAD chunk needs the 275 MB tarball
+inside ~50 s; codeload delivered it in 8 s one day and ~90 s the
+next from this VM (repeated downloads from one IP get throttled).
+On a slow-download day the HEAD chunk stops cleanly at 50 s and
+retries from its cursor — nothing lost, no dead-end.
+
+Tests: scanner 73/73, tier3 40/40, history 56/56, public-full 56/56,
+ui-phase7 53/53, cursor-phase9 181/181 (new: interrupted mid-history
+resume produces the identical final report, bogus cursors, second
+page-load resume), techdirect 83/B (2,802 files, 62/62 history),
+mcp 56/56. Build exit 0. Live verification: pending push (see
+README.md Phase 9 section).
+
 ## Phase 2 status — built and pushed 2026-11-25, commit 870f889f, live at https://gitsecure.vercel.app/ (verified serving: home 200, live TechDirect scan 200, 83/B)
 - Next.js 16 / React 19 / TypeScript + Auth.js (NextAuth 5.0.0-beta.32,
   GitHub provider), in ~/workspace/gitsecure/.
