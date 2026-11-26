@@ -29,6 +29,7 @@
     "test:tier3": "tsx scripts/test-tier3.ts",
     "test:techdirect": "tsx scripts/scan-techdirect.ts",
     "test:ui-phase7": "tsx scripts/test-ui-phase7.ts",
+    "test:triage-phase10": "tsx scripts/test-triage-phase10.ts",
     "test:mcp": "tsx scripts/test-mcp.ts",
     "test:cursor-phase9": "tsx scripts/test-cursor-phase9.ts"
   },

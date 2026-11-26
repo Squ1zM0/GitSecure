@@ -54,7 +54,7 @@ function ScoreCard({ report }: { report: FullReport }) {
         })}
       </p>
       <div className="stat-grid" role="list" aria-label="Scan counts">
-        <div className={report.counts.secrets > 0 ? "stat stat-alert" : "stat"} role="listitem"><b>{report.counts.secrets}</b><span>possible leaked secrets</span></div>
+        <div className={report.counts.secrets > 0 ? "stat stat-alert" : "stat"} role="listitem"><b>{report.counts.secrets}</b><span>possible leaked secrets{report.counts.testKeySecrets > 0 ? ` — of which ${report.counts.testKeySecrets} look${report.counts.testKeySecrets === 1 ? "s" : ""} like test keys` : ""}</span></div>
         <div className="stat" role="listitem"><b>{report.counts.vulnerabilities}</b><span>dependency vulnerabilities</span></div>
         <div className="stat" role="listitem"><b>{report.counts.frameworks}</b><span>frameworks detected</span></div>
         <div className="stat" role="listitem"><b>{report.counts.dependencies}</b><span>dependencies checked</span></div>

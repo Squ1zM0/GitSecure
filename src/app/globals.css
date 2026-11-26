@@ -338,6 +338,13 @@ form.scan-form input[type="text"] { flex: 1 1 220px; min-height: 48px; }
 .pill.medium { background: var(--sev-medium-bg); color: var(--sev-medium-text); }
 .pill.low { background: var(--sev-low-bg); color: var(--sev-low-text); }
 .pill.info { background: var(--sev-info-bg); color: var(--sev-info-text); }
+/* Phase 10 triage pills: test keys read calm (blue), genuine leaks read
+ * alarming (red), uncertain reads cautious (amber) — label + colour
+ * together, never colour alone. */
+.pill.triage-test { background: var(--sev-low-bg); color: var(--sev-low-text); }
+.pill.triage-genuine { background: var(--sev-critical-bg); color: var(--sev-critical-text); }
+.pill.triage-uncertain { background: var(--sev-medium-bg); color: var(--sev-medium-text); }
+.triage { background: var(--surface-muted); border-radius: 8px; padding: 8px 12px; }
 .finding {
   border-top: 1px solid var(--line);
   padding: 14px 0 14px 12px;

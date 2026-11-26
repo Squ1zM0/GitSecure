@@ -132,17 +132,38 @@ function SecretRow({ entry, owner, repo, branch }: { entry: Indexed<SecretFindin
   const s = entry.item;
   const anchor = findingAnchorId("secret", entry.idx);
   const blob = githubBlobUrl(owner, repo, branch, s.file, s.line, s.commit);
+  const triageLabel =
+    s.triage?.verdict === "likely-test-key"
+      ? "Likely test key"
+      : s.triage?.verdict === "likely-genuine-leak"
+        ? "Likely genuine leak"
+        : s.triage
+          ? "Uncertain — needs a human check"
+          : null;
+  const triagePill =
+    s.triage?.verdict === "likely-test-key"
+      ? "triage-test"
+      : s.triage?.verdict === "likely-genuine-leak"
+        ? "triage-genuine"
+        : "triage-uncertain";
   return (
     <div className={`finding sev-${s.severity}`} id={anchor}>
       <p className="finding-title"><span className={`pill ${s.severity}`}>{s.severity}</span><b>{s.title}</b> <span className="muted">· {s.confidence} confidence</span></p>
       <p>{s.plainEnglish}</p>
+      {s.triage && triageLabel ? (
+        <p className="triage">
+          <span className={`pill ${triagePill}`}>{triageLabel}</span>
+          {s.triage.explanation}{" "}
+          <span className="muted">(Triage assessed severity: {s.triage.adjustedSeverity}, confidence: {s.triage.adjustedConfidence}.)</span>
+        </p>
+      ) : null}
       <p className="small"><code className="inline">{s.file}:{s.line}</code> · commit <code className="inline">{s.commit ?? "HEAD"}</code> · fragment <code className="inline">{s.fragment}</code> (redacted — never the full secret)</p>
       <p className="small finding-actions">
         <a className="github-link" href={blob} target="_blank" rel="noreferrer">View on GitHub — {s.file}, line {s.line}</a>
         <a href={`#${anchor}`}>Link to this finding</a>
         <CopyLinkButton anchor={anchor} label={`secret finding ${entry.idx + 1}`} />
       </p>
-      <p className="fix"><b>Fix:</b> {s.fix}</p>
+      <p className="fix"><b>Fix:</b> {s.triage?.fix ?? s.fix}</p>
     </div>
   );
 }
@@ -235,6 +256,7 @@ export function SecretsList({ secrets, owner, repo, branch }: { secrets: SecretF
   const [groupBy, setGroupBy] = useState<"none" | "type" | "file">("none");
   const [typeFilter, setTypeFilter] = useState("all");
   const [sevFilter, setSevFilter] = useState("all");
+  const [triageFilter, setTriageFilter] = useState("all");
   const [fileQuery, setFileQuery] = useState("");
   const [view, setView] = useState<"list" | "map">("list");
   // A shared #secret-N link: clear the filters, force the flat list,
@@ -248,6 +270,7 @@ export function SecretsList({ secrets, owner, repo, branch }: { secrets: SecretF
       if (n < 0 || n >= secrets.length) return;
       setTypeFilter("all");
       setSevFilter("all");
+      setTriageFilter("all");
       setFileQuery("");
       setGroupBy("none");
       setView("list");
@@ -266,6 +289,7 @@ export function SecretsList({ secrets, owner, repo, branch }: { secrets: SecretF
   }, [hashTarget]);
 
   const types = useMemo(() => [...new Set(secrets.map((s) => s.type))].sort(), [secrets]);
+  const testKeyCount = useMemo(() => secrets.filter((s) => s.triage?.verdict === "likely-test-key").length, [secrets]);
   const indexed = useMemo(() => withIndex(secrets), [secrets]);
   const filtered = useMemo(
     () =>
@@ -273,9 +297,10 @@ export function SecretsList({ secrets, owner, repo, branch }: { secrets: SecretF
         ({ item: s }) =>
           (typeFilter === "all" || s.type === typeFilter) &&
           (sevFilter === "all" || s.severity === sevFilter) &&
+          (triageFilter === "all" || (s.triage?.verdict ?? "uncertain") === triageFilter) &&
           (fileQuery === "" || s.file.toLowerCase().includes(fileQuery.toLowerCase())),
       ),
-    [indexed, typeFilter, sevFilter, fileQuery],
+    [indexed, typeFilter, sevFilter, triageFilter, fileQuery],
   );
   const fileCount = useMemo(() => new Set(filtered.map(({ item: s }) => s.file)).size, [filtered]);
   const byFile = useMemo(() => {
@@ -326,6 +351,15 @@ export function SecretsList({ secrets, owner, repo, branch }: { secrets: SecretF
         </label>
         <SeveritySelect value={sevFilter} onChange={setSevFilter} />
         <label>
+          Triage
+          <select value={triageFilter} onChange={(e) => setTriageFilter(e.target.value)} aria-label="Filter by triage verdict">
+            <option value="all">All findings</option>
+            <option value="likely-test-key">Likely test keys</option>
+            <option value="likely-genuine-leak">Likely genuine leaks</option>
+            <option value="uncertain">Uncertain</option>
+          </select>
+        </label>
+        <label>
           File name
           <input type="search" value={fileQuery} onChange={(e) => setFileQuery(e.target.value)} placeholder="Filter by file name…" aria-label="Filter by file name" />
         </label>
@@ -339,6 +373,7 @@ export function SecretsList({ secrets, owner, repo, branch }: { secrets: SecretF
       </div>
       <p className="small" aria-live="polite">
         Showing {filtered.length} of {secrets.length} secrets{fileQuery !== "" ? ` matching “${fileQuery}”` : ""} · {fileCount} file{fileCount === 1 ? "" : "s"}.
+        {testKeyCount > 0 ? ` Of the ${secrets.length} secrets, ${testKeyCount} look${testKeyCount === 1 ? "s" : ""} like test keys — still listed and still counted, with a test-key fix instead of "rotate it".` : ""}
       </p>
       {view === "map" ? (
         <FileMap byFile={byFile} onSelectFile={selectFile} />

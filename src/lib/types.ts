@@ -7,6 +7,27 @@
 
 export type Severity = "critical" | "high" | "medium" | "low" | "info";
 
+/** Phase 10 triage verdicts. A finding is never removed — the verdict
+ *  only annotates it. */
+export type TriageVerdict = "likely-test-key" | "likely-genuine-leak" | "uncertain";
+
+export interface SecretTriage {
+  verdict: TriageVerdict;
+  /** Signal ids that produced the verdict (see src/lib/triage.ts). */
+  signals: string[];
+  /** Plain-English explanation of the verdict, naming the signals. */
+  explanation: string;
+  /** The severity/confidence the triage assesses — the finding's own
+   *  `severity`/`confidence` (the detector's) never change, and the
+   *  score is always computed from the detector severity (see
+   *  GITSECURE.md: triage must never inflate the score). */
+  adjustedSeverity: Severity;
+  adjustedConfidence: "high" | "medium" | "low";
+  /** The Fix to show for this finding: the test-key Fix for a
+   *  likely-test finding, the detector's Fix otherwise. */
+  fix: string;
+}
+
 export interface SecretFinding {
   id: string;
   type: string; // e.g. "discord-webhook"
@@ -20,6 +41,9 @@ export interface SecretFinding {
   fragment: string;
   fix: string;
   plainEnglish: string;
+  /** Phase 10 triage annotation — present on every finding a scan
+   *  produces (HEAD and history alike). */
+  triage?: SecretTriage;
 }
 
 export interface Framework {
@@ -61,6 +85,11 @@ export interface PostureIssue {
 
 export interface ReportCounts {
   secrets: number;
+  /** Phase 10: of counts.secrets, how many triaged as likely-test-key.
+   *  They are still counted in `secrets` and still deduct their
+   *  detector severity from the score — this is the honest split, not
+   *  a discount. */
+  testKeySecrets: number;
   vulnerabilities: number;
   frameworks: number;
   dependencies: number;

@@ -168,7 +168,7 @@ const full: FullReport = {
   commit: "abc1234",
   score: 10,
   grade: "F",
-  counts: { secrets: findings.length, vulnerabilities: 1, frameworks: frameworks.length, dependencies: deps.length, postureIssues: 1, filesScanned: files.length, historyCommitsScanned: 0 },
+  counts: { secrets: findings.length, testKeySecrets: 0, vulnerabilities: 1, frameworks: frameworks.length, dependencies: deps.length, postureIssues: 1, filesScanned: files.length, historyCommitsScanned: 0 },
   summary: "Scan complete.",
   scannedAt: new Date().toISOString(),
   historyDepth: "test",

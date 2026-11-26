@@ -29,6 +29,12 @@ export function buildProvisionalReport(
   historyComplete: boolean,
 ): FullReport {
   const secrets = dedupe([...head.secrets, ...historyFindings]);
+  // Phase 10: HEAD findings are triaged in scanHead and history
+  // findings at creation, so the provisional report already carries
+  // the annotations — no import of the (server-only, node:crypto)
+  // triage module here: this file must stay client-safe. The
+  // finished report fills in any annotation missing from an older
+  // client/cursor in assembleReport.
   const { score, grade } = computeScore({
     secrets,
     vulnerabilities: [],
@@ -61,6 +67,7 @@ export function buildProvisionalReport(
     grade,
     counts: {
       secrets: secrets.length,
+      testKeySecrets: secrets.filter((s) => s.triage?.verdict === "likely-test-key").length,
       vulnerabilities: 0,
       frameworks: head.frameworks.length,
       dependencies: head.dependencies.length,

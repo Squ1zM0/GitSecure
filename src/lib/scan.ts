@@ -66,6 +66,7 @@ import { isSkippablePath } from "./paths";
 import { computeScore, plainSummary } from "./score";
 import { envFileFinding, scanTextForSecrets, type ScannedFile } from "./secrets";
 import { fingerprintFrameworks, parseCargoLock, parseCargoToml, parseComposerJson, parseComposerLock, parseCsproj, parseGemfile, parseGemfileLock, parseGoMod, parseGradle, parsePackagesConfig, parsePackageJson, parsePackageLock, parsePomXml, parseRequirements, parseYamlLock, viteFindings } from "./frameworks";
+import { collectPublicKeyIdentities, ensureTriage, isTestPathSegment, triageFindings } from "./triage";
 import type { Dependency, Framework, FullReport, HeadPartial, PostureIssue, SecretFinding, Vulnerability } from "./types";
 
 export const HISTORY_DEPTH = "Full history, newest first.";
@@ -731,6 +732,9 @@ export async function scanHead(
   let retainedBytes = 0;
   let retainedIncomplete = false;
   let scannedCount = 0;
+  // Phase 10 triage state (see onEntry + the post-pass below).
+  const findingContents = new Map<string, string>();
+  const repoPublicKeyIdentities = new Set<string>();
   // Streaming mode: the tarball's own file list, in arrival order.
   const streamedPaths: string[] = [];
   const scannedPaths = new Set<string>();
@@ -738,10 +742,27 @@ export async function scanHead(
     scannedCount++;
     scannedPaths.add(path);
     if (streaming) streamedPaths.push(path);
+    // Phase 10: repo-wide public-key identities (Layer 2 counterpart
+    // check) are collected from every file as it arrives, and the
+    // content of every file that produced a finding is kept (up to
+    // 1 MB per file — see below) so triage can run after the loop
+    // with the complete repo context. Only files with findings are
+    // retained here — bounded by the finding count, not the tree size.
+    if (content.includes("BEGIN PUBLIC KEY") || content.includes("BEGIN CERTIFICATE")) {
+      for (const id of collectPublicKeyIdentities(content)) repoPublicKeyIdentities.add(id);
+    }
+    const beforeFindings = headSecrets.length;
     if (/(^|\/)\.env(\.|$)/.test(path) && !path.endsWith(".env.example")) {
       headSecrets.push(envFileFinding(path, "HEAD"));
     }
     headSecrets.push(...scanTextForSecrets({ path, content, commit: "HEAD" }));
+    // Keep the content only for files under 1 MB: triage needs the
+    // file text for its content/crypto signals, and a multi-MB file
+    // with one finding must not defeat the streaming path's bounded
+    // memory. A finding in a larger file still gets its path,
+    // filename, and detector signals — only the content signals are
+    // unavailable for it.
+    if (headSecrets.length > beforeFindings && Buffer.byteLength(content, "utf8") <= 1_000_000) findingContents.set(path, content);
     if (retainHeadFile(path)) {
       // Manifests / configs / workflows (priority <= 2) are the files
       // the dependency and posture steps MUST have — they are small
@@ -804,6 +825,47 @@ export async function scanHead(
   progress.filesScanned = scannedCount;
   progress.step = "history";
   emit();
+
+  // Phase 10 triage (HEAD): annotate every HEAD secret finding with
+  // the layered triage verdict. Runs after the whole tree is scanned
+  // so the public-counterpart and usage signals see the complete repo.
+  // Triage never removes a finding — headSecrets keeps its length,
+  // and the score still uses the detector severity (see triage.ts).
+  // Usage refs come from the retained files (manifests, configs,
+  // workflows, infra, source): a key file referenced only from test
+  // files is a test signal; one referenced from production code is a
+  // genuine signal. Retained files are a subset of the tree, so no
+  // reference found means no usage signal either way.
+  const usageByFinding = new Map<SecretFinding, { testOnly: boolean; prod: boolean }>();
+  {
+    const keyFindings = headSecrets.filter((f) => f.type === "private-key");
+    const byBasename = new Map<string, SecretFinding[]>();
+    for (const f of keyFindings) {
+      const b = f.file.split("/").pop() ?? f.file;
+      const arr = byBasename.get(b) ?? [];
+      arr.push(f);
+      byBasename.set(b, arr);
+    }
+    for (const [basename, findings] of byBasename) {
+      const refs: string[] = [];
+      for (const [retainedPath, retainedContent] of files) {
+        if (retainedPath === findings[0].file) continue;
+        if (retainedContent.includes(basename)) refs.push(retainedPath);
+      }
+      const testOnly = refs.length > 0 && refs.every((p) => p.split("/").some(isTestPathSegment));
+      const prod = refs.some((p) => !p.split("/").some(isTestPathSegment));
+      for (const f of findings) usageByFinding.set(f, { testOnly, prod });
+    }
+  }
+  triageFindings(headSecrets, (f) => {
+    const usage = usageByFinding.get(f);
+    return {
+      content: findingContents.get(f.file),
+      repoPublicKeyIdentities,
+      referencedByTestOnly: usage?.testOnly,
+      referencedByProd: usage?.prod,
+    };
+  });
 
   // Frameworks + dependencies (Tier 1 + Tier 2) — priority order, so
   // the OSV query covers the same manifests run to run.
@@ -911,6 +973,11 @@ export async function assembleReport(
   const emit = () => options.onProgress?.({ ...progress });
 
   const dedupedSecrets = dedupeSecrets([...head.secrets, ...history.findings]);
+  // Phase 10: every finding in the finished report carries a triage
+  // annotation — history findings triaged at creation already have
+  // one; anything that arrived without one (an older client/cursor)
+  // gets a path+detector-only annotation here, never a missing one.
+  ensureTriage(dedupedSecrets);
   const { vulnerabilities, unavailable: osvUnavailable, detailCapped, depsChecked, depsQueryable } = await checkDependencies(head.dependencies, {
     queryBudgetMs: options.osv?.queryBudgetMs ?? null,
     detailBudgetMs: options.osv?.detailBudgetMs ?? null,
@@ -973,6 +1040,11 @@ export async function assembleReport(
     grade,
     counts: {
       secrets: dedupedSecrets.length,
+      // Phase 10: the honest split — likely-test findings are still
+      // counted in `secrets` and still deduct their detector severity
+      // from the score; this number only says how many of them look
+      // like test keys.
+      testKeySecrets: dedupedSecrets.filter((s) => s.triage?.verdict === "likely-test-key").length,
       vulnerabilities: vulnerabilities.length,
       frameworks: head.frameworks.length,
       dependencies: head.dependencies.length,
@@ -1015,7 +1087,12 @@ export async function scanHistoryPatchFallback(
         if (!f.patch || isSkippable(f.filename)) continue;
         // Patches are diffs: scan added lines only (lines starting with +).
         const added = f.patch.split("\n").filter((l) => l.startsWith("+") && !l.startsWith("+++")).map((l) => l.slice(1)).join("\n");
-        findings.push(...scanTextForSecrets({ path: f.filename, content: added, commit: commit.sha.slice(0, 7) }));
+        // Phase 10: triage the finding from the added lines (path,
+        // filename, and nearby-line signals; a PEM block added by the
+        // commit is fully present in them).
+        const addedFindings = scanTextForSecrets({ path: f.filename, content: added, commit: commit.sha.slice(0, 7) });
+        triageFindings(addedFindings, () => ({ content: added }));
+        findings.push(...addedFindings);
       }
     } catch {
       // One bad commit must not fail the whole scan.

@@ -14,7 +14,7 @@
 //   4. tools/call scan_repo Squ1zM0/TechDirect returns the known FULL
 //      result (83/B, 0 secrets, 4 vulns) — with the full detail present
 //      (vulnerability IDs, js-yaml, fixed versions)
-//   5. tools/call scan_repo Squ1zM0/GitSecure returns 0/F with 8 secrets
+//   5. tools/call scan_repo Squ1zM0/GitSecure returns 0/F with 20 secrets
 //      counted — and the response DOES carry the full detail (file names,
 //      line numbers, redacted fragments) while containing NO full fake
 //      secret anywhere (redaction rule, proved on a repo WITH findings).
@@ -33,6 +33,15 @@
 //      files with deliberately old versions (Django 4.2.0, Laravel,
 //      Echo, Fiber…), which carry many real advisories. The change is
 //      the scanner now reporting everything it finds, not a regression.
+//      Phase 10: 20 secrets, not 8 — the repo's history grew to 20
+//      commits, so the same known-fake fixture secrets are found at
+//      HEAD and again in their introducing commits (e.g. the
+//      test-scanner.ts fake passwords at HEAD and at 8f4ffa4). Proved
+//      not to be a triage regression: the pre-change code (remote head
+//      b30124a8, checked out to a scratch tree, built and run locally
+//      2026-11-25) returns the identical 20 findings for the same repo
+//      — triage annotates, it never adds findings. All 20 triage
+//      likely-test-key (Phase 10 dogfood proof).
 //   6. bad owner/repo format and a missing repo return plain-English
 //      errors, never a stack trace
 //   7. the config snippets shown on the human pages are valid JSON
@@ -175,8 +184,17 @@ async function main() {
   // are now checked, including the Tier 2 fixtures with deliberately
   // old versions. Deductions far exceed 100, so the score floors at 0.
   // The scanner change cannot affect this repo's file count: 51 files.
-  check("scan_repo GitSecure score 0 / grade F (Phase 5: 8 secrets + 196 vulns, see header note)", gsReport?.score === 0 && gsReport?.grade === "F", `got ${gsReport?.score}/${gsReport?.grade}`);
-  check("scan_repo GitSecure counts 8 secrets", gsReport?.counts?.secrets === 8, `got ${gsReport?.counts?.secrets}`);
+  // Phase 10: 20 secrets, not 8 — history grew to 20 commits (see the
+  // header note); the pre-change code returns the identical 20.
+  check("scan_repo GitSecure score 0 / grade F (Phase 10: 20 secrets + 196 vulns, see header note)", gsReport?.score === 0 && gsReport?.grade === "F", `got ${gsReport?.score}/${gsReport?.grade}`);
+  check("scan_repo GitSecure counts 20 secrets", gsReport?.counts?.secrets === 20, `got ${gsReport?.counts?.secrets}`);
+  // Phase 10 dogfood: every one of the 20 is a known-fake fixture
+  // secret, so all 20 must triage likely-test-key — and the honest
+  // split must say so.
+  const gsFull = gsReport as { secrets?: { triage?: { verdict?: string } }[] } | null;
+  const gsTestKeys = gsFull?.secrets?.filter((s) => s.triage?.verdict === "likely-test-key").length ?? -1;
+  check("scan_repo GitSecure: all 20 secrets triage likely-test-key", gsFull?.secrets?.length === 20 && gsTestKeys === 20, `test keys ${gsTestKeys} of ${gsFull?.secrets?.length ?? "?"}`);
+  check("scan_repo GitSecure: counts.testKeySecrets is 20", gsReport?.counts?.testKeySecrets === 20, `got ${gsReport?.counts?.testKeySecrets}`);
   check("scan_repo GitSecure kind is full", gsReport?.kind === "full");
   // Full detail IS present now: file names, line numbers, fragments.
   check("scan_repo GitSecure response carries file names (full detail)", gsText.includes("tests/fixtures"));

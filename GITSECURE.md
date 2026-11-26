@@ -72,6 +72,13 @@ No install, no config — swap the URL, get a security report.
   the history worker; this phase only calls its exported interface
   and states no history numbers. See "Phase 8 status" below. NOT
   pushed, NOT deployed — another worker owns the push.
+- PHASE 10 (built 2026-11-25, solo): layered secret triage — test keys
+  vs genuine leaks, from Freddy's direction: "Distinguishing intentional
+  test keys from genuine credential leaks requires a layered triage
+  pipeline combining static context analysis, cryptographic
+  inspection, and automated secret-scanning." Trigger: his screenshot
+  of the live torvalds/linux report flagging the Linux SGX self-test
+  signing key as CRITICAL. See "Phase 10 status" below.
 - DEPLOYED 2026-11-25 by Freddy: live at https://gitsecure.vercel.app/,
   verified live by Cobalt (home page + live TechDirect scan 83/B, matching
   the local test). Vercel MCP still returns 403 on team scope
@@ -1007,6 +1014,139 @@ resume proof. A fresh `GET ?cursor=…` resume then hit the shared
 Vercel IP's unauthenticated GitHub quota (429), not a cursor
 failure. Full Linux history (~1M commits) remains a very long walk;
 the report always says exactly how far it got.
+
+## Phase 10 status — layered secret triage: test keys vs genuine leaks (built 2026-11-25, solo)
+
+Trigger: Freddy's screenshot of the live torvalds/linux report flagging
+`tools/testing/selftests/sgx/sign_key.pem:1` as a CRITICAL private key
+with the fix "treat this key as compromised, rotate it" — but that is
+the Linux kernel's intentional SGX self-test signing key, and the
+finding above it (`drivers/of/unittest-data/tests-phandle.dtsi`, line
+9) is device-tree test data too. GitSecure cried CRITICAL on test keys.
+
+- **The pipeline (`src/lib/triage.ts`).** A post-processing layer over
+  the existing detectors — the detectors themselves do not change.
+  Triage annotates every secret finding; the report, API, and MCP all
+  carry the annotation (`SecretFinding.triage` in `src/lib/types.ts`:
+  verdict, signals, explanation, adjustedSeverity, adjustedConfidence,
+  fix). Three layers:
+  - **Layer 1 — static context.** Path signals (`test/`, `tests/`,
+    `testing/`, `selftests/`, `unittest-data`, `fixtures/`, `examples/`,
+    `docs/`, `samples/`, `demo/`, `spec/`, `mocks/`, `testdata` — exact
+    segments plus narrow substring rules for `unittest`/`selftest` so
+    a bare "test" substring never matches "latest" or "contest"),
+    filename tokens (`test`, `fixture`, `dummy`, `example`, `sample`,
+    `mock`, `fake`, `placeholder`, `stub` — token-based, never
+    substring), content signals in the same file and nearby lines
+    ("test", "testing", "for testing only", "do not use in
+    production", "example", "dummy", "fake", "sample", "testcase",
+    "selftest", "unittest" — word-boundary regexes). Usage signals
+    where cheap: a key file referenced only from test files (HEAD
+    only, retained files).
+  - **Layer 2 — cryptographic inspection.** A minimal DER parser reads
+    the key where the format allows (RSA PKCS#1/PKCS#8, EC SEC1, SPKI
+    public keys, X.509 certificates): key type and size (RSA 1024 vs
+    4096, EC curve), whether it is weak/short in a way real production
+    keys would not be (RSA < 2048, EC < P-256), whether its fingerprint
+    matches a small built-in list of famous published test keys
+    (**fingerprints only, never the keys themselves** — the Linux SGX
+    self-test signing key, DER SHA-256 verified 2026-11-25 by fetching
+    the file from torvalds/linux and hashing it), whether it matches a
+    known example value (the AWS documentation example key, SHA-256
+    hash only), whether it is a Stripe test-mode key (`sk_test_` can
+    never move real money), and whether its public half is committed
+    in the same repo (matching SHA-256 of the RSA modulus / EC public
+    point). No credential is ever live-validated, stored, or logged;
+    triage only reads content the scanner already held, and only
+    redacted fragments leave the scanner.
+  - **Layer 3 — the scanner's own evidence.** The detector result
+    (type, confidence, fragment) is the third input, not the verdict:
+    a high-confidence private-key match in a production path stays
+    high; the same match in a self-test path with matching test signals
+    gets downgraded.
+- **Verdict model (points).** A fingerprint match against a known
+  published test key, or a match against a published example value, is
+  decisive → `likely-test-key`. Otherwise: test path +4, filename test
+  token +2, content test phrase +2, public counterpart in repo +3,
+  weak key +2, test-only usage +2, Stripe test mode +3; production path
+  −4, production filename −2, production usage −2, production-grade key
+  (RSA ≥ 4096, EC P-384+) −2. ≥ +4 → `likely-test-key`; ≤ −2 →
+  `likely-genuine-leak`; a high-confidence detector match with no test
+  signals at all → `likely-genuine-leak`; anything else → `uncertain`
+  (keeps detector severity, says a human should check).
+- **Never deletion, never score inflation (the scoring rule).** A
+  likely-test finding is NOT removed from the report and NOT removed
+  from the counts — it is shown with its triage label, a plain-English
+  explanation naming the signals ("This looks like an intentional test
+  key: it lives in tools/testing/selftests/, its fingerprint matches a
+  published test key…"), and a different Fix ("Confirm this key is only
+  used by tests and never signs real artifacts; if it does, rotate
+  it"). A genuine leak keeps CRITICAL and its existing Fix. **Triage
+  never changes the score**: a likely-test finding still deducts its
+  detector severity, because a test key that turns out to be a real key
+  is still a leak, and the score must not reward relabelling. The
+  honest split is shown separately: `counts.testKeySecrets` — "of which
+  N look like test keys" — in the stat grid (`ReportView.tsx`) and the
+  secrets list (`ReportLists.tsx`), which also gains a triage-verdict
+  filter ("Likely test keys" / "Likely genuine leaks" / "Uncertain").
+  MCP carries the same annotation in every secret finding (and
+  `list_checks` names it).
+- **Where it runs.** HEAD findings are triaged in `scanHead` after the
+  whole tree is scanned (so the public-counterpart and usage signals
+  see the complete repo; only files with findings are retained for it,
+  bounded by the finding count). History findings are triaged at
+  creation in `history.ts` (clone stream, API path, API chunk,
+  git-protocol walk — the git path triages from the full new-file
+  content) and in the patch fallback in `scan.ts` (from the added
+  lines). `assembleReport` fills in any annotation missing from an
+  older client/cursor with a path+detector-only verdict
+  (`ensureTriage`), so every finding in every finished report carries
+  triage. The provisional report carries the same annotations (HEAD
+  triaged in `scanHead`, history at creation); `provisional.ts` stays
+  client-safe and does NOT import the server-only (node:crypto) triage
+  module.
+- **The two screenshot cases, proved.** `tools/testing/selftests/sgx/
+  sign_key.pem` triages `likely-test-key` with the test-key Fix
+  (test-path signal + the built-in SGX fingerprint; the live proof is
+  below). `drivers/of/unittest-data/tests-phandle.dtsi` line 9
+  triages `likely-test-key` on its own signals (unittest-data path +
+  `tests` filename token + `testcase` content). Control:
+  `src/config/prod.key` and an AWS key in `deploy/` stay
+  `likely-genuine-leak` at full severity — and the same token in a
+  fixture file vs `src/` gets different verdicts.
+- **Verification (2026-11-25, local):** `npm run build` exit 0;
+  `test:scanner` 73/73, `test:tier3` 40/40, `test:history` 56/56,
+  `test:public-full` 56/56, `test:ui-phase7` 62/62 (was 53 — 9 new
+  triage UI checks: pills, explanation, test-key Fix, verdict filter,
+  count line, adjusted severity, pill styles),
+  `test:cursor-phase9` 181/181, `test:triage-phase10` 57/57 (new —
+  both screenshot cases, the production control, fixture-vs-src,
+  fingerprint match, uncertain case, weak key, public counterpart,
+  Stripe test mode, AWS example value, history-lines triage, the
+  no-finding-dropped regression, the score-unchanged rule, and the
+  counts split), `test:techdirect` 83/B with filesScanned = 2,802
+  ("Scanned all 2802 files in the tree"), history 62/62 via git
+  protocol. No literal secret-pattern values committed (grep-verified;
+  the AWS example key appears only as a SHA-256 hash constant plus a
+  runtime-assembled string in the test, as before — one literal in a
+  triage.ts comment was caught and removed before pushing).
+- **Dogfood count moved 8 → 20 (measured, not a regression).** The MCP
+  dogfood scan of Squ1zM0/GitSecure now counts 20 secrets, all 20
+  triaging `likely-test-key`. The count moved because the repo's
+  history grew (20 commits now): the same known-fake fixture secrets
+  are found at HEAD and again in their introducing commits (e.g. the
+  test-scanner.ts fake passwords at HEAD and at 8f4ffa4). The score is
+  still 0/F. Proved not to be a triage regression: the pre-change code
+  (remote head b30124a8, checked out to a scratch tree, built and run
+  locally) returns the same 20 secrets for the same repo — triage
+  annotates, it never adds findings. The `test:mcp` "counts 8 secrets"
+  assertion was updated to 20 with this reason, plus a new check that
+  all 20 are test keys.
+- **Live verification: pending — docs-only follow-up after the push.**
+  To prove live: torvalds/linux HEAD chunk (sign_key.pem triaged
+  likely-test-key with the test-key Fix; tests-phandle.dtsi triaged on
+  its own signals), a live control showing a genuine leak still scores
+  CRITICAL, and TechDirect live still 83/B, 62/62.
 
 ## Phase 2 status — built and pushed 2026-11-25, commit 870f889f, live at https://gitsecure.vercel.app/ (verified serving: home 200, live TechDirect scan 200, 83/B)
 - Next.js 16 / React 19 / TypeScript + Auth.js (NextAuth 5.0.0-beta.32,

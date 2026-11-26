@@ -97,6 +97,49 @@ check("list shows the true filtered count", list.includes("Showing 2 of 2 secret
 check("list shows the severity pill with its label", list.includes("critical") && list.includes("high"));
 check("list never renders a full secret (fragments only)", list.includes("abcd…yz") && !/postgres:\/\/[^<]{8,}/.test(list));
 
+// --- 2b. Phase 10 triage: pills, explanations, test-key fix, filter ---
+const triagedSecrets: SecretFinding[] = [
+  {
+    id: "t1", type: "private-key", title: "Private key",
+    severity: "critical", confidence: "high", file: "tools/testing/selftests/sgx/sign_key.pem", line: 1,
+    commit: "HEAD", fragment: "----…--", fix: "Treat this key as compromised: generate a new key pair, replace it everywhere it was used, and remove the old one from git history.",
+    plainEnglish: "A private key in a public repo is no longer private. Anyone can impersonate whatever it unlocks.",
+    triage: {
+      verdict: "likely-test-key",
+      signals: ["test-path:testing"],
+      explanation: "This looks like an intentional test key: it lives in a test path (tools/testing/selftests). It is still listed and still counted — if it ever signs real artifacts or grants real access, treat it as compromised and rotate it.",
+      adjustedSeverity: "low",
+      adjustedConfidence: "low",
+      fix: "Confirm this key is only used by tests and never signs real artifacts; if it does, rotate it.",
+    },
+  },
+  {
+    id: "t2", type: "private-key", title: "Private key",
+    severity: "critical", confidence: "high", file: "src/config/prod.key", line: 1,
+    commit: "HEAD", fragment: "----…--", fix: "Treat this key as compromised: generate a new key pair, replace it everywhere it was used, and remove the old one from git history.",
+    plainEnglish: "A private key in a public repo is no longer private. Anyone can impersonate whatever it unlocks.",
+    triage: {
+      verdict: "likely-genuine-leak",
+      signals: ["prod-filename:prod"],
+      explanation: "This looks like a genuine leak: its file name looks production (prod.key) with no test signals.",
+      adjustedSeverity: "critical",
+      adjustedConfidence: "high",
+      fix: "Treat this key as compromised: generate a new key pair, replace it everywhere it was used, and remove the old one from git history.",
+    },
+  },
+];
+const triageList = renderToString(
+  React.createElement(SecretsList, { secrets: triagedSecrets, owner: "Squ1zM0", repo: "TechDirect", branch: "main" }),
+).replace(/<!-- -->/g, "");
+check("triage: likely-test-key pill renders with its label", triageList.includes("Likely test key"));
+check("triage: likely-genuine-leak pill renders with its label", triageList.includes("Likely genuine leak"));
+check("triage: test-key explanation renders", triageList.includes("This looks like an intentional test key"));
+check("triage: test-key Fix replaces the rotate fix", triageList.includes("Confirm this key is only used by tests and never signs real artifacts"));
+check("triage: genuine leak keeps the detector Fix", triageList.includes("Treat this key as compromised"));
+check("triage: filter dropdown offers the three verdicts", triageList.includes("Filter by triage verdict") && triageList.includes("Likely test keys") && triageList.includes("Likely genuine leaks") && triageList.includes("Uncertain"));
+check("triage: count line names the test-key split", triageList.includes("Of the 2 secrets, 1 looks like test keys"));
+check("triage: adjusted severity shown", triageList.includes("Triage assessed severity: low"));
+
 // --- 3. File map -----------------------------------------------------
 const map = renderToString(
   React.createElement(FileMap, {
@@ -125,6 +168,7 @@ check("CSS styles grade chips per band", css.includes(".grade-chip.good") && css
 check("CSS styles the loading spinner", css.includes(".spinner"));
 check("CSS buttons use an on-accent text colour (dark-mode contrast)", css.includes("--on-accent: #052e1e") && /button[^{]*\{[^}]*color: var\(--on-accent\)/.test(css));
 check("CSS inline code wraps only when it must (no mid-word breaks)", !css.includes("word-break: break-all") && css.includes("overflow-wrap: break-word"));
+check("triage: pills have their own styles", css.includes(".pill.triage-test") && css.includes(".pill.triage-genuine") && css.includes(".pill.triage-uncertain"));
 
 const home = src("src/app/page.tsx");
 const reportPage = src("src/app/[owner]/[repo]/page.tsx");

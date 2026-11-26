@@ -52,6 +52,7 @@ import git from "isomorphic-git";
 import http from "isomorphic-git/http/node";
 import { diffLines } from "diff";
 import { scanLinesForSecrets, type ScannedLine } from "./secrets";
+import { triageFindings, triageHistoryFindings } from "./triage";
 import { isSkippablePath } from "./paths";
 import type { SecretFinding } from "./types";
 
@@ -195,7 +196,12 @@ function streamLog(dir: string): Promise<{
 
     const flushChunk = () => {
       if (chunk.length > 0 && file && !fileSkipped) {
-        findings.push(...scanLinesForSecrets({ path: file }, chunk, commit));
+        const found = scanLinesForSecrets({ path: file }, chunk, commit);
+        // Phase 10: triage from the added lines (path, filename, and
+        // nearby-line signals; a PEM block added by the commit is
+        // fully present in them).
+        triageHistoryFindings(found, file, chunk);
+        findings.push(...found);
       }
       chunk = [];
     };
@@ -491,7 +497,11 @@ export async function scanHistoryViaApi(
         return;
       }
       patchBytes += bytes;
-      findings.push(...scanLinesForSecrets({ path: f.filename }, parsePatchAddedLines(f.patch), sha.slice(0, 7)));
+      const addedLines = parsePatchAddedLines(f.patch);
+      const found = scanLinesForSecrets({ path: f.filename }, addedLines, sha.slice(0, 7));
+      // Phase 10: triage from the added lines.
+      triageHistoryFindings(found, f.filename, addedLines);
+      findings.push(...found);
     }
   };
 
@@ -687,7 +697,11 @@ export async function scanHistoryApiChunk(
     nextIdx++;
     for (const f of detail.files ?? []) {
       if (!f.patch || typeof f.filename !== "string" || isSkippablePath(f.filename)) continue;
-      findings.push(...scanLinesForSecrets({ path: f.filename }, parsePatchAddedLines(f.patch), sha.slice(0, 7)));
+      const addedLines = parsePatchAddedLines(f.patch);
+      const found = scanLinesForSecrets({ path: f.filename }, addedLines, sha.slice(0, 7));
+      // Phase 10: triage from the added lines.
+      triageHistoryFindings(found, f.filename, addedLines);
+      findings.push(...found);
     }
   }
 
@@ -956,7 +970,15 @@ export async function scanHistoryViaGit(
         // Emergency memory guard, checked per file: if it trips, this
         // commit is discarded whole (popped below) and the walk stops.
         if (newPatchBytes + commitBytes > HISTORY_MEMORY_GUARD_BYTES) truncated = true;
-        else commitFindings.push(...scanLinesForSecrets({ path: filepath }, addedLines(oldText, newText), oid.slice(0, 7)));
+        else {
+          const added = addedLines(oldText, newText);
+          const found = scanLinesForSecrets({ path: filepath }, added, oid.slice(0, 7));
+          // Phase 10: triage from the full new-file content — a PEM
+          // block added by the commit is complete in it, and the
+          // path/filename signals come from the file path.
+          triageFindings(found, () => ({ content: newText, lines: added }));
+          commitFindings.push(...found);
+        }
       }
       if (truncated) {
         newOrder.pop();
