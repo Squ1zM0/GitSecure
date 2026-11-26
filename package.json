@@ -33,10 +33,13 @@
     "test:techdirect": "tsx scripts/scan-techdirect.ts",
     "test:ui-phase7": "tsx scripts/test-ui-phase7.ts",
     "test:ui-phase15c": "tsx scripts/test-ui-phase15-worker-c.ts",
+    "test:ui-phase16c": "tsx scripts/test-ui-phase16-worker-c.ts",
+    "test:phase16-a": "tsx scripts/test-phase16-worker-a.ts",
     "test:triage-phase10": "tsx scripts/test-triage-phase10.ts",
     "test:usage-phase11": "tsx scripts/test-usage-phase11.ts",
     "test:mcp": "tsx scripts/test-mcp.ts",
     "test:cursor-phase9": "tsx scripts/test-cursor-phase9.ts",
+    "test:phase16-worker-b": "tsx scripts/test-phase16-worker-b.ts",
     "test:resilience-phase15": "tsx scripts/test-resilience-phase15.ts",
     "test:fixtures-phase14": "tsx scripts/test-fixtures-phase14.ts",
     "test:zero-rest": "tsx scripts/test-zero-rest.ts"

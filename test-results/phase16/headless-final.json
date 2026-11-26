@@ -1,0 +1,27 @@
+{
+  "startedAt": "2026-11-26T21:01:39.798Z",
+  "shellTimingMs": {
+    "responseStart": 81,
+    "domContentLoaded": 0,
+    "load": 0
+  },
+  "commitsBeforeReload": 200,
+  "reloadAtMs": 21633,
+  "resumeLinePresent": true,
+  "resumeLine": "Resumed — picked up where it left off (200 history commits checked, 0 secrets found so far)",
+  "resumeCommits": 200,
+  "bareSpinnerAfterReload": false,
+  "finished": {
+    "score": 91,
+    "grade": "A",
+    "rollAllPresent": true,
+    "historyCommits": null
+  },
+  "totalWallMs": 264807,
+  "finalTextExcerpt": "Scan complete. No leaked secrets were found in the files scanned; 3 security hygiene issues to fix; 1 framework fingerprinted. The full detail is in this report — no sign-in needed.",
+  "mobile360": {
+    "scrollWidth": 360,
+    "overflowing": []
+  },
+  "endedAt": "2026-11-26T21:06:06.124Z"
+}

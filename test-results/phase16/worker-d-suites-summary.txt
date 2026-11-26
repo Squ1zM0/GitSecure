@@ -1,0 +1,43 @@
+=== scanner 20:18:25 ===
+scanner exit=0 passes=73 fails=0 secs=2
+=== tier3 20:18:27 ===
+tier3 exit=0 passes=40 fails=0 secs=1
+=== history 20:18:28 ===
+history exit=0 passes=70 fails=0 secs=7
+=== history-git 20:18:35 ===
+history-git exit=0 passes=0 fails=0 secs=14
+=== public-full 20:18:49 ===
+public-full exit=0 passes=56 fails=0 secs=1
+=== score-phase12 20:18:50 ===
+score-phase12 exit=0 passes=40 fails=0 secs=1
+=== report-markdown 20:18:51 ===
+report-markdown exit=0 passes=30 fails=0 secs=1
+=== deps-phase13 20:18:52 ===
+deps-phase13 exit=0 passes=22 fails=0 secs=7
+=== triage-phase10 20:18:59 ===
+triage-phase10 exit=0 passes=63 fails=0 secs=3
+=== usage-phase11 20:19:02 ===
+usage-phase11 exit=0 passes=91 fails=0 secs=2
+=== mcp 20:19:04 ===
+mcp exit=1 passes=0 fails=0 secs=2
+=== cursor-phase9 20:19:07 ===
+cursor-phase9 exit=0 passes=192 fails=0 secs=4
+=== phase16-worker-b 20:19:11 ===
+phase16-worker-b exit=0 passes=25 fails=0 secs=6
+=== resilience-phase15 20:19:17 ===
+resilience-phase15 exit=0 passes=47 fails=0 secs=2
+=== fixtures-phase14 20:19:19 ===
+fixtures-phase14 exit=0 passes=42 fails=0 secs=6
+=== zero-rest 20:19:25 ===
+zero-rest exit=1 passes=25 fails=0 secs=19
+=== ui-phase7 20:19:44 ===
+ui-phase7 exit=0 passes=155 fails=0 secs=2
+=== ui-phase15c 20:19:46 ===
+ui-phase15c exit=0 passes=36 fails=0 secs=1
+=== ui-phase16c 20:19:47 ===
+ui-phase16c exit=0 passes=45 fails=0 secs=1
+=== phase16-a 20:19:48 ===
+phase16-a exit=0 passes=56 fails=0 secs=2
+=== techdirect 20:19:50 ===
+techdirect exit=1 passes=0 fails=0 secs=20
+DONE Thu Nov 26 20:20:10 UTC 2026

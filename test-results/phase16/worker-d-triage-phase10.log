@@ -1,0 +1,69 @@
+
+> gitsecure@0.1.0 test:triage-phase10
+> tsx scripts/test-triage-phase10.ts
+
+PASS  Layer 2: RSA 3072 parses (kind + bits) — RSA 3072
+PASS  Layer 2: EC P-256 parses (kind + bits) — EC P-256
+PASS  Layer 2: EC P-384 parses — EC P-384
+PASS  Layer 2: unparseable content is null, not a crash
+PASS  Layer 2: fingerprint is a 64-hex SHA-256
+PASS  Linux case: private-key detector fires on sign_key.pem — 1 findings
+PASS  Linux case: sign_key.pem triages likely-test-key — likely-test-key
+PASS  Linux case: test-key Fix (not 'rotate it') — Confirm this key is only used by tests and never signs real artifacts; if it does, rotate it.
+PASS  Linux case: detector severity stays critical
+PASS  Linux case: adjusted severity is low
+PASS  Linux case: explanation names the test path — This looks like an intentional test key: it lives in a test path (tools/testing/selftests). It is still listed and still counted — if it ever signs real artifacts or grants real access, treat it as compromised and rotate it.
+PASS  Linux case: test-path signal recorded
+PASS  Linux case: built-in list carries the SGX key fingerprint
+PASS  Fingerprint match: known test key is decisive even in a prod path — likely-test-key
+PASS  Fingerprint match: explanation names the fingerprint
+PASS  Fingerprint match: the decisive match is recorded in the signals list — prod-filename:prod,known-test-key
+PASS  Fingerprint match: same key WITHOUT the fingerprint stays genuine in a prod path — likely-genuine-leak
+PASS  dtsi case: hardcoded-password detector fires on line 9 — hardcoded-password:9
+PASS  dtsi case: triages likely-test-key on its own signals — likely-test-key
+PASS  dtsi case: unittest path signal recorded
+PASS  dtsi case: tests filename signal recorded
+PASS  dtsi case: testcase content signal recorded
+PASS  dtsi case: test-value Fix (not the detector rotate fix) — Confirm this value is only used by tests or examples and is not a real credential. If it is real, rotate it and move it to a secrets manager.
+PASS  Control: prod.key stays likely-genuine-leak — likely-genuine-leak
+PASS  Control: detector severity stays critical
+PASS  Control: detector Fix kept (rotate it)
+PASS  Control: AWS key in deploy/ is found
+PASS  Control: AWS key in deploy/ stays likely-genuine-leak — likely-genuine-leak
+PASS  Control: deploy/ prod-path signal recorded
+PASS  Example value: AWS example key is test even in deploy/
+PASS  Token case: same token detected in both files
+PASS  Token case: fixture file triages likely-test-key — likely-test-key
+PASS  Token case: src/ triages likely-genuine-leak — likely-genuine-leak
+PASS  Token case: the two verdicts differ
+PASS  Example value: AWS docs example key triages likely-test-key — likely-test-key
+PASS  Example value: explanation names the AWS example
+PASS  Example value: the decisive match is recorded in the signals list — known-example-value
+PASS  Example value: baked hash matches the assembled string
+PASS  Uncertain case: test path + RSA 4096 is uncertain — uncertain (signals: test-path:tests,strong-key:RSA 4096)
+PASS  Uncertain case: keeps detector severity
+PASS  Uncertain case: explanation says a human should check
+PASS  Weak key: RSA 1024 signal recorded — weak-key:RSA 1024
+PASS  Weak key: weak key alone in src/ is uncertain, not auto-test — uncertain
+PASS  Counterpart: public key identity matches the private key's
+PASS  Counterpart: public-counterpart signal recorded — test-path:tests,public-counterpart-in-repo
+PASS  Counterpart: test path + counterpart triages likely-test-key — likely-test-key
+PASS  Stripe: test-mode signal recorded — stripe-test-mode
+PASS  Stripe: live key in src/ is NOT test-mode and stays genuine — likely-genuine-leak
+PASS  History: added-lines triage works (selftest path) — likely-test-key
+PASS  History: prod-path key added in a commit stays genuine
+PASS  Regression: triage keeps all 25 findings — 25
+PASS  Regression: every input id is still present
+PASS  Regression: every finding got an annotation
+PASS  Regression: ensureTriage fills a missing annotation, keeps an existing one
+PASS  Scoring rule (Phase 12): untriaged findings score at full weight (42/D) — 42/D
+PASS  Scoring rule (Phase 12): after triage the test keys deduct nothing (75/B) — 75/B
+PASS  Scoring rule (Phase 12): secrets deduction is 25 (only the genuine key) — 25
+PASS  Scoring rule (Phase 12): counts are full=1, excluded=2 — full=1 half=0 excluded=2
+PASS  Scoring rule (Phase 12): wouldBeScore is the old-rule score (42) — wouldBe=42 before=42
+PASS  Scoring rule: detector severity untouched by triage
+PASS  Counts: secrets total still includes the test keys — 3
+PASS  Counts: testKeySecrets is the honest split (2 of 3) — 2
+PASS  Counts: provisional carries the triage annotations
+
+All triage tests passed.

@@ -42,8 +42,30 @@ import {
 import type { FullReport, HeadPartial, SecretFinding } from "./types";
 
 /** Fast-path wait: how long one request drives chunks before answering
- *  202 with the cursor (was the job fast-path wait in Phase 8). */
+ *  202 with the cursor (was the job fast-path wait in Phase 8).
+ *  Kept for the report page (Worker A, Phase 16). The scan API and
+ *  MCP use API_FAST_PATH_WAIT_MS below — same 60 s function ceiling,
+ *  tighter budget, see there. */
 export const FAST_PATH_WAIT_MS = 50_000;
+/** Phase 16 (Worker B — API ceiling-risk audit): the loop budget the
+ *  scan API (GET /api/scan/[owner]/[repo]) and MCP pass to
+ *  runScanLoop. 40 s, not 50: a chunk that starts just before the
+ *  deadline still runs to its own end (its work is deadline-capped
+ *  now — see deadlineMs threading below — but its uncapped prefix,
+ *  clone + full git.log parse, is not). Measured locally (slow VM,
+ *  conservative): the git-history prefix (clone + log parse) is
+ *  ~29 s on vinta/awesome-python (11.6 s clone + 17.6 s log parse
+ *  for 3,350 commits) and a history chunk totals ~31 s once the
+ *  post-walk corpus read is deadline-capped. Worst-case arithmetic
+ *  for one invocation, with the start floor in runScanLoop: budget
+ *  40 − floor 19 + worst late chunk ~32 = ~53 s, under the ~55 s
+ *  headroom below Vercel's 60 s ceiling (cold start ~1–3 s +
+ *  response serialisation included). Live evidence the 50 s budget
+ *  was too big: the report page took 52.8–63.6 s on
+ *  vinta/awesome-python and the stream was cut at 60 s
+ *  (test-results/phase16/repro.md). The 202 + cursor contract is
+ *  unchanged: a scan that outruns 40 s answers 202 and resumes. */
+export const API_FAST_PATH_WAIT_MS = 40_000;
 /** History commits per chunk on the GitHub API path (10 commits ≈ 11
  *  REST calls — a few chunks fit the unauthenticated quota). */
 export const API_HISTORY_CHUNK_COMMITS = 10;
@@ -98,6 +120,14 @@ export interface AdvanceInput {
   apiBase?: string;
   /** Test-only: smart-HTTP URL for the git history path. */
   cloneUrlOverride?: string;
+  /** Phase 16 (Worker B): absolute wall-clock deadline (epoch ms)
+   *  for this chunk — the loop's deadline, passed by runScanLoop so
+   *  a chunk that starts late stops at the deadline instead of
+   *  running a full chunk past it. Unset = no deadline (the chunk
+   *  endpoint POST /api/scan/chunk and one-shot callers): every
+   *  per-chunk budget below falls back to its old fixed value, so
+   *  behaviour there is unchanged. */
+  deadlineMs?: number;
   onProgress?: (p: ScanProgress) => void;
 }
 
@@ -131,6 +161,7 @@ async function headChunkOrTimeoutPartial(
   owner: string,
   repo: string,
   onProgress?: (p: ScanProgress) => void,
+  deadlineMs?: number,
 ): Promise<
   | { head: HeadPartial }
   | { partial: AdvanceResult & { status: "partial" } }
@@ -143,6 +174,7 @@ async function headChunkOrTimeoutPartial(
   const headMetaRef: { current: { branch: string; headSha: string; historyMethod: "git" | "api" } | null } = { current: null };
   try {
     const head = await scanHead(owner, repo, {
+      deadlineMs,
       onProgress: (p) => {
         lastProgress = p;
         onProgress?.(p);
@@ -235,7 +267,7 @@ export async function advanceScan(input: AdvanceInput): Promise<AdvanceResult> {
 
   // --- HEAD chunk (fresh scan, or a cursor that still says "head"). ---
   if (input.cursor === null) {
-    const outcome = await headChunkOrTimeoutPartial(owner, repo, input.onProgress);
+    const outcome = await headChunkOrTimeoutPartial(owner, repo, input.onProgress, input.deadlineMs);
     if ("partial" in outcome) return outcome.partial;
     const head = outcome.head;
     const cursor = initialHistoryCursor(head);
@@ -245,7 +277,7 @@ export async function advanceScan(input: AdvanceInput): Promise<AdvanceResult> {
 
   const cursor = decodeCursor(input.cursor, owner, repo);
   if (cursor.stage === "head") {
-    const outcome = await headChunkOrTimeoutPartial(owner, repo, input.onProgress);
+    const outcome = await headChunkOrTimeoutPartial(owner, repo, input.onProgress, input.deadlineMs);
     if ("partial" in outcome) return outcome.partial;
     const head = outcome.head;
     const next = initialHistoryCursor(head);
@@ -257,7 +289,7 @@ export async function advanceScan(input: AdvanceInput): Promise<AdvanceResult> {
   if (cursor.stage === "assemble") {
     let head = input.head ?? null;
     if (!head) {
-      head = await scanHead(owner, repo);
+      head = await scanHead(owner, repo, { deadlineMs: input.deadlineMs });
     }
     if (head.owner !== cursor.owner || head.repo !== cursor.repo || head.branch !== cursor.branch || head.headSha !== cursor.headSha) {
       throw new ScanError(
@@ -279,6 +311,7 @@ export async function advanceScan(input: AdvanceInput): Promise<AdvanceResult> {
           typeof (f as SecretFinding).fragment === "string",
       ),
     );
+    const remainingAtAssemble = input.deadlineMs != null ? input.deadlineMs - Date.now() : null;
     const report = await assembleReport(
       head,
       {
@@ -288,7 +321,20 @@ export async function advanceScan(input: AdvanceInput): Promise<AdvanceResult> {
         method: cursor.historyMethod,
         note: cursor.histNote,
       },
-      { onProgress: (p) => input.onProgress?.(p) },
+      {
+        onProgress: (p) => input.onProgress?.(p),
+        // Phase 16: OSV is the assemble step's only long pole (no
+        // budget by default). Cap both OSV phases at the time left
+        // to the loop deadline so assemble returns a report — with
+        // the honest "not checked" limits lines when the budget
+        // binds — instead of the function being killed mid-assemble.
+        // No deadline (the chunk endpoint) keeps the unbounded
+        // default, so its behaviour is unchanged.
+        deadlineMs: input.deadlineMs,
+        ...(remainingAtAssemble != null
+          ? { osv: { queryBudgetMs: Math.max(0, remainingAtAssemble), detailBudgetMs: Math.max(0, remainingAtAssemble) } }
+          : {}),
+      },
     );
     return { status: "done", report };
   }
@@ -306,7 +352,18 @@ export async function advanceScan(input: AdvanceInput): Promise<AdvanceResult> {
       headSha: cursor.headSha,
       resumeAfterSha: cursor.histResumeAfter,
       maxCommits: chunkCommits,
-      budgetMs: GIT_HISTORY_CHUNK_BUDGET_MS,
+      // Phase 16: the walk budget is the smaller of the chunk's own
+      // 30 s and the time left to the loop deadline — a history chunk
+      // that starts with 8 s left stops its walk at 8 s instead of
+      // running a full 30 s past the deadline. (The clone + log-parse
+      // prefix sits outside the walk budget; the clone aborts at the
+      // deadline via deadlineMs, and the log parse is the documented
+      // residual — see the API_FAST_PATH_WAIT_MS comment.)
+      budgetMs:
+        input.deadlineMs != null
+          ? Math.min(GIT_HISTORY_CHUNK_BUDGET_MS, Math.max(0, input.deadlineMs - Date.now()))
+          : GIT_HISTORY_CHUNK_BUDGET_MS,
+      deadlineMs: input.deadlineMs,
       progressBase: cursor.histScanned,
       onProgress: (n) => input.onProgress?.({ ...progressFor(partialFrom(cursor, headForPartial, note)), commitsScanned: n }),
     });
@@ -320,7 +377,7 @@ export async function advanceScan(input: AdvanceInput): Promise<AdvanceResult> {
         owner, repo, cursor.branch,
         { page: cursor.histPage, idx: cursor.histIdx, pageShas: cursor.histPageShas },
         Math.min(chunkCommits, API_HISTORY_CHUNK_COMMITS),
-        { apiBase: input.apiBase, expectedHeadSha: cursor.headSha },
+        { apiBase: input.apiBase, expectedHeadSha: cursor.headSha, deadlineMs: input.deadlineMs },
       );
       return apiChunkResult(cursor, apiChunk, headForPartial, "git");
     }
@@ -363,7 +420,7 @@ export async function advanceScan(input: AdvanceInput): Promise<AdvanceResult> {
       owner, repo, cursor.branch,
       { page: cursor.histPage, idx: cursor.histIdx, pageShas: cursor.histPageShas },
       chunkCommits,
-      { apiBase: input.apiBase, expectedHeadSha: cursor.headSha },
+      { apiBase: input.apiBase, expectedHeadSha: cursor.headSha, deadlineMs: input.deadlineMs },
     );
     return apiChunkResult(cursor, apiChunk, headForPartial, "api");
   }
@@ -432,7 +489,28 @@ export interface LoopResult {
  *  out. Returns the finished report, or the cursor + partial results
  *  so far (the caller resumes with advanceScan). `cursor` resumes an
  *  in-progress scan; `head` / `historyFindings` are the caller's
- *  accumulated results, passed back at assemble time. */
+ *  accumulated results, passed back at assemble time.
+ *
+ *  Phase 16 (Worker B): the old loop checked the deadline only
+ *  AFTER each chunk returned, so a chunk that started at 49 s of a
+ *  50 s budget ran a full chunk past it — a git history chunk alone
+ *  measures ~31–40 s on vinta/awesome-python, which is how live
+ *  invocations reached 52.8–63.6 s and got cut at Vercel's 60 s
+ *  ceiling. Two changes close it: (1) the loop's deadline is passed
+ *  into every chunk as deadlineMs, so each chunk's own budgets are
+ *  capped at the time left (walk budget, API fetches, tarball
+ *  stream, OSV phases, clone abort); (2) the loop does not START
+ *  another chunk unless enough budget is left that the chunk can
+ *  still land the invocation under ~55 s. A late chunk costs at
+ *  most ~32 s (its uncapped prefix — clone + git.log parse, ~29 s
+ *  measured worst locally — or its 30 s walk budget, plus ~2 s
+ *  unwind), so the start floor is budget − 21 s (55 − 32 − 2 margin)
+ *  and the invocation ends by budget − floor + 32 = ~53 s for any
+ *  budget; small budgets get no floor (a 10 s loop has nothing to
+ *  protect: 10 + 32 = 42 s). At the production 40 s budget the
+ *  floor is 19 s — TechDirect reaches assemble with ~22 s left, so
+ *  it still answers 200 in one call. The first chunk always runs:
+ *  a fresh scan must produce a cursor. */
 export async function runScanLoop(
   owner: string,
   repo: string,
@@ -448,21 +526,60 @@ export async function runScanLoop(
   } = {},
 ): Promise<LoopResult> {
   validateOwnerRepo(owner, repo);
-  const deadline = Date.now() + (opts.budgetMs ?? FAST_PATH_WAIT_MS);
+  const budgetMs = opts.budgetMs ?? FAST_PATH_WAIT_MS;
+  const deadline = Date.now() + budgetMs;
+  // Phase 16: the start floor — see the doc comment above. A chunk
+  // started with less than this left could still cost ~32 s and push
+  // the invocation past ~55 s, so with a cursor already in hand the
+  // loop answers 202 here instead of starting it.
+  const startFloorMs = Math.max(0, budgetMs - 21_000);
   let cursor: string | null = opts.cursor ?? null;
   let head: HeadPartial | null = opts.head ?? null;
   let historyFindings: SecretFinding[] = [...(opts.historyFindings ?? [])];
+  let lastPartial: Extract<AdvanceResult, { status: "partial" }> | null = null;
   for (;;) {
+    // A chunk started with almost no budget left would still pay its
+    // uncapped prefix (clone + log parse) past the deadline. With a
+    // cursor already in hand, answer 202 here instead of starting it.
+    // EXCEPTION — the assemble stage is exempt from the floor: assemble
+    // is bounded and cheap (deadline-capped OSV + scoring, ~seconds),
+    // and stopping before it strands the scan across invocations —
+    // where GET / MCP callers cannot carry the accumulated history
+    // findings back, so the first invocation's history findings would
+    // be lost from the finished report. Worst case with the exemption:
+    // a history chunk started at ~21 s ends by ~53 s and assemble adds
+    // ~4 s, still under the 60 s ceiling.
+    let nextStage: string | null = null;
+    if (cursor) {
+      try {
+        nextStage = decodeCursor(cursor, owner, repo).stage;
+      } catch {
+        nextStage = null;
+      }
+    }
+    if (lastPartial !== null && nextStage !== "assemble" && Date.now() >= deadline - startFloorMs) {
+      return {
+        status: "partial",
+        cursor: cursor ?? lastPartial.cursor,
+        partial: lastPartial.partial,
+        head,
+        historyFindings,
+        progress: lastPartial.progress,
+        note: lastPartial.note,
+      };
+    }
     const result = await advanceScan({
       owner, repo, cursor, head, historyFindings,
       chunkCommits: opts.chunkCommits,
       apiBase: opts.apiBase,
       cloneUrlOverride: opts.cloneUrlOverride,
+      deadlineMs: deadline,
       onProgress: opts.onProgress,
     });
     if (result.status === "done") {
       return { status: "done", report: result.report };
     }
+    lastPartial = result;
     cursor = result.cursor;
     if (result.partial.head) head = result.partial.head;
     if (result.chunkFindings.length > 0) {

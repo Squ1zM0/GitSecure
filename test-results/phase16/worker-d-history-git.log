@@ -1,0 +1,18 @@
+
+> gitsecure@0.1.0 test:history-git
+> tsx scripts/scan-history-git-live.ts
+
+ok: true
+method: git
+commitsScanned: 62
+commitsFetched: 62
+cachedCommits: 0
+findings: 0
+restCalls (history's own count): 0
+gitRequests (remote-info calls): 1
+api.github.com fetch calls observed: 0
+fetch calls by host: (none)
+wall ms: 11280 (history ms: 11274)
+second scan: commitsScanned=62 cachedCommits=62 commitsFetched=0 ms=1111
+
+Live git-protocol history proof passed: 62/62 commits, 0 REST history calls.

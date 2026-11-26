@@ -1,0 +1,28 @@
+
+> gitsecure@0.1.0 test:deps-phase13
+> tsx scripts/test-deps-phase13.ts
+
+PASS  Phase 13: upgraded Django 5.2.17 has zero advisories
+PASS  Phase 13: upgraded next 15.5.29 has zero advisories
+PASS  Phase 13: upgraded github.com/gofiber/fiber/v2 v2.52.14 has zero advisories
+PASS  Phase 13: upgraded sinatra 4.2.0 has zero advisories
+PASS  Phase 13: upgraded puma 7.2.1 has zero advisories
+PASS  Phase 13: upgraded phpunit/phpunit 10.5.62 has zero advisories
+PASS  Phase 13: upgraded diff 8.0.4 has zero advisories
+PASS  Phase 13: upgraded zod 4.6.7 has zero advisories
+PASS  Phase 13: Django pinned at 5.2.17 — 5.2.17
+PASS  Phase 13: fixture next pinned at 15.5.29 (root next 16.4.6 shadows it in-scan) — 15.5.29
+PASS  Phase 13: diff pinned at 8.0.4 — 8.0.4
+PASS  Phase 13: zod pinned at 4.6.7 — 4.6.7
+PASS  Phase 13: kept-vulnerable github.com/labstack/echo/v4 still flags (>=1 advisory, measured 28) — got 28, measured 28 on 2026-11-26
+PASS  Phase 13: kept-vulnerable laravel/framework still flags (>=1 advisory, measured 7) — got 7, measured 7 on 2026-11-26
+PASS  Phase 13: kept-vulnerable org.springframework:spring-core still flags (>=1 advisory, measured 3) — got 3, measured 3 on 2026-11-26
+PASS  Phase 13: kept-vulnerable vite still flags (>=1 advisory, measured 23) — got 23, measured 23 on 2026-11-26
+PASS  Phase 13: kept-vulnerable tokio still flags (>=1 advisory, measured 9) — got 9, measured 9 on 2026-11-26
+PASS  Phase 13: kept-vulnerable Flask still flags (>=1 advisory, measured 2) — got 2, measured 2 on 2026-11-26
+PASS  Phase 13: kept-vulnerable rails still flags (>=1 advisory, measured 1) — got 1, measured 1 on 2026-11-26
+PASS  Phase 13: generated kept-vulnerable fixtures flag 73 total (was 197) — got 73 ({"low":53,"medium":20})
+PASS  Phase 13: vuln deduction is 206 (was 547) — got 206
+PASS  Phase 13: no critical or high vulns remain — {"low":53,"medium":20}
+
+All Phase 13 dep checks passed.

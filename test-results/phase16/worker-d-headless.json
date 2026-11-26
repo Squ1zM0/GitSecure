@@ -1,0 +1,96 @@
+{
+  "base": "http://localhost:3000",
+  "steps": [
+    {
+      "step": "1280-shell",
+      "navMs": 2445,
+      "timing": {
+        "responseStartMs": 380,
+        "domContentLoadedMs": 1089,
+        "loadEventMs": 1346,
+        "transferSize": 7809
+      },
+      "shellSnippet": "Skip to content | GitSecure | is this repo safe? | ← Scan another repo | Scanning vinta/awesome-python… | Checking the current files for leaked secrets… | 0 files scanned so far | History not checked yet | No leaked secrets found so far | Dependencies not checked yet | This is a big repo, so the sca"
+    },
+    {
+      "step": "1280-finished",
+      "wallMs": 304437,
+      "waitResult": {
+        "done": false,
+        "ms": 301406,
+        "error": "TIMEOUT body=Skip to content\nGitSecure\nis this repo safe?\n\n← Scan another repo\n\nvinta/awesome-python\n\nProvisional score — the current files are scanned, but history and dependency checks are still running. The score counts what the current files show so far; it will update when the rest of the scan finishes. Nothing below is half-reported — the lists show exactly what has been checked so far.\n\n91\nGrade A\n\nGrade A — excellent\n\nvinta/awesome-python · branch master · commit 4c3cb15\n\nBiggest problem: 3 small sec"
+      },
+      "report": {
+        "score": null,
+        "grade": null,
+        "secrets": "0",
+        "vulnerabilities": null,
+        "posture": "3",
+        "files": "126",
+        "historyCommits": "1,872",
+        "rollAllPresent": true,
+        "textLen": 4559
+      }
+    },
+    {
+      "step": "resume-pre-reload",
+      "progressed": "16",
+      "elapsedMs": 46223
+    },
+    {
+      "step": "resume-after-reload",
+      "hasResumeLine": false,
+      "bareSpinnerOnly": false,
+      "snippet": "Skip to content | GitSecure | is this repo safe? | ← Scan another repo | vinta/awesome-python | Provisional score — the current files are scanned, but history and dependency checks are still running. The score counts what the current files show so far; it will update when the rest of the scan finishes. Nothing below is half-reported — the lists show exactly what has been checked so far. | 91 | Gra"
+    },
+    {
+      "step": "resume-finished",
+      "waitResult": {
+        "done": false,
+        "ms": 301075,
+        "error": "TIMEOUT body=Skip to content\nGitSecure\nis this repo safe?\n\n← Scan another repo\n\nvinta/awesome-python\n\nProvisional score — the current files are scanned, but history and dependency checks are still running. The score counts what the current files show so far; it will update when the rest of the scan finishes. Nothing below is half-reported — the lists show exactly what has been checked so far.\n\n91\nGrade A\n\nGrade A — excellent\n\nvinta/awesome-python · branch master · commit 4c3cb15\n\nBiggest problem: 3 small sec"
+      },
+      "report": {
+        "score": null,
+        "grade": null,
+        "secrets": "0",
+        "vulnerabilities": null,
+        "posture": "3",
+        "files": "126",
+        "historyCommits": "16",
+        "rollAllPresent": true,
+        "textLen": 4652
+      }
+    },
+    {
+      "step": "360-shell",
+      "navMs": 1675,
+      "timing": {
+        "responseStartMs": 225,
+        "domContentLoadedMs": 705,
+        "loadEventMs": 705,
+        "transferSize": 7812
+      }
+    },
+    {
+      "step": "360-finished",
+      "wallMs": 303438,
+      "waitResult": {
+        "done": false,
+        "ms": 301282,
+        "error": "TIMEOUT body=Skip to content\nGitSecure\nis this repo safe?\n\n← Scan another repo\n\nvinta/awesome-python\n\nProvisional score — the current files are scanned, but history and dependency checks are still running. The score counts what the current files show so far; it will update when the rest of the scan finishes. Nothing below is half-reported — the lists show exactly what has been checked so far.\n\n91\nGrade A\n\nGrade A — excellent\n\nvinta/awesome-python · branch master · commit 4c3cb15\n\nBiggest problem: 3 small sec"
+      },
+      "report": {
+        "score": null,
+        "grade": null,
+        "secrets": "0",
+        "vulnerabilities": null,
+        "posture": "3",
+        "files": "126",
+        "historyCommits": "2,176",
+        "rollAllPresent": true,
+        "textLen": 4559
+      }
+    }
+  ]
+}

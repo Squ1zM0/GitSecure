@@ -36,3 +36,18 @@ export function stepLabel(step: ScanStep): string {
     case "done": return "Scan complete";
   }
 }
+
+/** Phase 16 — honest history pace, from measured numbers only.
+ *  `commitsDelta` is how many history commits this browser session
+ *  has watched get checked, over `elapsedSec` seconds of driving the
+ *  chunks. Returns commits/minute, or null when too little has been
+ *  measured for the number to mean anything (under 100 commits or
+ *  under 20 s — the early chunks include HEAD setup time, so an early
+ *  rate would overstate the pace). Callers show the no-number wording
+ *  ("large repos take longer") when this returns null — never an
+ *  invented estimate. No total commit count exists before the scan
+ *  finishes, so there is no ETA to compute, only the observed rate. */
+export function historyRatePerMin(commitsDelta: number, elapsedSec: number): number | null {
+  if (commitsDelta < 100 || elapsedSec < 20) return null;
+  return Math.round((commitsDelta / elapsedSec) * 60);
+}

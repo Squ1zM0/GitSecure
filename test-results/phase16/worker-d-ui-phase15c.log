@@ -1,0 +1,42 @@
+
+> gitsecure@0.1.0 test:ui-phase15c
+> tsx scripts/test-ui-phase15-worker-c.ts
+
+PASS  404 explains the owner/repo URL shape
+PASS  404 gives the Squ1zM0/GitSecure example
+PASS  404 links home to scan
+PASS  404 uses the error card with role=alert
+PASS  404 has no stock Next.js wording
+PASS  MCP canonical URL is git-secure.com/mcp
+PASS  no vercel.app MCP URL in mcp-config
+PASS  no vercel.app MCP URL in the /mcp route comment
+PASS  no vercel.app MCP URL in README
+PASS  all four snippets are valid JSON with the canonical URL
+PASS  MCP section explains what MCP is in one plain line
+PASS  MCP explainer line sits at the top of the section
+PASS  MCP section renders the canonical URL
+PASS  MCP snippets are collapsed behind a <details>
+PASS  all four snippets sit inside the <details>
+PASS  MCP details summary names the four clients
+PASS  compact MCP section keeps the canonical URL
+PASS  compact MCP section keeps one snippet visible
+PASS  mobile CSS fades the right edge of snippet code blocks
+PASS  loading screen says 15–30 seconds
+PASS  loading screen scopes 15–30 seconds to small repos
+PASS  loading screen says large repos take several minutes
+PASS  loading screen never makes the unscoped 15–30 second claim
+PASS  loading screen keeps the nothing-to-click line
+PASS  loading screen no longer promises about 15 seconds
+PASS  home scan-status scopes 15–30 seconds to small repos
+PASS  home scan-status never makes the unscoped 15–30 second claim
+PASS  home scan-status no longer promises about 15 seconds
+PASS  home form has a visible label above the input
+PASS  label is wired to the input id
+PASS  label comes before the input in the form
+PASS  prefilled value unchanged
+PASS  empty-input validation message unchanged
+PASS  bad-format validation message unchanged
+PASS  scan-field label styled in the design system
+PASS  no literal secret-pattern values in the changed UI files
+
+All Phase 15 worker-C checks passed.

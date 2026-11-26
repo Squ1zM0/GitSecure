@@ -60,7 +60,15 @@ function ScoreCard({ report, paused }: { report: FullReport; paused?: boolean })
       <ScoreExplanation detail={detail} />
       <div className="stat-grid" role="list" aria-label="Scan counts">
         <div className={report.counts.secrets > 0 ? "stat stat-alert" : "stat"} role="listitem"><b>{report.counts.secrets}</b><span>possible leaked secrets{report.counts.testKeySecrets > 0 ? ` — of which ${report.counts.testKeySecrets} look${report.counts.testKeySecrets === 1 ? "s" : ""} like test keys` : ""}</span></div>
-        <div className="stat" role="listitem"><b>{report.counts.vulnerabilities}</b><span>dependency vulnerabilities</span></div>
+        {/* Phase 16: on a provisional report the dependency check has
+          not run yet (OSV runs at assemble time), so the tile must not
+          present a 0 as a checked result — it says "not checked yet",
+          agreeing with the progress card below it. */}
+        {report.provisional ? (
+          <div className="stat" role="listitem"><b>—</b><span>dependency vulnerabilities — not checked yet</span></div>
+        ) : (
+          <div className="stat" role="listitem"><b>{report.counts.vulnerabilities}</b><span>dependency vulnerabilities</span></div>
+        )}
         <div className="stat" role="listitem"><b>{report.counts.frameworks}</b><span>frameworks detected</span></div>
         <div className="stat" role="listitem"><b>{report.counts.dependencies}</b><span>dependencies checked</span></div>
         <div className="stat" role="listitem"><b>{report.counts.postureIssues}</b><span>posture issues</span></div>
@@ -125,8 +133,15 @@ export default function ReportView({ report, paused }: { report: FullReport; pau
       </div>
 
       <div className="card">
-        <h2>Dependency vulnerabilities ({report.vulnerabilities.length})</h2>
-        {report.vulnerabilities.length === 0 ? (
+        <h2>Dependency vulnerabilities{report.provisional ? " (not checked yet)" : ` (${report.vulnerabilities.length})`}</h2>
+        {report.provisional ? (
+          // Phase 16: the OSV check runs at assemble time, so a
+          // provisional report has no vulnerability count to show.
+          // Saying "0" here while the progress card below said
+          // "Dependencies not checked yet" was a contradiction —
+          // the count must not render before the check completes.
+          <p>Dependencies haven&apos;t been checked for known flaws yet — this section fills in when the scan finishes.</p>
+        ) : report.vulnerabilities.length === 0 ? (
           <p>No known vulnerabilities were found in the dependencies checked.</p>
         ) : (
           <VulnerabilitiesList vulnerabilities={report.vulnerabilities} />

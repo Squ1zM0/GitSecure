@@ -1,0 +1,198 @@
+
+> gitsecure@0.1.0 test:cursor-phase9
+> tsx scripts/test-cursor-phase9.ts
+
+PASS  cursor round-trips exactly
+PASS  cursor is base64url (no +/= padding in the middle)
+PASS  initial history cursor starts at stage history, page 1
+PASS  bogus cursor (garbage, not base64) → plain-English 400, no crash — That scan link doesn't look right — it may be from an older scan or pasted wrong. Starting a fresh scan instead.
+PASS  bogus cursor (valid base64, not JSON) → plain-English 400, no crash — That scan link doesn't look right — it may be from an older scan or pasted wrong. Starting a fresh scan instead.
+PASS  bogus cursor (JSON array, not object) → plain-English 400, no crash — That scan link doesn't look right — it may be from an older scan or pasted wrong. Starting a fresh scan instead.
+PASS  bogus cursor (wrong version) → plain-English 400, no crash — That scan link doesn't look right — it may be from an older scan or pasted wrong. Starting a fresh scan instead.
+PASS  bogus cursor (wrong owner) → plain-English 400, no crash — That scan link doesn't look right — it may be from an older scan or pasted wrong. Starting a fresh scan instead.
+PASS  bogus cursor (negative page) → plain-English 400, no crash — That scan link doesn't look right — it may be from an older scan or pasted wrong. Starting a fresh scan instead.
+PASS  bogus cursor (huge page) → plain-English 400, no crash — That scan link doesn't look right — it may be from an older scan or pasted wrong. Starting a fresh scan instead.
+PASS  bogus cursor (negative scanned count) → plain-English 400, no crash — That scan link doesn't look right — it may be from an older scan or pasted wrong. Starting a fresh scan instead.
+PASS  bogus cursor (short head sha) → plain-English 400, no crash — That scan link doesn't look right — it may be from an older scan or pasted wrong. Starting a fresh scan instead.
+PASS  bogus cursor (bad stage) → plain-English 400, no crash — That scan link doesn't look right — it may be from an older scan or pasted wrong. Starting a fresh scan instead.
+PASS  bogus cursor (101 page shas) → plain-English 400, no crash — That scan link doesn't look right — it may be from an older scan or pasted wrong. Starting a fresh scan instead.
+PASS  bogus cursor (empty string) → plain-English 400, no crash — That scan link doesn't look right — it may be from an older scan or pasted wrong. Starting a fresh scan instead.
+PASS  advanceScan with a bogus cursor → ScanError 400, never a crash — That scan link doesn't look right — it may be from an older scan or pasted wrong. Starting a fresh scan instead.
+PASS  API reference scan succeeds — 101 scanned
+PASS  API chunk 1 does not fail
+PASS  API chunk 2 does not fail
+PASS  API chunk 3 does not fail
+PASS  API chunk 4 does not fail
+PASS  API chunk 5 does not fail
+PASS  API chunk 6 does not fail
+PASS  API chunk 7 does not fail
+PASS  API chunk 8 does not fail
+PASS  API chunk 9 does not fail
+PASS  API chunk 10 does not fail
+PASS  API chunk 11 does not fail
+PASS  API chunk 12 does not fail
+PASS  API chunk 13 does not fail
+PASS  API chunk 14 does not fail
+PASS  API chunk 15 does not fail
+PASS  API chunk 16 does not fail
+PASS  API chunk 17 does not fail
+PASS  API chunk 18 does not fail
+PASS  API chunk 19 does not fail
+PASS  API chunk 20 does not fail
+PASS  API chunk 21 does not fail
+PASS  API chunk 22 does not fail
+PASS  API chunk 23 does not fail
+PASS  API chunk 24 does not fail
+PASS  API chunk 25 does not fail
+PASS  API chunk 26 does not fail
+PASS  API chunk 27 does not fail
+PASS  API chunk 28 does not fail
+PASS  API chunk 29 does not fail
+PASS  API chunk 30 does not fail
+PASS  API chunk 31 does not fail
+PASS  API chunk 32 does not fail
+PASS  API chunk 33 does not fail
+PASS  API chunk 34 does not fail
+PASS  API chunk 35 does not fail
+PASS  API chunk 36 does not fail
+PASS  API chunk 37 does not fail
+PASS  API chunk 38 does not fail
+PASS  API chunk 39 does not fail
+PASS  API chunk 40 does not fail
+PASS  API chunk 41 does not fail
+PASS  API chunk 42 does not fail
+PASS  API chunk 43 does not fail
+PASS  API chunk 44 does not fail
+PASS  API chunk 45 does not fail
+PASS  API chunk 46 does not fail
+PASS  API chunk 47 does not fail
+PASS  API chunk 48 does not fail
+PASS  API chunk 49 does not fail
+PASS  API chunk 50 does not fail
+PASS  API chunk 51 does not fail
+PASS  API chunk 52 does not fail
+PASS  API chunk 53 does not fail
+PASS  API chunk 54 does not fail
+PASS  API chunk 55 does not fail
+PASS  API chunk 56 does not fail
+PASS  API chunk 57 does not fail
+PASS  API chunk 58 does not fail
+PASS  API chunk 59 does not fail
+PASS  API chunk 60 does not fail
+PASS  API chunk 61 does not fail
+PASS  API chunk 62 does not fail
+PASS  API chunk 63 does not fail
+PASS  API chunk 64 does not fail
+PASS  API chunk 65 does not fail
+PASS  API chunk 66 does not fail
+PASS  API chunk 67 does not fail
+PASS  API chunk 68 does not fail
+PASS  API chunk 69 does not fail
+PASS  API chunk 70 does not fail
+PASS  API chunk 71 does not fail
+PASS  API chunk 72 does not fail
+PASS  API chunk 73 does not fail
+PASS  API chunk 74 does not fail
+PASS  API chunk 75 does not fail
+PASS  API chunk 76 does not fail
+PASS  API chunk 77 does not fail
+PASS  API chunk 78 does not fail
+PASS  API chunk 79 does not fail
+PASS  API chunk 80 does not fail
+PASS  API chunk 81 does not fail
+PASS  API chunk 82 does not fail
+PASS  API chunk 83 does not fail
+PASS  API chunk 84 does not fail
+PASS  API chunk 85 does not fail
+PASS  API chunk 86 does not fail
+PASS  API chunk 87 does not fail
+PASS  API chunk 88 does not fail
+PASS  API chunk 89 does not fail
+PASS  API chunk 90 does not fail
+PASS  API chunk 91 does not fail
+PASS  API chunk 92 does not fail
+PASS  API chunk 93 does not fail
+PASS  API chunk 94 does not fail
+PASS  API chunk 95 does not fail
+PASS  API chunk 96 does not fail
+PASS  API chunk 97 does not fail
+PASS  API chunk 98 does not fail
+PASS  API chunk 99 does not fail
+PASS  API chunk 100 does not fail
+PASS  API chunk 101 does not fail
+PASS  API chunked scan finishes in 101 chunks (100 + 1 across pages) — 101 chunks
+PASS  API chunked scan covers all 101 commits — 101 scanned
+PASS  API chunked findings are IDENTICAL to the uninterrupted scan — 1 vs 1 findings
+PASS  no full fake secret in API chunked findings
+PASS  rate-limit chunk reports rateLimited, not failed — rateLimited=true failed=false
+PASS  rate-limit chunk's cursor still points at the limited commit — nextIdx=0 scanned=0
+PASS  retry chunk after the limit scans the commit — scanned=1
+PASS  third chunk finishes the history — done=true
+PASS  rate-limit resume still finds the old-commit webhook once
+PASS  failed commit is skipped and counted (skipped 1, scanned 0) — skipped=1 scanned=0
+PASS  failed commit does not stall the chunk (cursor advances) — nextIdx=1
+PASS  chunk after the skip still finds the webhook and finishes — done=true
+PASS  API chunk with a moved HEAD reports headMoved, not findings — headMoved=true
+PASS  git reference scan succeeds, all 3 commits — 3 scanned
+PASS  git chunk 1 succeeds
+PASS  git chunk 2 succeeds
+PASS  git chunk 3 succeeds
+PASS  git chunked scan finishes in 3 chunks — 3 chunks
+PASS  git chunked scan covers all 3 commits — 3 scanned
+PASS  git chunked findings are IDENTICAL to the uninterrupted scan — 1 vs 1 findings
+PASS  git chunked scan finds the old-commit webhook once
+PASS  git chunked finding attributed to the old commit
+PASS  no full fake secret in git chunked findings
+PASS  git chunk with a vanished resume point reports headMoved — ok=false headMoved=true
+PASS  assembled report counts both HEAD + history secrets — 2
+PASS  assembled report counts history commits exactly — 3
+PASS  assembled score matches the inputs exactly — 48/D
+PASS  assembled report is not provisional
+PASS  assembled limits name the history count — Scanned all 3 files in the tree (binary, dist, node_modules and .next skipped — generated/vendored paths, not source files). | History checked: 3 commits, newest first (git protocol — no git binary, no REST quota). | Public repos only. No secret is ever stored, logged, or shown in full.
+PASS  partial-history report says history is incomplete — Scanned all 3 files in the tree (binary, dist, node_modules and .next skipped — generated/vendored paths, not source files). | History scan took 0.0s (clone and API history paths both unavailable; last-resort fallback scanned 2 most recent commits). | GitHub API rate limit was hit — scanned 2 commits before stopping. Setting a GITHUB_TOKEN raises the limit. | Public repos only. No secret is ever stored, logged, or shown in full. | History incomplete: 2 newest commits checked — older commits were not checked in this report.
+PASS  partial-history report carries the rate-limit note — Scanned all 3 files in the tree (binary, dist, node_modules and .next skipped — generated/vendored paths, not source files). | History scan took 0.0s (clone and API history paths both unavailable; last-resort fallback scanned 2 most recent commits). | GitHub API rate limit was hit — scanned 2 commits before stopping. Setting a GITHUB_TOKEN raises the limit. | Public repos only. No secret is ever stored, logged, or shown in full. | History incomplete: 2 newest commits checked — older commits were not checked in this report.
+PASS  partial-history report counts only the commits scanned — 2
+PASS  no saved progress before saving
+PASS  saved progress round-trips (cursor + counts)
+PASS  malformed saved progress loads as nothing, never a crash
+PASS  wrong-shaped saved progress loads as nothing
+PASS  resume line names the exact counts (singular) — Resumed — picked up where it left off (1 history commit checked, 1 secret found so far).
+PASS  resume line names the exact counts (plural, thousands) — Resumed — picked up where it left off (1,234 history commits checked, 5 secrets found so far).
+PASS  saved finished report round-trips with its HEAD sha
+PASS  provisional report is flagged provisional
+PASS  provisional score is HEAD-only (no vulnerabilities yet)
+PASS  provisional limits say history is still scanning
+PASS  provisional with complete history says so, no still-scanning line
+PASS  complete scan says so once with exact counts — Scanned all 2802 files in the tree (binary, dist, node_modules and .next skipped — generated/vendored paths, not source files). | History checked: 62 commits, newest first (git protocol — no git binary, no REST quota). | Public repos only. No secret is ever stored, logged, or shown in full.
+PASS  complete scan has no cap language — Scanned all 2802 files in the tree (binary, dist, node_modules and .next skipped — generated/vendored paths, not source files). | History checked: 62 commits, newest first (git protocol — no git binary, no REST quota). | Public repos only. No secret is ever stored, logged, or shown in full.
+PASS  partial scan states the un-fetched files exactly
+PASS  partial scan states the uncovered deps exactly
+PASS  partial scan states the ID-only advisories exactly
+PASS  partial scan carries the history note
+PASS  partial scan states the truncated tree
+PASS  partial scan states the tarball fallback
+PASS  no jobs imports remain in src
+PASS  no jobs.ts file remains
+PASS  no jobs poll route remains
+PASS  the 'no longer running' dead-end copy is gone from src
+PASS  no job-not-found kind remains in src
+PASS  chunk endpoint exists
+PASS  cursor module exists
+PASS  chunks driver exists
+PASS  ScanProgress saves progress in sessionStorage
+PASS  ScanProgress shows the resumed line
+PASS  README documents the cursor protocol
+PASS  README says the server holds no scan state
+PASS  HEAD timeout (fresh scan) returns a partial, never throws — status=partial
+PASS  HEAD-timeout cursor stays at the head stage — stage=head
+PASS  HEAD-timeout cursor pins the HEAD sha the repo reported — bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb
+PASS  HEAD-timeout partial has no HEAD yet (nothing half-reported)
+PASS  HEAD-timeout partial says the download timed out — The current-files download timed out, so this chunk stopped before finishing. Nothing was half-reported; the scan picks up from the start of the current-files step.
+PASS  HEAD-timeout partial keeps live progress (0 files scanned before the stall) — step=files files=0
+PASS  HEAD timeout (head-stage cursor) returns a partial, never throws — status=partial
+PASS  runScanLoop on a HEAD timeout returns a partial, never throws — status=partial
+PASS  HEAD timeout before the repo meta is known still throws (ScanError 504 timeout) — Error: GitHub took too long to answer. Try again.
+PASS  429 with x-ratelimit-reset → ScanError 429 carrying the reset time — kind=rate-limit resetAtMs=1795724951000
+PASS  429 with no reset headers → ScanError 429, reset time absent (hourly fallback) — kind=rate-limit resetAtMs=undefined
+
+All cursor (Phase 9) tests passed.

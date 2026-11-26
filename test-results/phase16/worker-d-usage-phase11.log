@@ -1,0 +1,97 @@
+
+> gitsecure@0.1.0 test:usage-phase11
+> tsx scripts/test-usage-phase11.ts
+
+PASS  (i) in-use: referencedBy lists the src/ reference with its line — [{"file":"src/config.ts","line":1}]
+PASS  (i) in-use: referencedByTotal is 1 — 1
+PASS  (i) in-use: test reference recorded separately in referencedByTests — [{"file":"tests/load_key.test.ts","line":2}]
+PASS  (i) in-use: not a dead end
+PASS  (i) in-use: test-key + production usage upgrades to likely-genuine-leak — likely-genuine-leak
+PASS  (i) in-use: explanation names the referencing file — This looks like a genuine leak: it was flagged as a possible test key (it lives in a test path (tests/fixtures)), but it is referenced from src/config.ts:1 in production code, so treat it as a real credential.
+PASS  (i) in-use: usage-prod-ref signal recorded — test-path:tests,usage-prod-ref
+PASS  (i) in-use: adjusted severity stays critical (detector severity)
+PASS  (i) in-use: detector Fix kept (rotate it)
+PASS  (ii) test-only: referencedBy is empty — []
+PASS  (ii) test-only: referencedByTotal is 0
+PASS  (ii) test-only: test references recorded in referencedByTests — [{"file":"tests/load_key.test.ts","line":2},{"file":"tests/load_key.test.ts","line":3}]
+PASS  (ii) test-only: not a dead end (tests reference it)
+PASS  (ii) test-only: still likely-test-key — likely-test-key
+PASS  (ii) test-only: usage-test-only signal recorded — test-path:tests,usage-test-only
+PASS  (iii) dead end: deadEnd is true
+PASS  (iii) dead end: both totals are 0
+PASS  (iii) dead end: usage-dead-end signal recorded — test-path:tests,usage-dead-end
+PASS  (iii) dead end: explanation says so plainly — This looks like an intentional test key: it lives in a test path (tests/fixtures); nothing in this repo references it. It is still listed and still counted — if it ever signs real artifacts or grants real access, treat it as compromised and rotate it. Nothing in this repo references this key — a true dead end.
+PASS  (iii) dead end: still likely-test-key — likely-test-key
+PASS  (iv) cap: referencedBy capped at 10 — 10
+PASS  (iv) cap: referencedByTotal is the true total (15) — 15
+PASS  (iv) cap: referencedByTests capped at 10 — 10
+PASS  (iv) cap: referencedByTestsTotal is the true total (12) — 12
+PASS  (iv) cap: not a dead end
+PASS  (iv) cap: own-file definition line does not count as a reference
+PASS  (v) value-regression: value present in src/other.ts, identifier absent -> no reference — {"referencedBy":[],"referencedByTotal":0,"referencedByTests":[],"referencedByTestsTotal":0,"deadEnd":true}
+PASS  (v) value-regression: deadEnd is true (identifier searched, nothing references it)
+PASS  (v) value-regression: identifier extracted from the line, not the value — MY_API_KEY
+PASS  (vi-a) prod usage: test-key + src/ reference upgrades to likely-genuine-leak — likely-genuine-leak
+PASS  (vi-a) prod usage: explanation names src/service.ts — This looks like a genuine leak: it was flagged as a possible test key (it lives in a test path (tests/fixtures)), but it is referenced from src/service.ts:2 in production code, so treat it as a real credential.
+PASS  (vi-b) docs-only: a docs mention is NOT a non-test reference — []
+PASS  (vi-b) docs-only: docs mention leaves it a dead end
+PASS  (vi-b) docs-only: docs/ is a docs path, not a production path
+PASS  (vi-b) docs-only: decisive key + docs mention stays likely-test-key — likely-test-key
+PASS  (vi-b) docs-only: usage-dead-end signal recorded (no usage-docs-ref any more) — test-path:tests,usage-dead-end,known-test-key
+PASS  (vi-b) docs-only: explanation says it is a dead end — This looks like an intentional test key: its fingerprint matches a published test key (Test-only planted key); it lives in a test path (tests/fixtures); nothing in this repo references it. It is still listed and still counted — if it ever signs real artifacts or grants real access, treat it as compromised and rotate it. Nothing in this repo references this key — a true dead end.
+PASS  (vi-c) dead end: test path + RSA 4096 without usage is uncertain — uncertain (test-path:tests,strong-key:RSA 4096)
+PASS  (vi-c) dead end: usage says deadEnd
+PASS  (vi-c) dead end: dead end reinforces to likely-test-key — likely-test-key
+PASS  (vi-c) dead end: explanation says so plainly
+PASS  (vi-d) other usage: tools/ is neither production nor docs
+PASS  (vi-d) other usage: upgrades to uncertain (not genuine) — uncertain
+PASS  (vi-d) other usage: explanation names tools/run.sh — This could be a test key or a real leak: it lives in a test path (tests/fixtures) — not enough evidence either way, so a human should check it. It is referenced from tools/run.sh:2 in non-test code, so it may be a real credential after all.
+PASS  (env) env-file: the variable name is found — [{"file":"src/db.ts","line":2}]
+PASS  (env) env-file: a prose/code mention of the bare ".env" name is NOT a reference — [{"file":"src/db.ts","line":2}]
+PASS  (env) env-file: identifiers are the var names, never the basename — MY_DB_URL,MY_OTHER_VAR
+PASS  (vii) bare URL: no identifier extracted from a bare URL line
+PASS  (vii) bare URL: usage undetermined, never a false dead end
+PASS  (vii) bare URL: stays likely-test-key (no production-usage upgrade)
+PASS  (viii) string match: no identifier (test variable is not the credential name)
+PASS  (viii) string match: usage undetermined, never a false dead end
+PASS  (viii) string match: stays likely-test-key (no production-usage upgrade)
+PASS  (ix) comment: identifier is api_key — api_key
+PASS  (ix) comment: no production reference from comments — []
+PASS  (ix) comment: true dead end
+PASS  (ix) comment: stays likely-test-key (no production-usage upgrade) — likely-test-key
+PASS  (ix) comment: dead-end signal recorded
+PASS  (ix) string: identifier in a string literal in code counts — 1
+PASS  (ix) stripComments: URL string survives — "const u = \"https://x/api_key\";\nconst y = api_key;\n                       \n"
+PASS  (ix) stripComments: real reference after the URL survives
+PASS  (ix) stripComments: comment line blanked, line count kept — "const u = \"https://x/api_key\";\nconst y = api_key;\n                       \n"
+PASS  (ix) stripComments: regex-quote trap — block comment after a regex is stripped — "const m = /^\\s*[\"']?([A-Za-z_][A-Za-z0-9_.\\-]*)[\"']?\\s*[:=]/.exec(match);\n                                                 \nconst y = api_key;\n"
+PASS  (ix) stripComments: regex-quote trap — real reference on the next line survives — "const m = /^\\s*[\"']?([A-Za-z_][A-Za-z0-9_.\\-]*)[\"']?\\s*[:=]/.exec(match);\n                                                 \nconst y = api_key;\n"
+PASS  (x) prose: identifier is api_key
+PASS  (x) prose: no non-test reference from .md / docs prose — []
+PASS  (x) prose: no test reference either
+PASS  (x) prose: true dead end
+PASS  (x) prose: stays likely-test-key (no production-usage upgrade) — likely-test-key
+PASS  (x) prose: usage-dead-end signal recorded, no usage-referenced — test-path:test-scanner.ts,filename-test:test,usage-dead-end
+PASS  (x) code: real code reference counts, docs mention does not — [{"file":"src/config.ts","line":1}]
+PASS  (x) code: not a dead end
+PASS  (x) code: test-key + production code reference upgrades to likely-genuine-leak — likely-genuine-leak
+PASS  (x) test: test-file reference still recorded in referencedByTests — [{"file":"tests/other.test.ts","line":1}]
+PASS  (x) test: no non-test reference (docs + tests only)
+PASS  (x) test: not a dead end (tests reference it)
+PASS  (x) test: still likely-test-key (test-only references do not upgrade) — likely-test-key
+PASS  (generic) generic name: `token = ...` yields no identifier
+PASS  (generic) generic name: usage present but deadEnd false (undetermined)
+PASS  (generic) generic name: no usage-dead-end signal without an identifier
+PASS  Regression: usage keeps all 5 findings — 5
+PASS  Regression: every input id is still present
+PASS  Scoring rule (Phase 12): usage-aware triage changes the score — test keys drop out (62/C, was 0/F untriaged) — 0/F vs 62/C
+PASS  Scoring rule (Phase 12): deduction 38 = genuine 25 + uncertain 12.5, 3 test keys at 0 — ded=38 full=1 half=1 excluded=3
+PASS  Scoring rule (Phase 12): wouldBeScore is the old-rule score (0/F) — wouldBe=0
+PASS  Scoring rule: detector severity untouched by usage
+PASS  Limits: history-usage line present when history findings carry HEAD-only usage — Scanned all 3 files in the tree (binary, dist, node_modules and .next skipped — generated/vendored paths, not source files). | History checked: 2 commits, newest first (git protocol — no git binary, no REST quota). | For secrets found in history, usage (whether anything still references the key) was checked against the current files only — the old commit's files are gone, so a reference that existed then but not now is not counted. | Public repos only. No secret is ever stored, logged, or shown in full.
+PASS  Limits: history-usage line absent when no history usage exists
+PASS  Provisional: carries the usage annotation through
+PASS  Provisional: history-usage limits line present for historyOnly findings — Scanned all 3 files in the tree (binary, dist, node_modules and .next skipped — generated/vendored paths, not source files). | History checked: 1 commit, newest first. | Dependency flaws are still being checked — no vulnerability count yet. | Public repos only. No secret is ever stored, logged, or shown in full. | For secrets found in history, usage (whether anything still references the key) was checked against the current files only — the old commit's files are gone, so a reference that existed then but not now is not counted.
+PASS  Provisional: does not import the triage module (client-safe) — provisional.ts must stay client-safe
+
+All usage tests passed.

@@ -1,0 +1,51 @@
+
+> gitsecure@0.1.0 test:ui-phase16c
+> tsx scripts/test-ui-phase16-worker-c.ts
+
+PASS  live-case fixture scores 91/A like the iPhone report — 91/A
+PASS  live-case fixture is provisional
+PASS  explainScore A says 'an excellent score'
+PASS  explainScore A never says 'a excellent score'
+PASS  explainScore B says 'a good score'
+PASS  explainScore C says 'a fair score'
+PASS  explainScore D says 'a poor score'
+PASS  explainScore F says 'a needs urgent attention score'
+PASS  explainScore 100 keeps the perfect-score line
+PASS  gradeWordWithArticle A is 'an excellent'
+PASS  gradeWordWithArticle B is 'a good'
+PASS  gradeWordWithArticle F is 'a needs urgent attention'
+PASS  adjustedExplainScore A says 'an excellent score' — 91 out of 100 (grade A) is an excellent score. The points lost come from 3 small security-hygiene issues — fixing those would raise the score.
+PASS  both score templates use the article helper, not a hard-coded 'a'
+PASS  loading screen scopes 15–30 seconds to small repos
+PASS  loading screen says large repos take several minutes
+PASS  loading screen never makes the unscoped 15–30 second claim
+PASS  home scan-status scopes 15–30 seconds to small repos
+PASS  home scan-status never makes the unscoped 15–30 second claim
+PASS  no unscoped 15–30 second claim anywhere in src
+PASS  historyRatePerMin: 400 commits in 60 s is 400/min (the observed iPhone pace)
+PASS  historyRatePerMin: 100 commits in 20 s is 300/min
+PASS  historyRatePerMin: under 100 commits is null (too little to mean anything)
+PASS  historyRatePerMin: under 20 s is null (early chunks include HEAD setup)
+PASS  historyRatePerMin: zero commits is null
+PASS  ScanProgress wires the measured rate (no invented ETA)
+PASS  provisional report: vuln heading says not checked yet
+PASS  provisional report: vuln body says the check has not run
+PASS  provisional report: stat tile says not checked yet
+PASS  provisional report: no 0 vulnerability count anywhere
+PASS  finished report: vuln heading shows the real 0
+PASS  finished report: vuln body says none found in the dependencies checked
+PASS  finished report: no 'not checked yet' anywhere
+PASS  finished report: hero says 'an excellent score'
+PASS  finished report: hero never says 'a excellent score'
+PASS  live progress view: report section and footer agree (both 'not checked yet')
+PASS  live progress view: no 0 vulnerability count while the check is pending
+PASS  live progress view: history timing says large repos take several minutes
+PASS  live progress view: no invented per-minute rate on first paint
+PASS  provisional markdown: vuln heading says not checked yet
+PASS  provisional markdown: summary bullet says not checked yet
+PASS  provisional markdown: no 0 vulnerability count
+PASS  finished markdown: vuln heading shows the real 0
+PASS  finished markdown: summary bullet shows 0
+PASS  No literal secret-pattern values in this file
+
+All Phase 16 worker-C checks passed.

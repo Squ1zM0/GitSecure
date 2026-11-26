@@ -63,13 +63,19 @@ export interface CheckDependenciesOptions {
   queryBudgetMs?: number | null;
   /** Milliseconds the detail phase may run, or null/undefined = no budget. */
   detailBudgetMs?: number | null;
+  /** Phase 16 (Worker B): absolute wall-clock deadline (epoch ms)
+   *  for the whole check, passed by the chunked driver (runScanLoop)
+   *  via assembleReport. Caps both phases and each in-flight fetch
+   *  (a query started with 1 s left must not run its full 15 s past
+   *  the deadline). Unset = the old unbounded default. */
+  deadlineMs?: number | null;
   onProgress?: (p: OsvProgress) => void;
 }
 
-async function fetchVulnDetail(id: string): Promise<Record<string, unknown> | null> {
+async function fetchVulnDetail(id: string, timeoutMs: number = 8000): Promise<Record<string, unknown> | null> {
   try {
     const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), 8000);
+    const timer = setTimeout(() => controller.abort(), timeoutMs);
     const res = await fetch(`https://api.osv.dev/v1/vulns/${encodeURIComponent(id)}`, { signal: controller.signal });
     clearTimeout(timer);
     if (!res.ok) return null;
@@ -88,7 +94,17 @@ export async function checkDependencies(deps: Dependency[], opts: CheckDependenc
   // No budget by default (Phase 8) — at least one batch always runs.
   // Collect (dep, vuln id) pairs from every batch that answers.
   const pairs: { dep: Dependency; id: string }[] = [];
-  const queryDeadline = opts.queryBudgetMs != null ? Date.now() + opts.queryBudgetMs : null;
+  // Phase 16: a phase deadline is the earlier of its own budget and
+  // the loop deadline (a duration vs an absolute time — both are
+  // resolved to an absolute deadline here).
+  const phaseDeadline = (budgetMs: number | null | undefined): number | null => {
+    const fromBudget = budgetMs != null ? Date.now() + budgetMs : null;
+    const fromLoop = opts.deadlineMs ?? null;
+    if (fromBudget == null) return fromLoop;
+    if (fromLoop == null) return fromBudget;
+    return Math.min(fromBudget, fromLoop);
+  };
+  const queryDeadline = phaseDeadline(opts.queryBudgetMs);
   let depsChecked = 0;
   let unavailable = false;
   try {
@@ -96,7 +112,11 @@ export async function checkDependencies(deps: Dependency[], opts: CheckDependenc
       if (i > 0 && queryDeadline != null && Date.now() > queryDeadline) break;
       const batch = queryable.slice(i, i + QUERY_BATCH_SIZE);
       const controller = new AbortController();
-      const timer = setTimeout(() => controller.abort(), 15000);
+      // Phase 16: an in-flight query is capped at the time left to
+      // the loop deadline, not the full 15 s — otherwise a query
+      // started just before the deadline overruns it by up to 15 s.
+      const queryTimeout = opts.deadlineMs != null ? Math.min(15_000, Math.max(500, opts.deadlineMs - Date.now())) : 15_000;
+      const timer = setTimeout(() => controller.abort(), queryTimeout);
       let data: { results?: { vulns?: Record<string, unknown>[] }[] };
       try {
         const res = await fetch(OSV_URL, {
@@ -133,13 +153,15 @@ export async function checkDependencies(deps: Dependency[], opts: CheckDependenc
   // parallel batches. No budget by default (Phase 8) — advisories past
   // an explicit budget are listed with ID only, never dropped.
   const uniqueIds = [...new Set(pairs.map((p) => p.id))];
-  const detailDeadline = opts.detailBudgetMs != null ? Date.now() + opts.detailBudgetMs : null;
+  const detailDeadline = phaseDeadline(opts.detailBudgetMs);
   const detailById = await (async () => {
     const map = new Map<string, Record<string, unknown>>();
     for (let i = 0; i < uniqueIds.length; i += DETAIL_BATCH) {
       if (i > 0 && detailDeadline != null && Date.now() > detailDeadline) break;
       const batchIds = uniqueIds.slice(i, i + DETAIL_BATCH);
-      const results = await Promise.all(batchIds.map((id) => fetchVulnDetail(id)));
+      // Phase 16: same in-flight cap as the query phase (was 8 s).
+      const detailTimeout = opts.deadlineMs != null ? Math.min(8_000, Math.max(500, opts.deadlineMs - Date.now())) : 8_000;
+      const results = await Promise.all(batchIds.map((id) => fetchVulnDetail(id, detailTimeout)));
       results.forEach((detail, j) => {
         if (detail) map.set(batchIds[j], detail);
       });

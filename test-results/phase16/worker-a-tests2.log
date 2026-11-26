@@ -1,0 +1,463 @@
+=== test:scanner ===
+
+> gitsecure@0.1.0 test:scanner
+> tsx scripts/test-scanner.ts
+
+PASS  detects discord-webhook
+PASS  detects aws-access-key
+PASS  detects github-token
+PASS  detects stripe-secret-key
+PASS  detects openai-api-key
+PASS  detects database-url
+PASS  detects hardcoded-password
+PASS  detects private-key
+PASS  env file finding
+PASS  redaction: full fake secret never appears (https://discord.co…)
+PASS  redaction: fragment is not the full value
+PASS  redaction: full fake secret never appears (AKIAIOSFODNN7EXAMP…)
+PASS  redaction: fragment is not the full value
+PASS  redaction: full fake secret never appears (ghp_FAKEFAKEFAKEFA…)
+PASS  redaction: fragment is not the full value
+PASS  redaction: full fake secret never appears (sk_live_FAKEFAKEFA…)
+PASS  redaction: fragment is not the full value
+PASS  redaction: full fake secret never appears (sk-proj-FAKEFAKEFA…)
+PASS  redaction: fragment is not the full value
+PASS  redaction: full fake secret never appears (postgres://fakeuse…)
+PASS  redaction: fragment is not the full value
+PASS  redaction: full fake secret never appears (FAKEFAKEFAKEFAKEFA…)
+PASS  redaction: fragment is not the full value
+PASS  at least 8 findings in fixture — 8 found
+PASS  split-across-lines password is not flagged — 0 findings
+PASS  match inside a cross-line span is still found — 1 findings, lines 2
+PASS  finding lands on the right line — github-token:3,generic-high-entropy-secret:3
+PASS  two assignments on one line are two findings — 2
+PASS  whole-content scan equals per-line scan — whole 8 vs per-line 8
+PASS  fingerprints Next.js 15.5.29 — 15.5.29
+PASS  fingerprints React 18.3.1
+PASS  fingerprints Vite 5.0.0
+PASS  fingerprints Django 5.2.17
+PASS  fingerprints Serde (Rust)
+PASS  flags unpinned express (*)
+PASS  Tier 2: fingerprints Gin v1.9.1 — v1.9.1
+PASS  Tier 2: fingerprints Echo v4.11.1
+PASS  Tier 2: fingerprints Fiber v2.52.14
+PASS  Tier 2: Rails lockfile 7.1.3 wins over Gemfile range — 7.1.3 / lockfile
+PASS  Tier 2: fingerprints Sinatra 4.2.0
+PASS  Tier 2: Laravel lockfile v10.34.2 wins over ^10.0 — v10.34.2
+PASS  Tier 2: fingerprints Symfony v6.3.8
+PASS  Tier 2: Spring Boot 3.2.0, one entry (parent + starter + gradle) — 3.2.0
+PASS  Tier 2: Spring Framework 6.1.2 via ${spring.version} — 6.1.2
+PASS  Tier 2: fingerprints Kotlin 1.9.20
+PASS  Tier 2: ASP.NET Core 8.0.0, one entry (SDK + package) — 8.0.0
+PASS  Tier 2: WordPress detected, version unknown (wp-config.php only) — version=null / unknown
+PASS  Tier 2: unresolvable ${...} pom version stays null, never guessed
+PASS  Tier 2: .NET SDK pseudo-dep has null version (TargetFramework is not a version)
+PASS  full report has score + counts
+PASS  full report includes file names
+PASS  full report includes framework names
+PASS  full report includes vulnerability IDs
+PASS  full report includes redacted secret fragments (never full)
+PASS  full report never contains the full fake secret (https://discord.co…)
+PASS  full report never contains the full fake secret (AKIAIOSFODNN7EXAMP…)
+PASS  full report never contains the full fake secret (ghp_FAKEFAKEFAKEFA…)
+PASS  full report never contains the full fake secret (sk_live_FAKEFAKEFA…)
+PASS  full report never contains the full fake secret (sk-proj-FAKEFAKEFA…)
+PASS  full report never contains the full fake secret (postgres://fakeuse…)
+PASS  full report never contains the full fake secret (FAKEFAKEFAKEFAKEFA…)
+PASS  Phase 5: 150 findings stay 150 through dedupe (no 100 cap) — 150 kept
+PASS  Phase 5: report lists all 150 secret findings — 150 listed
+PASS  Phase 5: count is the true total (150, not 100) — 150
+PASS  Phase 5: no truncation message in the report
+PASS  Phase 5: every fragment in the 150 is still redacted
+PASS  Phase 5: score floors at 0 with 150 critical secrets — 0/F
+PASS  Phase 5: score is never NaN with a huge finding count
+PASS  nav: HEAD finding links to branch blob + line — https://github.com/Squ1zM0/TechDirect/blob/main/src/index.js#L42
+PASS  nav: history finding links to its commit, not the branch — https://github.com/Squ1zM0/TechDirect/blob/abc1234/src/index.js#L42
+PASS  nav: file path segments are URL-encoded — https://github.com/o/r/blob/main/my%20folder/a%20b.js#L1
+PASS  nav: anchor ids are stable per kind + index
+PASS  nav: advisory links go to OSV.dev
+
+All fixture tests passed.
+exit=0
+=== test:score-phase12 ===
+
+> gitsecure@0.1.0 test:score-phase12
+> tsx scripts/test-score-phase12.ts
+
+PASS  All-test-key: secrets deduction is 0 — 0
+PASS  All-test-key: score equals the zero-secrets control (100/A) — 100/A vs control 100/A
+PASS  All-test-key: 3 excluded, 0 full, 0 half — full=0 half=0 excluded=3
+PASS  All-test-key: wouldBeScore is the old-rule score (100-48=52/D) — 52
+PASS  Mixed: secrets deduction is 36 (25 + 7.5 + 0 + 3, rounded) — 36
+PASS  Mixed: score 64/C — 64/C
+PASS  Mixed: counts full=2 half=1 excluded=1 — full=2 half=1 excluded=1
+PASS  Mixed: wouldBeScore is the old-rule score (100-51=49/D) — 49
+PASS  Rounding: 12.5 + 1.5 sums to 14 (not 13 + 2 = 15) — 14
+PASS  Rounding: score 86/B — 86/B
+PASS  Rounding: single low uncertain 1.5 rounds to 2 — 2
+PASS  No-triage: full weight (25 + 15 = 40) — 40
+PASS  No-triage: score 60/C — 60/C
+PASS  No-triage: counted as full weight (never assumed a test key) — full=2
+PASS  No-triage: wouldBeScore equals the score (nothing to discount) — wouldBe=60 score=60
+PASS  Upgrade: fixture AWS key triages likely-test-key without usage — likely-test-key
+PASS  Upgrade: before upgrade it deducts 0 (score 100/A) — 0 / 100
+PASS  Upgrade: production usage upgrades it to likely-genuine-leak — likely-genuine-leak
+PASS  Upgrade: after upgrade it deducts full 25 (score 75/B) — 25 / 75/B
+PASS  Upgrade: counted as full weight after upgrade — full=1 excluded=0
+PASS  TechDirect fixture: score 83/B unchanged — 83/B
+PASS  TechDirect fixture: vuln 8, posture 9, unpinned 0 — v=8 p=9 u=0
+PASS  TechDirect fixture: wouldBeScore equals score (no secrets) — 83
+PASS  Self-scan repro: secrets deduction 8 (32 test at 0, 2 uncertain at half) — 8
+PASS  Self-scan repro: vuln 547, posture 84, unpinned 4 — v=547 p=84 u=4
+PASS  Self-scan repro: new score still 0/F (vulns alone floor it) — 0/F
+PASS  Self-scan repro: wouldBeScore 0/F (old rule) — 0
+PASS  Self-scan repro: counts full=0 half=2 excluded=32 — full=0 half=2 excluded=32
+PASS  Phase 13 repro: vuln 206 (20 medium, 53 low), posture 84, unpinned 4 — v=206 p=84 u=4
+PASS  Phase 13 repro: secrets deduction still 8 — 8
+PASS  Phase 13 repro: new score still 0/F (kept fixtures + posture floor it) — 0/F
+PASS  Phase 13 repro: wouldBeScore 0/F (old rule) — 0
+PASS  Provisional: carries scoreDetail — [object Object]
+PASS  Provisional: scoreDetail matches computeScore (15 deducted, 85/B) — ded=15 85/B
+PASS  Provisional: counts full=1 excluded=1 — full=1 excluded=1
+PASS  Provisional summary starts 'So far: ', never 'Scan complete.' — So far: 1 possible leaked secret found — rotate and remove these first; 1 look like test keys and do not count toward the score. The full detail is in this report — no sign-in needed.
+PASS  Finished summary starts 'Scan complete. ' — Scan complete. 2 possible leaked secrets found — rotate and remove these first. The full detail is in this report — no sign-in needed.
+PASS  Zero-secrets summary is capitalised ('No leaked secrets…') — Scan complete. No leaked secrets were found in the files scanned. The full detail is in this report — no sign-in needed.
+PASS  Provisional zero-secrets summary is 'So far: No leaked secrets…' — So far: No leaked secrets were found in the files scanned. The full detail is in this report — no sign-in needed.
+PASS  No literal secret-pattern values in this file
+
+All Phase 12 score tests passed.
+exit=0
+=== test:report-markdown ===
+
+> gitsecure@0.1.0 test:report-markdown
+> tsx scripts/test-report-markdown.ts
+
+PASS  filename is gitsecure-report-{owner}-{repo}-{short-sha}.md — gitsecure-report-Squ1zM0-FixtureRepo-abc1234.md
+PASS  md has the report title
+PASS  md has score and grade
+PASS  md has the verdict naming the real driver
+PASS  md has the summary
+PASS  md names the runner-up deduction (Phase 15 finding 13)
+PASS  md explains the test-key adjustment with both scores
+PASS  md carries the scan metadata
+PASS  md lists the genuine leak with its fragment
+PASS  md lists the test-key secret the page collapses by default
+PASS  md lists the long-path secret with its full path
+PASS  md lists the dead-end finding as a dead end
+PASS  md lists the test-only usage with its test reference
+PASS  md has one ### heading per finding (3 secrets + 5 vulns + 4 posture) — 12
+PASS  md reconciles js-yaml to one version (4.3.2, all 4 advisories)
+PASS  md Fix lines never name the losing versions — Fix: Upgrade js-yaml to 4.3.2 or later — this covers all 4 advisories for this version. | Fix: Upgrade js-yaml to 4.3.2 or later — this covers all 4 advisories for this version. | Fix: Upgrade js-yaml to 4.3.2 or later — this covers all 4 advisories for this version. | Fix: Upgrade js-yaml to 4.3.2 or later — this covers all 4 advisories for this version.
+PASS  md keeps the single-version lodash Fix unchanged
+PASS  md lists every advisory id
+PASS  md lists every posture issue
+PASS  md lists every framework, unpinned flagged
+PASS  md lists every dependency with direct/transitive
+PASS  md carries the About-this-scan lines
+PASS  md has no undefined/NaN placeholders
+PASS  md never emits an unknown field holding a full secret (decoy)
+PASS  md contains no secret-pattern values (fragments only)
+PASS  provisional md is labelled provisional with what is still running
+PASS  paused provisional md says paused, not still running
+PASS  finished md is not labelled provisional
+PASS  provisional md says vulns are not checked yet, not 'none found'
+PASS  No literal secret-pattern values in this file
+
+All report-markdown tests passed.
+exit=0
+=== test:triage-phase10 ===
+
+> gitsecure@0.1.0 test:triage-phase10
+> tsx scripts/test-triage-phase10.ts
+
+PASS  Layer 2: RSA 3072 parses (kind + bits) — RSA 3072
+PASS  Layer 2: EC P-256 parses (kind + bits) — EC P-256
+PASS  Layer 2: EC P-384 parses — EC P-384
+PASS  Layer 2: unparseable content is null, not a crash
+PASS  Layer 2: fingerprint is a 64-hex SHA-256
+PASS  Linux case: private-key detector fires on sign_key.pem — 1 findings
+PASS  Linux case: sign_key.pem triages likely-test-key — likely-test-key
+PASS  Linux case: test-key Fix (not 'rotate it') — Confirm this key is only used by tests and never signs real artifacts; if it does, rotate it.
+PASS  Linux case: detector severity stays critical
+PASS  Linux case: adjusted severity is low
+PASS  Linux case: explanation names the test path — This looks like an intentional test key: it lives in a test path (tools/testing/selftests). It is still listed and still counted — if it ever signs real artifacts or grants real access, treat it as compromised and rotate it.
+PASS  Linux case: test-path signal recorded
+PASS  Linux case: built-in list carries the SGX key fingerprint
+PASS  Fingerprint match: known test key is decisive even in a prod path — likely-test-key
+PASS  Fingerprint match: explanation names the fingerprint
+PASS  Fingerprint match: the decisive match is recorded in the signals list — prod-filename:prod,known-test-key
+PASS  Fingerprint match: same key WITHOUT the fingerprint stays genuine in a prod path — likely-genuine-leak
+PASS  dtsi case: hardcoded-password detector fires on line 9 — hardcoded-password:9
+PASS  dtsi case: triages likely-test-key on its own signals — likely-test-key
+PASS  dtsi case: unittest path signal recorded
+PASS  dtsi case: tests filename signal recorded
+PASS  dtsi case: testcase content signal recorded
+PASS  dtsi case: test-value Fix (not the detector rotate fix) — Confirm this value is only used by tests or examples and is not a real credential. If it is real, rotate it and move it to a secrets manager.
+PASS  Control: prod.key stays likely-genuine-leak — likely-genuine-leak
+PASS  Control: detector severity stays critical
+PASS  Control: detector Fix kept (rotate it)
+PASS  Control: AWS key in deploy/ is found
+PASS  Control: AWS key in deploy/ stays likely-genuine-leak — likely-genuine-leak
+PASS  Control: deploy/ prod-path signal recorded
+PASS  Example value: AWS example key is test even in deploy/
+PASS  Token case: same token detected in both files
+PASS  Token case: fixture file triages likely-test-key — likely-test-key
+PASS  Token case: src/ triages likely-genuine-leak — likely-genuine-leak
+PASS  Token case: the two verdicts differ
+PASS  Example value: AWS docs example key triages likely-test-key — likely-test-key
+PASS  Example value: explanation names the AWS example
+PASS  Example value: the decisive match is recorded in the signals list — known-example-value
+PASS  Example value: baked hash matches the assembled string
+PASS  Uncertain case: test path + RSA 4096 is uncertain — uncertain (signals: test-path:tests,strong-key:RSA 4096)
+PASS  Uncertain case: keeps detector severity
+PASS  Uncertain case: explanation says a human should check
+PASS  Weak key: RSA 1024 signal recorded — weak-key:RSA 1024
+PASS  Weak key: weak key alone in src/ is uncertain, not auto-test — uncertain
+PASS  Counterpart: public key identity matches the private key's
+PASS  Counterpart: public-counterpart signal recorded — test-path:tests,public-counterpart-in-repo
+PASS  Counterpart: test path + counterpart triages likely-test-key — likely-test-key
+PASS  Stripe: test-mode signal recorded — stripe-test-mode
+PASS  Stripe: live key in src/ is NOT test-mode and stays genuine — likely-genuine-leak
+PASS  History: added-lines triage works (selftest path) — likely-test-key
+PASS  History: prod-path key added in a commit stays genuine
+PASS  Regression: triage keeps all 25 findings — 25
+PASS  Regression: every input id is still present
+PASS  Regression: every finding got an annotation
+PASS  Regression: ensureTriage fills a missing annotation, keeps an existing one
+PASS  Scoring rule (Phase 12): untriaged findings score at full weight (42/D) — 42/D
+PASS  Scoring rule (Phase 12): after triage the test keys deduct nothing (75/B) — 75/B
+PASS  Scoring rule (Phase 12): secrets deduction is 25 (only the genuine key) — 25
+PASS  Scoring rule (Phase 12): counts are full=1, excluded=2 — full=1 half=0 excluded=2
+PASS  Scoring rule (Phase 12): wouldBeScore is the old-rule score (42) — wouldBe=42 before=42
+PASS  Scoring rule: detector severity untouched by triage
+PASS  Counts: secrets total still includes the test keys — 3
+PASS  Counts: testKeySecrets is the honest split (2 of 3) — 2
+PASS  Counts: provisional carries the triage annotations
+
+All triage tests passed.
+exit=0
+=== test:usage-phase11 ===
+
+> gitsecure@0.1.0 test:usage-phase11
+> tsx scripts/test-usage-phase11.ts
+
+PASS  (i) in-use: referencedBy lists the src/ reference with its line — [{"file":"src/config.ts","line":1}]
+PASS  (i) in-use: referencedByTotal is 1 — 1
+PASS  (i) in-use: test reference recorded separately in referencedByTests — [{"file":"tests/load_key.test.ts","line":2}]
+PASS  (i) in-use: not a dead end
+PASS  (i) in-use: test-key + production usage upgrades to likely-genuine-leak — likely-genuine-leak
+PASS  (i) in-use: explanation names the referencing file — This looks like a genuine leak: it was flagged as a possible test key (it lives in a test path (tests/fixtures)), but it is referenced from src/config.ts:1 in production code, so treat it as a real credential.
+PASS  (i) in-use: usage-prod-ref signal recorded — test-path:tests,usage-prod-ref
+PASS  (i) in-use: adjusted severity stays critical (detector severity)
+PASS  (i) in-use: detector Fix kept (rotate it)
+PASS  (ii) test-only: referencedBy is empty — []
+PASS  (ii) test-only: referencedByTotal is 0
+PASS  (ii) test-only: test references recorded in referencedByTests — [{"file":"tests/load_key.test.ts","line":2},{"file":"tests/load_key.test.ts","line":3}]
+PASS  (ii) test-only: not a dead end (tests reference it)
+PASS  (ii) test-only: still likely-test-key — likely-test-key
+PASS  (ii) test-only: usage-test-only signal recorded — test-path:tests,usage-test-only
+PASS  (iii) dead end: deadEnd is true
+PASS  (iii) dead end: both totals are 0
+PASS  (iii) dead end: usage-dead-end signal recorded — test-path:tests,usage-dead-end
+PASS  (iii) dead end: explanation says so plainly — This looks like an intentional test key: it lives in a test path (tests/fixtures); nothing in this repo references it. It is still listed and still counted — if it ever signs real artifacts or grants real access, treat it as compromised and rotate it. Nothing in this repo references this key — a true dead end.
+PASS  (iii) dead end: still likely-test-key — likely-test-key
+PASS  (iv) cap: referencedBy capped at 10 — 10
+PASS  (iv) cap: referencedByTotal is the true total (15) — 15
+PASS  (iv) cap: referencedByTests capped at 10 — 10
+PASS  (iv) cap: referencedByTestsTotal is the true total (12) — 12
+PASS  (iv) cap: not a dead end
+PASS  (iv) cap: own-file definition line does not count as a reference
+PASS  (v) value-regression: value present in src/other.ts, identifier absent -> no reference — {"referencedBy":[],"referencedByTotal":0,"referencedByTests":[],"referencedByTestsTotal":0,"deadEnd":true}
+PASS  (v) value-regression: deadEnd is true (identifier searched, nothing references it)
+PASS  (v) value-regression: identifier extracted from the line, not the value — MY_API_KEY
+PASS  (vi-a) prod usage: test-key + src/ reference upgrades to likely-genuine-leak — likely-genuine-leak
+PASS  (vi-a) prod usage: explanation names src/service.ts — This looks like a genuine leak: it was flagged as a possible test key (it lives in a test path (tests/fixtures)), but it is referenced from src/service.ts:2 in production code, so treat it as a real credential.
+PASS  (vi-b) docs-only: a docs mention is NOT a non-test reference — []
+PASS  (vi-b) docs-only: docs mention leaves it a dead end
+PASS  (vi-b) docs-only: docs/ is a docs path, not a production path
+PASS  (vi-b) docs-only: decisive key + docs mention stays likely-test-key — likely-test-key
+PASS  (vi-b) docs-only: usage-dead-end signal recorded (no usage-docs-ref any more) — test-path:tests,usage-dead-end,known-test-key
+PASS  (vi-b) docs-only: explanation says it is a dead end — This looks like an intentional test key: its fingerprint matches a published test key (Test-only planted key); it lives in a test path (tests/fixtures); nothing in this repo references it. It is still listed and still counted — if it ever signs real artifacts or grants real access, treat it as compromised and rotate it. Nothing in this repo references this key — a true dead end.
+PASS  (vi-c) dead end: test path + RSA 4096 without usage is uncertain — uncertain (test-path:tests,strong-key:RSA 4096)
+PASS  (vi-c) dead end: usage says deadEnd
+PASS  (vi-c) dead end: dead end reinforces to likely-test-key — likely-test-key
+PASS  (vi-c) dead end: explanation says so plainly
+PASS  (vi-d) other usage: tools/ is neither production nor docs
+PASS  (vi-d) other usage: upgrades to uncertain (not genuine) — uncertain
+PASS  (vi-d) other usage: explanation names tools/run.sh — This could be a test key or a real leak: it lives in a test path (tests/fixtures) — not enough evidence either way, so a human should check it. It is referenced from tools/run.sh:2 in non-test code, so it may be a real credential after all.
+PASS  (env) env-file: the variable name is found — [{"file":"src/db.ts","line":2}]
+PASS  (env) env-file: a prose/code mention of the bare ".env" name is NOT a reference — [{"file":"src/db.ts","line":2}]
+PASS  (env) env-file: identifiers are the var names, never the basename — MY_DB_URL,MY_OTHER_VAR
+PASS  (vii) bare URL: no identifier extracted from a bare URL line
+PASS  (vii) bare URL: usage undetermined, never a false dead end
+PASS  (vii) bare URL: stays likely-test-key (no production-usage upgrade)
+PASS  (viii) string match: no identifier (test variable is not the credential name)
+PASS  (viii) string match: usage undetermined, never a false dead end
+PASS  (viii) string match: stays likely-test-key (no production-usage upgrade)
+PASS  (ix) comment: identifier is api_key — api_key
+PASS  (ix) comment: no production reference from comments — []
+PASS  (ix) comment: true dead end
+PASS  (ix) comment: stays likely-test-key (no production-usage upgrade) — likely-test-key
+PASS  (ix) comment: dead-end signal recorded
+PASS  (ix) string: identifier in a string literal in code counts — 1
+PASS  (ix) stripComments: URL string survives — "const u = \"https://x/api_key\";\nconst y = api_key;\n                       \n"
+PASS  (ix) stripComments: real reference after the URL survives
+PASS  (ix) stripComments: comment line blanked, line count kept — "const u = \"https://x/api_key\";\nconst y = api_key;\n                       \n"
+PASS  (ix) stripComments: regex-quote trap — block comment after a regex is stripped — "const m = /^\\s*[\"']?([A-Za-z_][A-Za-z0-9_.\\-]*)[\"']?\\s*[:=]/.exec(match);\n                                                 \nconst y = api_key;\n"
+PASS  (ix) stripComments: regex-quote trap — real reference on the next line survives — "const m = /^\\s*[\"']?([A-Za-z_][A-Za-z0-9_.\\-]*)[\"']?\\s*[:=]/.exec(match);\n                                                 \nconst y = api_key;\n"
+PASS  (x) prose: identifier is api_key
+PASS  (x) prose: no non-test reference from .md / docs prose — []
+PASS  (x) prose: no test reference either
+PASS  (x) prose: true dead end
+PASS  (x) prose: stays likely-test-key (no production-usage upgrade) — likely-test-key
+PASS  (x) prose: usage-dead-end signal recorded, no usage-referenced — test-path:test-scanner.ts,filename-test:test,usage-dead-end
+PASS  (x) code: real code reference counts, docs mention does not — [{"file":"src/config.ts","line":1}]
+PASS  (x) code: not a dead end
+PASS  (x) code: test-key + production code reference upgrades to likely-genuine-leak — likely-genuine-leak
+PASS  (x) test: test-file reference still recorded in referencedByTests — [{"file":"tests/other.test.ts","line":1}]
+PASS  (x) test: no non-test reference (docs + tests only)
+PASS  (x) test: not a dead end (tests reference it)
+PASS  (x) test: still likely-test-key (test-only references do not upgrade) — likely-test-key
+PASS  (generic) generic name: `token = ...` yields no identifier
+PASS  (generic) generic name: usage present but deadEnd false (undetermined)
+PASS  (generic) generic name: no usage-dead-end signal without an identifier
+PASS  Regression: usage keeps all 5 findings — 5
+PASS  Regression: every input id is still present
+PASS  Scoring rule (Phase 12): usage-aware triage changes the score — test keys drop out (62/C, was 0/F untriaged) — 0/F vs 62/C
+PASS  Scoring rule (Phase 12): deduction 38 = genuine 25 + uncertain 12.5, 3 test keys at 0 — ded=38 full=1 half=1 excluded=3
+PASS  Scoring rule (Phase 12): wouldBeScore is the old-rule score (0/F) — wouldBe=0
+PASS  Scoring rule: detector severity untouched by usage
+PASS  Limits: history-usage line present when history findings carry HEAD-only usage — Scanned all 3 files in the tree (binary, dist, node_modules and .next skipped — generated/vendored paths, not source files). | History checked: 2 commits, newest first (git protocol — no git binary, no REST quota). | For secrets found in history, usage (whether anything still references the key) was checked against the current files only — the old commit's files are gone, so a reference that existed then but not now is not counted. | Public repos only. No secret is ever stored, logged, or shown in full.
+PASS  Limits: history-usage line absent when no history usage exists
+PASS  Provisional: carries the usage annotation through
+PASS  Provisional: history-usage limits line present for historyOnly findings — Scanned all 3 files in the tree (binary, dist, node_modules and .next skipped — generated/vendored paths, not source files). | History checked: 1 commit, newest first. | Dependency flaws are still being checked — no vulnerability count yet. | Public repos only. No secret is ever stored, logged, or shown in full. | For secrets found in history, usage (whether anything still references the key) was checked against the current files only — the old commit's files are gone, so a reference that existed then but not now is not counted.
+PASS  Provisional: does not import the triage module (client-safe) — provisional.ts must stay client-safe
+
+All usage tests passed.
+exit=0
+=== test:tier3 ===
+
+> gitsecure@0.1.0 test:tier3
+> tsx scripts/test-tier3.ts
+
+PASS  Docker node image version 20-alpine detected — 20-alpine
+PASS  Docker node image ecosystem is docker
+PASS  postgres:15 detected — 15
+PASS  redis with no tag: version null + unpinned — version=null
+PASS  parseDockerfile returns both FROM stages — 2 entries
+PASS  latest-tag image reported version null + unpinned
+PASS  Kubernetes Deployment detected, version null — version=null
+PASS  k8s container image myapp detected, version null + unpinned
+PASS  Terraform aws provider 5.0.0 detected — 5.0.0
+PASS  unpinned provider reported version null
+PASS  Terraform 1.6.0 detected — 1.6.0
+PASS  checkout@v4 framework version v4, pinned
+PASS  setup-node@main framework unpinned — version=main
+PASS  build-push-action@v5 detected
+PASS  Vercel preset nextjs detected, version null
+PASS  Supabase detected, version null
+PASS  checkout@v4 dep version v4, ecosystem actions
+PASS  setup-node@main dep version null (branch ref is not a version)
+PASS  build-push-action@v5 dep version v5
+PASS  ACTIONS_OSV_ECOSYSTEM is GitHub Actions
+PASS  40-char SHA ref is NOT a version (null, never guessed)
+PASS  SHA-pinned action is pinned (unpinned false)
+PASS  Terraform range ~> 5.0 is NOT a version (null)
+PASS  Terraform range still counts as constrained (no unpinned finding)
+PASS  USER-root finding present
+PASS  only one Dockerfile root finding (no duplicate no-USER finding) — 2 root findings total (Dockerfile + k8s)
+PASS  latest base image finding present
+PASS  secret-looking ARG finding present
+PASS  remote ADD finding present
+PASS  privileged finding present
+PASS  hostNetwork finding present
+PASS  runAsUser 0 finding present
+PASS  latest k8s image finding present
+PASS  unpinned provider finding present (random)
+PASS  unpinned action finding present (setup-node)
+PASS  no finding for the pinned aws provider
+PASS  every finding detail is plain English with an exact fix — 10 findings
+PASS  Dockerfile with no USER is flagged (runs as root by default)
+PASS  no finding for the clean patterns
+PASS  infraFindings does not duplicate pull_request_target (scan.ts owns it)
+
+All Tier 3 tests passed.
+exit=0
+=== test:history ===
+
+> gitsecure@0.1.0 test:history
+> tsx scripts/test-history.ts
+
+PASS  history clone succeeds on a local repo
+PASS  all 3 commits scanned — 3 scanned
+PASS  old-commit webhook found (HEAD is clean) — 1 found
+PASS  finding attributed to the old commit — commit=f20fbc1 expected f20fbc1
+PASS  finding points at app.js — app.js
+PASS  no full fake secret in findings
+PASS  history scan ran inside its time cap — 172ms
+PASS  temp clone dir cleaned up (no gitsecure- dirs left behind by this run)
+PASS  invalid owner fails closed (no clone attempted)
+PASS  API path succeeds against the mock
+PASS  API path reports method api — api
+PASS  API path scans all 3 commits across both list pages — 3 scanned
+PASS  mock saw 2 list pages and 3 detail fetches — list=2 detail=3
+PASS  API path finds the old-commit webhook (removed lines not scanned) — 1 found
+PASS  API finding attributed to the old commit sha — commit=1111111 expected 1111111
+PASS  API finding points at app.js — app.js
+PASS  no full fake secret in API findings
+PASS  API scan ran inside its time cap — 51ms
+PASS  rate-limit mock still returns ok
+PASS  rate-limit note says the limit was hit and names the token — GitHub API rate limit was hit — scanned 1 commit before stopping. Setting a GITHUB_TOKEN raises the limit.
+PASS  rate-limit mock keeps the first commit's finding — 1 found
+PASS  rate-limit mock reports 1 commit scanned — 1 scanned
+PASS  API path: invalid owner fails closed (no request attempted)
+PASS  pack bound: git path fails when the pack passes the byte bound — ok=false
+PASS  pack bound: result flags packTooLarge — packTooLarge=true
+PASS  pack bound: note says the history is too large to clone — History is too large to clone inside a serverless function — the git-protocol path gave up on the pack download.
+PASS  pack bound: no REST calls during the aborted clone — 0 REST calls
+PASS  git path succeeds over smart HTTP
+PASS  git path reports method git — git
+PASS  git path scans all 3 commits — 3 scanned
+PASS  git path fetched all 3 commits on the cold run — 3 fetched
+PASS  git path made zero REST calls — 0 REST calls
+PASS  no global fetch to api.github.com during the git scan — 0 calls
+PASS  git path finds the old-commit webhook (removed lines not scanned) — 1 found
+PASS  git finding attributed to the old commit — commit=fa08ef1 expected fa08ef1
+PASS  no full fake secret in git findings
+PASS  second git scan succeeds from cache
+PASS  second git scan reuses all 3 commits from cache — 3 cached
+PASS  second git scan fetches zero already-scanned commits — 0 fetched
+PASS  second git scan still covers all 3 commits — 3 scanned
+PASS  second git scan returns the same findings — 1 vs 1
+PASS  scan after one new commit covers 4 commits — 4 scanned
+PASS  scan after one new commit fetches exactly 1 new commit — 1 fetched
+PASS  scan after one new commit reuses the cached 3 — 3 cached
+PASS  scan after one new commit still finds the old webhook once
+PASS  scanHistory method git returns the git path — git
+PASS  scanHistory method git covers all 4 commits — 4 scanned
+PASS  orchestrator pack fallback: API path wins after the pack bound trips — ok=true method=api
+PASS  orchestrator pack fallback: note says the history is too large to clone — This repo's history is too large to clone inside a serverless function, so history was checked through the GitHub API instead.
+PASS  orchestrator pack fallback: API path still covers all 4 commits — 4 scanned
+PASS  history usage: scan succeeds
+PASS  history usage: scans all 3 commits — 3 scanned
+PASS  history usage: old-commit api_key finding found — commit=f021f04 expected f021f04
+PASS  history usage: HEAD corpus contains the files — src/app.ts reference is found — [{"file":"src/app.ts","line":1}]
+PASS  history usage: referencedByTotal is 1 (real code only) — 1
+PASS  history usage: README.md prose mention is NOT a reference (Phase 14 Bug 2) — [{"file":"src/app.ts","line":1}]
+PASS  history usage: not a dead end
+PASS  history usage: annotation is HEAD-only
+PASS  history usage: no dead-end signal on a referenced finding
+PASS  no full fake secret in history-usage findings
+PASS  fixture really has 1005 commits — 1005 commits
+PASS  1005-commit scan succeeds
+PASS  1005-commit scan returns all 1005 (past the old 1000 cap) — 1005 scanned
+PASS  1005-commit scan made zero REST calls — 0 REST calls
+PASS  root-commit webhook found in the 1005-commit scan — 1 found
+PASS  root-commit webhook attributed to the root commit — commit=bf911f1 expected bf911f1
+PASS  no full fake secret in 1005-commit findings
+PASS  second 1005-commit scan reuses all 1005 from cache — 1005 cached
+PASS  second 1005-commit scan fetches zero commits — 0 fetched
+PASS  git path: invalid owner fails closed (no request attempted)
+
+All history tests passed.
+exit=0

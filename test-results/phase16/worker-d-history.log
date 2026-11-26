@@ -1,0 +1,76 @@
+
+> gitsecure@0.1.0 test:history
+> tsx scripts/test-history.ts
+
+PASS  history clone succeeds on a local repo
+PASS  all 3 commits scanned — 3 scanned
+PASS  old-commit webhook found (HEAD is clean) — 1 found
+PASS  finding attributed to the old commit — commit=bd268c9 expected bd268c9
+PASS  finding points at app.js — app.js
+PASS  no full fake secret in findings
+PASS  history scan ran inside its time cap — 144ms
+PASS  temp clone dir cleaned up (no gitsecure- dirs left behind by this run)
+PASS  invalid owner fails closed (no clone attempted)
+PASS  API path succeeds against the mock
+PASS  API path reports method api — api
+PASS  API path scans all 3 commits across both list pages — 3 scanned
+PASS  mock saw 2 list pages and 3 detail fetches — list=2 detail=3
+PASS  API path finds the old-commit webhook (removed lines not scanned) — 1 found
+PASS  API finding attributed to the old commit sha — commit=1111111 expected 1111111
+PASS  API finding points at app.js — app.js
+PASS  no full fake secret in API findings
+PASS  API scan ran inside its time cap — 55ms
+PASS  rate-limit mock still returns ok
+PASS  rate-limit note says the limit was hit and names the token — GitHub API rate limit was hit — scanned 1 commit before stopping. Setting a GITHUB_TOKEN raises the limit.
+PASS  rate-limit mock keeps the first commit's finding — 1 found
+PASS  rate-limit mock reports 1 commit scanned — 1 scanned
+PASS  API path: invalid owner fails closed (no request attempted)
+PASS  pack bound: git path fails when the pack passes the byte bound — ok=false
+PASS  pack bound: result flags packTooLarge — packTooLarge=true
+PASS  pack bound: note says the history is too large to clone — History is too large to clone inside a serverless function — the git-protocol path gave up on the pack download.
+PASS  pack bound: no REST calls during the aborted clone — 0 REST calls
+PASS  git path succeeds over smart HTTP
+PASS  git path reports method git — git
+PASS  git path scans all 3 commits — 3 scanned
+PASS  git path fetched all 3 commits on the cold run — 3 fetched
+PASS  git path made zero REST calls — 0 REST calls
+PASS  no global fetch to api.github.com during the git scan — 0 calls
+PASS  git path finds the old-commit webhook (removed lines not scanned) — 1 found
+PASS  git finding attributed to the old commit — commit=9bc334d expected 9bc334d
+PASS  no full fake secret in git findings
+PASS  second git scan succeeds from cache
+PASS  second git scan reuses all 3 commits from cache — 3 cached
+PASS  second git scan fetches zero already-scanned commits — 0 fetched
+PASS  second git scan still covers all 3 commits — 3 scanned
+PASS  second git scan returns the same findings — 1 vs 1
+PASS  scan after one new commit covers 4 commits — 4 scanned
+PASS  scan after one new commit fetches exactly 1 new commit — 1 fetched
+PASS  scan after one new commit reuses the cached 3 — 3 cached
+PASS  scan after one new commit still finds the old webhook once
+PASS  scanHistory method git returns the git path — git
+PASS  scanHistory method git covers all 4 commits — 4 scanned
+PASS  orchestrator pack fallback: API path wins after the pack bound trips — ok=true method=api
+PASS  orchestrator pack fallback: note says the history is too large to clone — This repo's history is too large to clone inside a serverless function, so history was checked through the GitHub API instead.
+PASS  orchestrator pack fallback: API path still covers all 4 commits — 4 scanned
+PASS  history usage: scan succeeds
+PASS  history usage: scans all 3 commits — 3 scanned
+PASS  history usage: old-commit api_key finding found — commit=7e6ffe8 expected 7e6ffe8
+PASS  history usage: HEAD corpus contains the files — src/app.ts reference is found — [{"file":"src/app.ts","line":1}]
+PASS  history usage: referencedByTotal is 1 (real code only) — 1
+PASS  history usage: README.md prose mention is NOT a reference (Phase 14 Bug 2) — [{"file":"src/app.ts","line":1}]
+PASS  history usage: not a dead end
+PASS  history usage: annotation is HEAD-only
+PASS  history usage: no dead-end signal on a referenced finding
+PASS  no full fake secret in history-usage findings
+PASS  fixture really has 1005 commits — 1005 commits
+PASS  1005-commit scan succeeds
+PASS  1005-commit scan returns all 1005 (past the old 1000 cap) — 1005 scanned
+PASS  1005-commit scan made zero REST calls — 0 REST calls
+PASS  root-commit webhook found in the 1005-commit scan — 1 found
+PASS  root-commit webhook attributed to the root commit — commit=bf911f1 expected bf911f1
+PASS  no full fake secret in 1005-commit findings
+PASS  second 1005-commit scan reuses all 1005 from cache — 1005 cached
+PASS  second 1005-commit scan fetches zero commits — 0 fetched
+PASS  git path: invalid owner fails closed (no request attempted)
+
+All history tests passed.

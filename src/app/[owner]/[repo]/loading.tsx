@@ -22,7 +22,7 @@ export default function Loading() {
           <li><span className="step-dot" aria-hidden="true" />Checking dependencies for known flaws</li>
         </ol>
         <p className="muted">
-          A full scan usually takes 15–30 seconds. The page will appear here as soon as
+          A small repo usually takes 15–30 seconds. A large repo with a long history takes several minutes. The page will appear here as soon as
           it is done — there is nothing to click. A very large repo takes longer and keeps
           running chunk by chunk; the page will show live progress instead of timing out, and
           if you close the page it picks up where it left off when you come back.

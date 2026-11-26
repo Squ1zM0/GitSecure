@@ -16,7 +16,7 @@
 // `ScoreDetail | undefined` and fall back to the Phase 7 helpers
 // (biggestProblem / explainScore) when it is absent — an older cached
 // report without scoreDetail renders exactly as before, never crashes.
-import { biggestProblem, explainScore, gradeBand, gradeWord, type ScoreDetail } from "@/lib/score";
+import { biggestProblem, explainScore, gradeBand, gradeWord, gradeWordWithArticle, type ScoreDetail } from "@/lib/score";
 
 export type { ScoreDetail };
 
@@ -164,7 +164,7 @@ export function adjustedExplainScore(score: number, grade: string, detail: Score
       break;
   }
   const note = testKeyNote(detail);
-  return `${score} out of 100 (grade ${grade}) is a ${gradeWord(grade)} score. ${driver}${runnerUpPhrase(detail, counts)}${note ? ` ${note}` : ""}`;
+  return `${score} out of 100 (grade ${grade}) is ${gradeWordWithArticle(grade)} score. ${driver}${runnerUpPhrase(detail, counts)}${note ? ` ${note}` : ""}`;
 }
 
 /** The score explanation as plain text (pure — no JSX), so the

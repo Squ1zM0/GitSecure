@@ -1,0 +1,22 @@
+
+> gitsecure@0.1.0 test:techdirect
+> tsx scripts/scan-techdirect.ts
+
+Scanning Squ1zM0/TechDirect (live, public GitHub API + ephemeral clone)...
+Total scan time: 17.8s
+{
+  "score": 83,
+  "grade": "B",
+  "counts": {
+    "secrets": 0,
+    "testKeySecrets": 0,
+    "vulnerabilities": 4,
+    "frameworks": 0,
+    "dependencies": 2,
+    "postureIssues": 3,
+    "filesScanned": 2802,
+    "historyCommitsScanned": 62
+  },
+  "summary": "Scan complete. No leaked secrets were found in the files scanned; 4 known vulnerabilities in dependencies; 3 security hygiene issues to fix. The full detail is in this report — no sign-in needed."
+}
+TechDirect scan failed: tree fetch failed: 403

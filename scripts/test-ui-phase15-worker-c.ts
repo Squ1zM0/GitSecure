@@ -10,6 +10,11 @@
 //       and a mobile fade/scroll hint on the snippet code blocks.
 //   11. Loading copy: "15–30 seconds" on loading.tsx and on the home
 //       scan-status line; the "nothing to click" line is kept.
+//       Phase 16: the claim is scoped to small repos — a large repo
+//       with a long history takes several minutes (live evidence:
+//       vinta/awesome-python took 16 minutes for 3,350 history
+//       commits, ~400/min), so the unscoped "usually takes 15–30
+//       seconds" must not appear anywhere.
 //   14. Home scan input: a visible <label> wired to the input;
 //       prefilled value and validation messages unchanged.
 //
@@ -75,10 +80,14 @@ check("mobile CSS fades the right edge of snippet code blocks", css.includes(".s
 // --- 11. Loading copy ------------------------------------------------
 const loading = renderToString(React.createElement(Loading)).replace(/<!-- -->/g, "");
 check("loading screen says 15–30 seconds", loading.includes("15–30 seconds"));
+check("loading screen scopes 15–30 seconds to small repos", loading.includes("A small repo usually takes 15–30 seconds"));
+check("loading screen says large repos take several minutes", loading.includes("takes several minutes"));
+check("loading screen never makes the unscoped 15–30 second claim", !loading.includes("A full scan usually takes 15–30 seconds"));
 check("loading screen keeps the nothing-to-click line", loading.includes("there is nothing to click"));
 check("loading screen no longer promises about 15 seconds", !loading.includes("about 15 seconds"));
 const home = src("src/app/page.tsx");
-check("home scan-status says 15–30 seconds", home.includes("This usually takes 15–30 seconds."));
+check("home scan-status scopes 15–30 seconds to small repos", home.includes("Small repos usually take 15–30 seconds; a large repo with a long history takes several minutes."));
+check("home scan-status never makes the unscoped 15–30 second claim", !home.includes("This usually takes 15–30 seconds."));
 check("home scan-status no longer promises about 15 seconds", !home.includes("about 15 seconds"));
 
 // --- 14. Visible scan label ------------------------------------------

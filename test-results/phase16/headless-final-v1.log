@@ -1,0 +1,30 @@
+2026-11-26T20:58:57.544Z shell timing ms: {"responseStart":175,"domContentLoaded":0,"load":0}
+2026-11-26T20:59:09.214Z reloading mid-scan at commits= null wallMs= 11953
+2026-11-26T20:59:14.327Z resume line present: true Resumed — picked up where it left off (0 history commits checked, 0 secrets found so far)
+2026-11-26T20:59:25.124Z finished: {"score":91,"grade":"A","rollAllPresent":true} wallMs= 27863
+2026-11-26T20:59:26.507Z 360 overflow: {"scrollWidth":360,"overflowing":[]}
+2026-11-26T20:59:26.808Z RESULTS: {
+  "startedAt": "2026-11-26T20:58:56.895Z",
+  "shellTimingMs": {
+    "responseStart": 175,
+    "domContentLoaded": 0,
+    "load": 0
+  },
+  "commitsBeforeReload": null,
+  "reloadAtMs": 11953,
+  "resumeLinePresent": true,
+  "resumeLine": "Resumed — picked up where it left off (0 history commits checked, 0 secrets found so far)",
+  "bareSpinnerAfterReload": false,
+  "finished": {
+    "score": 91,
+    "grade": "A",
+    "rollAllPresent": true
+  },
+  "totalWallMs": 27863,
+  "finalTextExcerpt": null,
+  "mobile360": {
+    "scrollWidth": 360,
+    "overflowing": []
+  },
+  "endedAt": "2026-11-26T20:59:26.808Z"
+}

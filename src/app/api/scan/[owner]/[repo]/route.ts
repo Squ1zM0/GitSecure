@@ -5,7 +5,7 @@
 //
 // Phase 9: stateless chunked scans (see src/lib/chunks.ts). There is
 // NO server-side job any more — GET drives chunks in-process for up to
-// ~50 s (the fast path, so a small repo still answers 200 with the
+// ~40 s (the fast path, so a small repo still answers 200 with the
 // full report in a single request). If the scan is still running after
 // that, the API answers 202 with a CURSOR and the partial results so
 // far; the caller resumes by passing the cursor back (?cursor=... on
@@ -13,8 +13,12 @@
 // start, or a poll landing on a different instance loses nothing —
 // the next request simply continues from the cursor. The old
 // the old unknown-job dead-end is gone: there is no job to lose.
+// (Phase 16, Worker B: 40 s, not 50 — a chunk that started just
+// before a 50 s deadline still ran a full chunk past it, and live
+// invocations reached 52.8–63.6 s against Vercel's 60 s ceiling.
+// See API_FAST_PATH_WAIT_MS in src/lib/chunks.ts for the arithmetic.)
 import { NextResponse } from "next/server";
-import { FAST_PATH_WAIT_MS, runScanLoop } from "@/lib/chunks";
+import { API_FAST_PATH_WAIT_MS, runScanLoop } from "@/lib/chunks";
 import { ScanError } from "@/lib/scan";
 
 export const maxDuration = 60;
@@ -29,7 +33,7 @@ export async function GET(
   try {
     const result = await runScanLoop(owner, repo, {
       cursor: cursor || null,
-      budgetMs: FAST_PATH_WAIT_MS,
+      budgetMs: API_FAST_PATH_WAIT_MS,
     });
     if (result.status === "done" && result.report) {
       return NextResponse.json(result.report);

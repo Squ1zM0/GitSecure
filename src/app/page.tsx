@@ -77,7 +77,7 @@ export default function Home() {
         {scanning && !error && (
           <p className="scan-status" role="status">
             <span className="spinner" aria-hidden="true" />
-            <span>Scanning… checking the files, then the full history, then dependencies. This usually takes 15–30 seconds.</span>
+            <span>Scanning… checking the files, then the full history, then dependencies. Small repos usually take 15–30 seconds; a large repo with a long history takes several minutes.</span>
           </p>
         )}
       </section>

@@ -122,7 +122,10 @@ export function buildReportMarkdown(report: FullReport, opts?: { paused?: boolea
   if (detail) out.push(`${scoreExplanationText(detail)}`, ``);
   out.push(
     `- Possible leaked secrets: ${report.counts.secrets}${report.counts.testKeySecrets > 0 ? ` (of which ${report.counts.testKeySecrets} look like test keys)` : ""}`,
-    `- Dependency vulnerabilities: ${report.counts.vulnerabilities}`,
+    // Phase 16: on a provisional report the dependency check has not
+    // run yet, so the count must not render as a checked 0 — same
+    // contradiction as the page's vulnerabilities section.
+    `- Dependency vulnerabilities: ${report.provisional ? "not checked yet" : report.counts.vulnerabilities}`,
     `- Frameworks detected: ${report.counts.frameworks}`,
     `- Dependencies checked: ${report.counts.dependencies}`,
     `- Posture issues: ${report.counts.postureIssues}`,
@@ -158,7 +161,7 @@ export function buildReportMarkdown(report: FullReport, opts?: { paused?: boolea
     out.push(``);
   }
 
-  out.push(`## Dependency vulnerabilities (${report.vulnerabilities.length})`, ``);
+  out.push(`## Dependency vulnerabilities${report.provisional ? " (not checked yet)" : ` (${report.vulnerabilities.length})`}`, ``);
   if (report.vulnerabilities.length === 0) {
     out.push(report.provisional ? `Dependency checks are still running — no vulnerabilities listed yet.` : `No known vulnerabilities were found in the dependencies checked.`, ``);
   } else {

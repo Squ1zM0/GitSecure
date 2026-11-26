@@ -1,0 +1,161 @@
+
+> gitsecure@0.1.0 test:ui-phase7
+> tsx scripts/test-ui-phase7.ts
+
+PASS  gradeBand A is good
+PASS  gradeBand B is good
+PASS  gradeBand C is fair
+PASS  gradeBand D is poor
+PASS  gradeBand F is poor
+PASS  biggestProblem names leaked secrets first
+PASS  biggestProblem falls back to vulnerabilities
+PASS  biggestProblem says clean when nothing found
+PASS  dial renders an SVG
+PASS  dial carries the good band class
+PASS  dial shows the score number
+PASS  dial shows the grade
+PASS  dial has an accessible label
+PASS  dial arc uses a dasharray (0–100 gauge)
+PASS  dial F carries the poor band class
+PASS  list has a GitHub blob link to the exact file and line
+PASS  history finding links to its commit, not the branch
+PASS  list renders the secret-0 anchor
+PASS  list renders the secret-1 anchor
+PASS  list has copy-link buttons
+PASS  list has a severity filter
+PASS  list has a file-name search
+PASS  list has List/Map toggle
+PASS  list count line is aria-live
+PASS  list shows the true filtered count
+PASS  list shows the severity pill with its label
+PASS  list never renders a full secret (fragments only)
+PASS  triage: likely-test-key pill renders with its label
+PASS  triage: likely-genuine-leak pill renders with its label
+PASS  triage: test-key explanation renders
+PASS  triage: test-key Fix replaces the rotate fix
+PASS  triage: genuine leak keeps the detector Fix
+PASS  triage: filter dropdown offers the three verdicts
+PASS  triage: count line names the test-key split
+PASS  triage: adjusted severity shown
+PASS  map renders an SVG spider
+PASS  map carries its legend
+PASS  map nodes are keyboard reachable (role=button, tabIndex)
+PASS  map file chips are real buttons
+PASS  CSS has a real dark mode (prefers-color-scheme: dark)
+PASS  CSS dark mode redefines surfaces and text
+PASS  CSS respects prefers-reduced-motion
+PASS  CSS has focus-visible rings
+PASS  CSS tap targets are >= 44px
+PASS  CSS styles the score dial
+PASS  CSS styles the stat grid
+PASS  CSS styles grade chips per band
+PASS  CSS styles the loading spinner
+PASS  CSS buttons use an on-accent text colour (dark-mode contrast)
+PASS  CSS inline code wraps only when it must (no mid-word breaks)
+PASS  triage: pills have their own styles
+PASS  home has no 'Honest limits' copy
+PASS  home has no sign-in copy
+PASS  report page has no sign-in copy
+PASS  home keeps the designed URL example
+PASS  home error is styled and role=alert
+PASS  home scanning state is role=status with a spinner
+PASS  report page renders the score dial
+PASS  report page renders the stat grid
+PASS  report page renders the verdict
+PASS  report view labels a provisional score as provisional
+PASS  phase11: likely-test-keys section exists with its own count
+PASS  phase11: genuine-leaks section exists with its own count
+PASS  phase11: uncertain section exists with its own count
+PASS  phase11: test-keys section is collapsed by default
+PASS  phase11: genuine-leaks section is open by default
+PASS  phase11: uncertain section is open by default
+PASS  phase11: test-keys section expands (open when asked)
+PASS  phase11: genuine leak is not in the test-keys section
+PASS  phase11: test key is in the test-keys section, with its test-key Fix
+PASS  phase11: counts line shows the honest split
+PASS  phase11: dead-end finding carries the Dead end label
+PASS  phase11: dead-end explanation renders
+PASS  phase11: in-use finding shows its references
+PASS  phase11: every finding keeps its GitHub link and anchor
+PASS  phase11: getUsage is defensive (absent -> undefined)
+PASS  phase11: getUsage is defensive (malformed -> undefined)
+PASS  phase11 map: renders an SVG usage graph
+PASS  phase11 map: legend names solid vs dashed edges and dead ends
+PASS  phase11 map: in-use finding gets code + test edges
+PASS  phase11 map: edges total 5 (test key: own+code+test, genuine: own+code, dead end: none)
+PASS  phase11 map: dead-end finding is greyed and labelled
+PASS  phase11 map: finding nodes are keyboard reachable
+PASS  phase11 map: track hint renders when nothing is selected
+PASS  phase11 map: degrades gracefully with no usage data (file-count spider)
+PASS  phase11 CSS: verdict sections, dead-end pill, map edges and track detail styled
+PASS  phase12: explanation names the excluded test keys
+PASS  phase12: explanation names the half-weight count
+PASS  phase12: explanation names the full-weight count
+PASS  phase12: explanation shows both scores (self-scan: would-be equals score)
+PASS  phase12: explanation shows the would-be score when it differs
+PASS  phase12: explanation states the rule in plain English
+PASS  phase12: explanation renders nothing with no scoreDetail
+PASS  phase12: explanation handles zero secrets
+PASS  phase12: all-test-key verdict does not present secrets as the biggest problem
+PASS  phase12: all-test-key verdict names the real driver (vulnerabilities)
+PASS  phase12: all-test-key verdict says the test keys are excluded
+PASS  phase12: all-excluded verdict (no uncertain) says all are excluded
+PASS  phase12: verdict falls back to the old wording with no scoreDetail
+PASS  phase12: genuine-leak verdict still names the secrets
+PASS  phase12: explainScore names the real driver, not the test keys
+PASS  phase12: explainScore says the test keys are excluded
+PASS  phase12: genuine-leak explainScore still names the secrets
+PASS  phase12: explainScore falls back with no scoreDetail
+PASS  phase12: report hero renders the explanation with both scores
+PASS  phase12: report hero verdict names the real driver, not test keys
+PASS  phase12: report hero falls back gracefully with no scoreDetail
+PASS  phase12: report view wires the explanation to scoreDetail
+PASS  phase12: MCP prose states the new weights, not the old rule
+PASS  phase15 finding 8: score-0 dial uses a butt cap (no stray dot)
+PASS  phase15 finding 8: a normal score keeps the round cap
+PASS  phase15 finding 13: TechDirect explanation still names the top driver
+PASS  phase15 finding 13: TechDirect explanation appends the runner-up vulns with their points
+PASS  phase15 finding 13: no runner-up is appended when nothing else deducts
+PASS  phase15 finding 13: a secrets runner-up names the genuine leaks
+PASS  phase15 finding 2: GitHub link label is short
+PASS  phase15 finding 2: the long path is not in the link label
+PASS  phase15 finding 2: the blob link still points at the exact file and line
+PASS  phase15 finding 2: the path is still shown in the row above the link
+PASS  phase15 finding 9: tests-only usage renders without an empty Used by
+PASS  phase15 finding 9: track detail omits the Used by segment when only tests exist
+PASS  phase15 finding 9: both lists render as two segments
+PASS  phase15 finding 9: no references renders null
+PASS  phase15 finding 9: totals without a list fall back to a count sentence
+PASS  phase15 finding 4: long basenames truncate middle-out with an ellipsis
+PASS  phase15 finding 4: test-history.ts keeps head and tail
+PASS  phase15 finding 4: short basenames render whole
+PASS  phase15 finding 4: dense map truncates file labels with an ellipsis, never a silent clip
+PASS  phase15 finding 4: dense map shows the uses captions
+PASS  phase15 finding 4: dense map labels carry the halo class
+PASS  phase15 finding 4: dense map file counts sit inside their nodes
+PASS  phase15 finding 4: dense map still draws the dead ends
+PASS  phase15 finding 4: dense map keeps keyboard-reachable nodes
+PASS  phase15 finding 12: no 36 px tap-target exception remains in the CSS
+PASS  phase15 finding 12: copy-btn is 44 px
+PASS  phase15 finding 12: file-chip is 44 px
+PASS  phase15 finding 2: .github-link wraps anywhere
+PASS  phase15 finding 2: code.inline wraps anywhere (long file paths break)
+PASS  phase15 finding 2: no break-word left on code.inline
+PASS  phase15 finding 2: report-list items wrap anywhere
+PASS  phase15 finding 2: finding rows wrap anywhere
+PASS  phase15 finding 2: FrameworksList renders the wrapping report-list
+PASS  phase15 finding 4: map labels carry a halo so edges cannot strike them through
+PASS  phase15 finding 15: every js-yaml Fix line names the single recommended version
+PASS  phase15 finding 15: no Fix line names a losing version
+PASS  phase15 finding 15: the single-version lodash Fix is unchanged
+PASS  phase15 finding 15: recommendedFixVersions picks the max (4.3.2 of 4.3.2/3.15.0/4.3.1/4.2.0)
+PASS  phase15 finding 15: a single-version package has no reconciliation entry
+PASS  phase15 finding 15: compareVersions is semver-aware (4.3.2 > 3.15.0)
+PASS  phase15 finding 15: a pre-release sorts below its release
+PASS  roll-all: the button renders in the report hero
+PASS  roll-all: the button sits in the score hero, above the stat grid
+PASS  roll-all: the button explains what it downloads
+PASS  roll-all: the hero CSS puts the button top-right and full-width on phones
+PASS  no literal secret-pattern values in UI files
+
+All Phase 7 UI checks passed.

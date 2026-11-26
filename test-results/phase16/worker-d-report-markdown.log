@@ -1,0 +1,36 @@
+
+> gitsecure@0.1.0 test:report-markdown
+> tsx scripts/test-report-markdown.ts
+
+PASS  filename is gitsecure-report-{owner}-{repo}-{short-sha}.md — gitsecure-report-Squ1zM0-FixtureRepo-abc1234.md
+PASS  md has the report title
+PASS  md has score and grade
+PASS  md has the verdict naming the real driver
+PASS  md has the summary
+PASS  md names the runner-up deduction (Phase 15 finding 13)
+PASS  md explains the test-key adjustment with both scores
+PASS  md carries the scan metadata
+PASS  md lists the genuine leak with its fragment
+PASS  md lists the test-key secret the page collapses by default
+PASS  md lists the long-path secret with its full path
+PASS  md lists the dead-end finding as a dead end
+PASS  md lists the test-only usage with its test reference
+PASS  md has one ### heading per finding (3 secrets + 5 vulns + 4 posture) — 12
+PASS  md reconciles js-yaml to one version (4.3.2, all 4 advisories)
+PASS  md Fix lines never name the losing versions — Fix: Upgrade js-yaml to 4.3.2 or later — this covers all 4 advisories for this version. | Fix: Upgrade js-yaml to 4.3.2 or later — this covers all 4 advisories for this version. | Fix: Upgrade js-yaml to 4.3.2 or later — this covers all 4 advisories for this version. | Fix: Upgrade js-yaml to 4.3.2 or later — this covers all 4 advisories for this version.
+PASS  md keeps the single-version lodash Fix unchanged
+PASS  md lists every advisory id
+PASS  md lists every posture issue
+PASS  md lists every framework, unpinned flagged
+PASS  md lists every dependency with direct/transitive
+PASS  md carries the About-this-scan lines
+PASS  md has no undefined/NaN placeholders
+PASS  md never emits an unknown field holding a full secret (decoy)
+PASS  md contains no secret-pattern values (fragments only)
+PASS  provisional md is labelled provisional with what is still running
+PASS  paused provisional md says paused, not still running
+PASS  finished md is not labelled provisional
+PASS  provisional md says vulns are not checked yet, not 'none found'
+PASS  No literal secret-pattern values in this file
+
+All report-markdown tests passed.

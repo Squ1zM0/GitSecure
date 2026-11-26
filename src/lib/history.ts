@@ -653,7 +653,7 @@ export async function scanHistoryApiChunk(
   branch: string,
   state: ApiHistoryChunkState,
   count: number,
-  opts?: { apiBase?: string; expectedHeadSha?: string },
+  opts?: { apiBase?: string; expectedHeadSha?: string; deadlineMs?: number },
 ): Promise<ApiHistoryChunkResult> {
   const apiBase = (opts?.apiBase ?? "https://api.github.com").replace(/\/$/, "");
   const stats = { restCalls: 0 };
@@ -662,6 +662,21 @@ export async function scanHistoryApiChunk(
     nextPage: state.page, nextIdx: state.idx, nextPageShas: state.pageShas,
     done: false, rateLimited: false, headMoved: false, failed: false, note: null, restCalls: 0,
   };
+  // Phase 16 (Worker B): time left to the loop deadline. A chunk
+  // that starts with none left returns its (unchanged) position at
+  // once — the caller answers 202 with that cursor instead of
+  // burning fetches past the deadline. Each fetch is also capped at
+  // the time left. Unset = the old fixed 12 s per fetch, as before.
+  const remainingMs = () => (opts?.deadlineMs != null ? opts.deadlineMs - Date.now() : null);
+  const outOfTime = () => {
+    const r = remainingMs();
+    return r != null && r <= 0;
+  };
+  const fetchTimeoutMs = () => {
+    const r = remainingMs();
+    return r != null ? Math.max(50, r) : API_FETCH_TIMEOUT_MS;
+  };
+  if (outOfTime()) return { ...empty, restCalls: stats.restCalls };
   const fail = (note: string): ApiHistoryChunkResult => ({ ...empty, failed: true, note, restCalls: stats.restCalls });
   if (!NAME_RE.test(owner) || !NAME_RE.test(repo) || owner.includes("..") || repo.includes("..")) {
     return fail("Invalid owner/repo name — history API scan skipped.");
@@ -673,7 +688,7 @@ export async function scanHistoryApiChunk(
   // HEAD check: one list call, newest commit only. A moved HEAD means
   // the scan's pinned sha is stale — the caller restarts cleanly.
   if (opts?.expectedHeadSha) {
-    const headRes = await apiFetch(`${apiBase}/repos/${owner}/${repo}/commits?per_page=1&sha=${encodeURIComponent(branch)}`, API_FETCH_TIMEOUT_MS, stats);
+    const headRes = await apiFetch(`${apiBase}/repos/${owner}/${repo}/commits?per_page=1&sha=${encodeURIComponent(branch)}`, fetchTimeoutMs(), stats);
     if (headRes && headRes.ok) {
       try {
         const headPage = (await headRes.json()) as { sha?: string }[];
@@ -700,9 +715,10 @@ export async function scanHistoryApiChunk(
   let page = state.page;
   let idx = state.idx;
   if (idx >= pageShas.length) {
+    if (outOfTime()) return { ...empty, restCalls: stats.restCalls };
     const listRes = await apiFetch(
       `${apiBase}/repos/${owner}/${repo}/commits?per_page=100&sha=${encodeURIComponent(branch)}&page=${page}`,
-      API_FETCH_TIMEOUT_MS,
+      fetchTimeoutMs(),
       stats,
     );
     if (!listRes) return fail("GitHub API could not be reached — history API scan skipped.");
@@ -739,7 +755,11 @@ export async function scanHistoryApiChunk(
   let rateLimited = false;
   let nextIdx = idx;
   for (const sha of shas) {
-    const res = await apiFetch(`${apiBase}/repos/${owner}/${repo}/commits/${sha}`, API_FETCH_TIMEOUT_MS, stats);
+    // Phase 16: stop at the deadline — the cursor stays on this
+    // commit (nextIdx is not advanced), so the next chunk retries
+    // it, exactly like the rate-limit break below.
+    if (outOfTime()) break;
+    const res = await apiFetch(`${apiBase}/repos/${owner}/${repo}/commits/${sha}`, fetchTimeoutMs(), stats);
     if (!res) {
       nextIdx++; // one bad commit must not fail the chunk — move past it
       continue;
@@ -861,6 +881,11 @@ async function readHeadUsageCorpus(
   cache: object,
   cacheKey: string,
   tip: string,
+  // Phase 16: absolute wall-clock deadline (epoch ms). Past it the
+  // read gives up and returns null — the caller triages without
+  // usage, exactly as when the corpus is over its bounds. Unset =
+  // no deadline, as before.
+  deadlineMs?: number,
 ): Promise<Map<string, string> | null> {
   const hit = headUsageCorpusCache.get(cacheKey);
   if (hit && hit.tip === tip) return hit.corpus;
@@ -882,11 +907,19 @@ async function readHeadUsageCorpus(
     // reading each blob with the same readBlobText as the diff walk.
     const tipOid = await git.resolveRef({ fs, dir, ref: branch });
     const { commit } = await git.readCommit({ fs, dir, oid: tipOid, cache });
+    let entriesSeen = 0;
     const readTree = async (treeOid: string, prefix: string): Promise<void> => {
       if (over) return;
       const { tree } = await git.readTree({ fs, dir, oid: treeOid, cache });
       for (const entry of tree) {
         if (over) return;
+        // Phase 16: a corpus read that runs past the loop deadline
+        // gives up (null = no usage annotations) instead of adding
+        // unbounded minutes to a chunk that already used its budget.
+        if (deadlineMs != null && ++entriesSeen % 64 === 0 && Date.now() > deadlineMs) {
+          over = true;
+          return;
+        }
         const filepath = prefix ? `${prefix}/${entry.path}` : entry.path;
         if (entry.type === "tree") {
           await readTree(entry.oid, filepath);
@@ -1058,6 +1091,14 @@ export interface GitHistoryOptions {
   /** Phase 9 chunking: stop the walk after this many milliseconds
    *  (chunk boundary, same as maxCommits). Unset = no chunk budget. */
   budgetMs?: number;
+  /** Phase 16 (Worker B): absolute wall-clock deadline (epoch ms)
+   *  for this chunk, passed by the chunked driver. The pack download
+   *  aborts at it (via the git HTTP client's AbortSignal); the walk
+   *  budget (budgetMs) is capped at the time left by the caller;
+   *  the HEAD-usage corpus read gives up at it and returns null
+   *  (findings are triaged without usage, as when the corpus is over
+   *  its bounds). Unset = no deadline, as before. */
+  deadlineMs?: number;
   /** Phase 9 chunking: added to the onProgress count, so progress
    *  reports the scan-wide total, not just this chunk's count. */
   progressBase?: number;
@@ -1125,7 +1166,28 @@ export async function scanHistoryViaGit(
 
   const dir = await mkdtemp(join(tmpdir(), "gitsecure-git-"));
   try {
-    await git.clone({ fs, http: gitHttp, dir, url, ref: branch, singleBranch: true, noCheckout: true });
+    // Phase 16: abort a clone that runs past the loop deadline —
+    // without this a slow pack download is the one part of the chunk
+    // no budget reaches (the walk budget is only checked once the
+    // walk starts). An aborted clone fails this path; the driver
+    // falls through to the API chunk, which is deadline-aware and
+    // returns its position at once when no time is left.
+    const cloneDeadlineMs = opts.deadlineMs;
+    const cloneTimeoutMs = cloneDeadlineMs != null ? Math.max(0, cloneDeadlineMs - Date.now()) : 0;
+    const cloneController = cloneDeadlineMs != null ? new AbortController() : null;
+    const cloneTimer =
+      cloneController != null
+        ? setTimeout(() => cloneController.abort(), cloneTimeoutMs)
+        : undefined;
+    try {
+      await git.clone({
+        fs,
+        http: cloneController != null ? withSignal(gitHttp, cloneController.signal) : gitHttp,
+        dir, url, ref: branch, singleBranch: true, noCheckout: true,
+      });
+    } finally {
+      clearTimeout(cloneTimer);
+    }
     // One shared object cache across log + readBlob: without it the
     // same TechDirect walk took ~40 s (packfile re-parsed per blob);
     // with it, ~4 s. The cache is per-scan and discarded with the dir.
@@ -1269,7 +1331,7 @@ export async function scanHistoryViaGit(
     // were first walked, at the same tip.
     const newFindings = pendingTriage.flatMap((p) => p.findings);
     if (newFindings.length > 0) {
-      const corpus = await readHeadUsageCorpus(dir, branch, cacheObj, cacheKey, tip);
+      const corpus = await readHeadUsageCorpus(dir, branch, cacheObj, cacheKey, tip, opts.deadlineMs);
       if (corpus) {
         const ctxByFinding = new Map<SecretFinding, FindingContext>();
         for (const p of pendingTriage) {

@@ -116,7 +116,7 @@ export function explainScore(args: { score: number; grade: string; secrets: numb
   } else {
     driver = "Only a few points were lost, from minor issues in the scan.";
   }
-  return `${score} out of 100 (grade ${grade}) is a ${gradeWord} score. ${driver}`;
+  return `${score} out of 100 (grade ${grade}) is ${gradeWordWithArticle(grade)} score. ${driver}`;
 }
 
 /* Phase 7 — presentation helpers only. Scoring is untouched: these
@@ -133,6 +133,14 @@ export function gradeBand(grade: string): GradeBand {
 
 export function gradeWord(grade: string): string {
   return grade === "A" ? "excellent" : grade === "B" ? "good" : grade === "C" ? "fair" : grade === "D" ? "poor" : "needs urgent attention";
+}
+
+/** The grade word with its article — "an excellent" for A, "a good"
+ *  for B, and so on. Phase 16: both score-explanation templates
+ *  hard-coded "a", which rendered "is a excellent score" for grade A. */
+export function gradeWordWithArticle(grade: string): string {
+  const word = gradeWord(grade);
+  return /^[aeiou]/i.test(word) ? `an ${word}` : `a ${word}`;
 }
 
 /** The hero verdict: the single biggest problem, in one sentence. */

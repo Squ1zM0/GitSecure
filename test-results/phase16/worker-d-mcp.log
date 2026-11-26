@@ -1,0 +1,8 @@
+
+> gitsecure@0.1.0 test:mcp
+> tsx scripts/test-mcp.ts
+
+MCP test against http://localhost:3000/mcp
+  (start the production server first: npm run build && npm start)
+  FAIL server reachable (home page 200)
+  Server is not running — start it with `npm run build && npm start` and re-run.

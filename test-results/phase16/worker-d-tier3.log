@@ -1,0 +1,46 @@
+
+> gitsecure@0.1.0 test:tier3
+> tsx scripts/test-tier3.ts
+
+PASS  Docker node image version 20-alpine detected — 20-alpine
+PASS  Docker node image ecosystem is docker
+PASS  postgres:15 detected — 15
+PASS  redis with no tag: version null + unpinned — version=null
+PASS  parseDockerfile returns both FROM stages — 2 entries
+PASS  latest-tag image reported version null + unpinned
+PASS  Kubernetes Deployment detected, version null — version=null
+PASS  k8s container image myapp detected, version null + unpinned
+PASS  Terraform aws provider 5.0.0 detected — 5.0.0
+PASS  unpinned provider reported version null
+PASS  Terraform 1.6.0 detected — 1.6.0
+PASS  checkout@v4 framework version v4, pinned
+PASS  setup-node@main framework unpinned — version=main
+PASS  build-push-action@v5 detected
+PASS  Vercel preset nextjs detected, version null
+PASS  Supabase detected, version null
+PASS  checkout@v4 dep version v4, ecosystem actions
+PASS  setup-node@main dep version null (branch ref is not a version)
+PASS  build-push-action@v5 dep version v5
+PASS  ACTIONS_OSV_ECOSYSTEM is GitHub Actions
+PASS  40-char SHA ref is NOT a version (null, never guessed)
+PASS  SHA-pinned action is pinned (unpinned false)
+PASS  Terraform range ~> 5.0 is NOT a version (null)
+PASS  Terraform range still counts as constrained (no unpinned finding)
+PASS  USER-root finding present
+PASS  only one Dockerfile root finding (no duplicate no-USER finding) — 2 root findings total (Dockerfile + k8s)
+PASS  latest base image finding present
+PASS  secret-looking ARG finding present
+PASS  remote ADD finding present
+PASS  privileged finding present
+PASS  hostNetwork finding present
+PASS  runAsUser 0 finding present
+PASS  latest k8s image finding present
+PASS  unpinned provider finding present (random)
+PASS  unpinned action finding present (setup-node)
+PASS  no finding for the pinned aws provider
+PASS  every finding detail is plain English with an exact fix — 10 findings
+PASS  Dockerfile with no USER is flagged (runs as root by default)
+PASS  no finding for the clean patterns
+PASS  infraFindings does not duplicate pull_request_target (scan.ts owns it)
+
+All Tier 3 tests passed.

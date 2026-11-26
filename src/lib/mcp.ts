@@ -22,7 +22,7 @@
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { WebStandardStreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/webStandardStreamableHttp.js";
 import { z } from "zod";
-import { FAST_PATH_WAIT_MS, runScanLoop } from "./chunks";
+import { API_FAST_PATH_WAIT_MS, runScanLoop } from "./chunks";
 import { ScanError, validateOwnerRepo } from "./scan";
 
 const NAME_RE = /^[A-Za-z0-9_.-]+$/;
@@ -49,7 +49,8 @@ function toolError(message: string) {
  *  redacted fragments only, never full values.
  *  Phase 9: the scan runs as stateless chunks and this tool drives
  *  them server-side with the cursor until the scan finishes, within
- *  MCP's own limits (the ~50 s fast-path wait). A large repo that is
+ *  MCP's own limits (the ~40 s fast-path wait — same 60 s function
+ *  ceiling as the scan API, see API_FAST_PATH_WAIT_MS). A large repo that is
  *  still running after that comes back as a plain-English "still
  *  running" message with the live progress AND the cursor — the scan
  *  holds no server-side state, so calling resume_scan with that cursor
@@ -57,7 +58,7 @@ function toolError(message: string) {
 async function fullScan(owner: string, repo: string) {
   try {
     validateOwnerRepo(owner, repo);
-    const result = await runScanLoop(owner, repo, { budgetMs: FAST_PATH_WAIT_MS });
+    const result = await runScanLoop(owner, repo, { budgetMs: API_FAST_PATH_WAIT_MS });
     if (result.status === "done" && result.report) {
       return {
         content: [{ type: "text" as const, text: JSON.stringify(result.report, null, 2) }],
@@ -99,7 +100,7 @@ async function resumeScan(cursor: string) {
     if (!owner || !repo) {
       return toolError("That scan link doesn't look right — it may be from an older scan or pasted wrong. Starting a fresh scan instead.");
     }
-    const result = await runScanLoop(owner, repo, { cursor, budgetMs: FAST_PATH_WAIT_MS });
+    const result = await runScanLoop(owner, repo, { cursor, budgetMs: API_FAST_PATH_WAIT_MS });
     if (result.status === "done" && result.report) {
       return {
         content: [{ type: "text" as const, text: JSON.stringify(result.report, null, 2) }],

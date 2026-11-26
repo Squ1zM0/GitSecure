@@ -1,0 +1,49 @@
+SHELL {"responseStart":81,"domContentLoaded":0,"load":0}
+POLL +10s commits=0 finished=false
+POLL +20s commits=200 finished=false
+RESUME {"present":true,"line":"Resumed — picked up where it left off (200 history commits checked, 0 secrets found so far)","bareSpinner":false}
+FINISH-POLL +15s finished=false commits=200
+FINISH-POLL +30s finished=false commits=200
+FINISH-POLL +45s finished=false commits=200
+FINISH-POLL +60s finished=false commits=200
+FINISH-POLL +75s finished=false commits=200
+FINISH-POLL +90s finished=false commits=200
+FINISH-POLL +105s finished=false commits=200
+FINISH-POLL +120s finished=false commits=200
+FINISH-POLL +135s finished=false commits=200
+FINISH-POLL +150s finished=false commits=200
+FINISH-POLL +165s finished=false commits=200
+FINISH-POLL +180s finished=false commits=200
+FINISH-POLL +195s finished=false commits=200
+FINISH-POLL +210s finished=false commits=200
+FINISH-POLL +225s finished=false commits=200
+FINISH-POLL +240s finished=true commits=null
+FINISHED {"score":91,"grade":"A","rollAllPresent":true,"historyCommits":null} EXCERPT: Scan complete. No leaked secrets were found in the files scanned; 3 security hygiene issues to fix; 1 framework fingerprinted. The full detail is in this report — no sign-in needed.
+MOBILE360 {"scrollWidth":360,"overflowing":[]}
+RESULTS: {
+  "startedAt": "2026-11-26T21:01:39.798Z",
+  "shellTimingMs": {
+    "responseStart": 81,
+    "domContentLoaded": 0,
+    "load": 0
+  },
+  "commitsBeforeReload": 200,
+  "reloadAtMs": 21633,
+  "resumeLinePresent": true,
+  "resumeLine": "Resumed — picked up where it left off (200 history commits checked, 0 secrets found so far)",
+  "resumeCommits": 200,
+  "bareSpinnerAfterReload": false,
+  "finished": {
+    "score": 91,
+    "grade": "A",
+    "rollAllPresent": true,
+    "historyCommits": null
+  },
+  "totalWallMs": 264807,
+  "finalTextExcerpt": "Scan complete. No leaked secrets were found in the files scanned; 3 security hygiene issues to fix; 1 framework fingerprinted. The full detail is in this report — no sign-in needed.",
+  "mobile360": {
+    "scrollWidth": 360,
+    "overflowing": []
+  },
+  "endedAt": "2026-11-26T21:06:06.124Z"
+}

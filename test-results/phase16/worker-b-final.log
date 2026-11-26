@@ -1,0 +1,37 @@
+
+> gitsecure@0.1.0 test:phase16-worker-b
+> tsx scripts/test-phase16-worker-b.ts
+
+PASS  API/MCP loop budget is 40 s — 40000 ms
+PASS  report page fast-path constant is untouched at 50 s — 50000 ms
+PASS  worst-case invocation stays under the 55 s headroom (budget 10 s) — 42000 ms
+PASS  worst-case invocation stays under the 55 s headroom (budget 40 s) — 53000 ms
+PASS  worst-case invocation stays under the 55 s headroom (budget 50 s) — 53000 ms
+PASS  worst case including the assemble tail stays under 60 s (budget 40 s) — 55000 ms
+PASS  worst case including the assemble tail stays under 60 s (budget 50 s) — 55000 ms
+PASS  slow API history: loop returns partial, never throws — status=partial
+PASS  slow API history: loop returns within budget + small unwind — 2006 ms for a 2000 ms budget
+PASS  slow API history: cursor still at the unscanned commit — stage=history page=1 idx=0
+PASS  slow API history: partial carries the 202 shape (progress, no report) — partial=true
+PASS  API chunk with a past deadline returns at once, same position, never failed — 0 ms failed=false
+PASS  API chunk with a 100 ms deadline returns promptly, never failed — 101 ms failed=false
+PASS  slow git clone: loop returns partial, never throws — status=partial
+PASS  slow git clone: loop returns within budget + small unwind — 2014 ms for a 2000 ms budget (30 s stalled clone)
+PASS  slow git clone: cursor stays at the history stage — stage=history
+PASS  fast path: loop still finishes in one call — status=done
+PASS  fast path: report covers the 1 file + 1 commit — files=1 hist=1
+PASS  fast path: finishes well inside the budget — 915 ms
+PASS  assemble exemption: loop finishes in one call despite history ending after the 21 s floor — status=done elapsed=22197 ms
+PASS  assemble exemption: report covers the 1 file + 1 commit (no findings lost) — files=1 hist=1
+PASS  assemble exemption: still well under the 60 s ceiling — 22197 ms
+PASS  API route passes the tightened budget
+PASS  API route still answers 202 with cursor + running status
+PASS  API route still answers 200 with the full report when done
+PASS  MCP passes the tightened budget in both tools
+PASS  report page does not await runScanLoop (Worker A's fix)
+PASS  report page uses none of the tightened budget
+PASS  loop passes its deadline into each chunk
+PASS  loop refuses a new chunk under the start floor
+PASS  assemble stage is exempt from the start floor (Phase 16 fix)
+
+All Phase 16 Worker B tests passed.

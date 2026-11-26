@@ -1775,6 +1775,136 @@ this phase adds no token, proposes none, and needs none).
   is present. All proofs above ran from this VM with GITHUB_TOKEN
   unset (unauthenticated), which is the harder case.
 
+## Phase 16 status — report page loads in seconds; visible resume; honest copy (built 2026-11-26)
+
+Freddy, ~12:20 PM MST: iPhone Safari, "This page couldn't load" on
+git-secure.com/vinta/awesome-python. Live device-browser evidence
+folded in the same day: the scan DID complete (91/A, 0 secrets, 0
+vulns, 3 posture, 126 files, 3,350 history commits, branch master,
+commit 4c3cb15) but the page failed FOUR times after ~60 s with only
+a Reload button (one tab disappeared entirely during a 60-second
+wait); reloads returned to the same "Checking files…" stage with NO
+resume indicator, progress count, or retry control; the provisional
+report only appeared after re-entering through the homepage scan
+form; history advanced ~400 commits per minute; total time 16 minutes
+vs the page's stated "usually takes 15–30 seconds".
+
+- **Pre-fix reproduction** (test-results/phase16/repro.md,
+  repro-curl.txt): live awesome-python report run 1: TTFB 0.82 s,
+  total 52.80 s, HTTP 200, 33,976 bytes; an earlier run took 63.6 s
+  and returned only the loading shell (stream cut). Diagnosis: the
+  report page is a server component awaiting `runScanLoop` with
+  `FAST_PATH_WAIT_MS = 50_000`; Vercel's 60 s function ceiling makes
+  big-repo pages a coin flip between "loads after a minute" and
+  "stream cut, page fails" — Safari reports the cut stream as "This
+  page couldn't load". Home page fine (0.9 s); not an asset problem.
+  (Freddy's 12:19 home-page Safari failure is a separate stale-DNS
+  issue on his phone, explicitly out of scope here.)
+- **Worker A — zero server await (decision, measured):** the page
+  renders `<ScanProgress cursor={null}>` immediately; the browser
+  drives the scan via new additive endpoints `POST /api/scan/start`
+  (one fresh HEAD chunk) and `GET /api/scan/[owner]/[repo]/tip`
+  (branch + HEAD sha, so a finished report saved in sessionStorage
+  renders immediately on reload only if its HEAD still matches the
+  live tip). A single HEAD chunk cannot be proven to stay under ~5 s
+  (measured locally 4.17 s awesome-python, 6.56 s GitSecure, before
+  cold start; the tarball carries a 30 s abort timer), so zero await
+  is the only budget that holds for every repo. Local shell time
+  0.029–0.53 s (was 52.8–63.6 s). Resume: saved sessionStorage
+  progress wins whenever it exists; on resume the resume line, the
+  provisional report, AND the progress counts are set at once (new
+  `progressFromSaved`); fixed a latent bug where the old code saved
+  the empty initial state over real saved progress when the saved
+  scan had 0 history commits (HEAD done, history not started).
+  Terminal failure before any progress renders the full error page
+  with the exact Phase 15 words. Error copy moved to
+  `src/lib/scan-error-copy.ts` (byte-identical strings, shared by
+  page + driver). New suite `test:phase16-a` 56 checks. Note: the
+  old `export const instant = false` was dead (`instant` is not a
+  route segment config); `export const dynamic` was NOT added — it
+  is incompatible with `cacheComponents` (build error) and awaiting
+  `params` already makes the page render on demand.
+- **Worker B — API ceiling audit:** confirmed a single invocation
+  could exceed ~55 s — the loop checked its deadline only *after*
+  each chunk returned, so a chunk that started at 49 s of a 50 s
+  budget ran a full chunk past it. Worst chunk: git-history ~30 s
+  walk budget plus unbounded clone + full `git.log` parse + corpus
+  read; API-history chunk had no budget at all; assemble re-ran
+  `scanHead` + unbounded OSV. Also fixed a real hole: the streaming
+  tarball's 55 s abort timer was cleared after headers, so a
+  mid-body stall hung forever. Fix: new `API_FAST_PATH_WAIT_MS =
+  40_000` for the API route + both MCP tools (the page keeps its
+  50 s constant, now unused in production); `runScanLoop` passes
+  its absolute deadline into every chunk; no new chunk starts
+  unless `budget − 21 s` remains (first chunk always runs); worst
+  case ~53 s < 55 s headroom. Measurements: TechDirect full loop
+  20.4 s (83/B); awesome-python loop partial 32.2 s with 200
+  commits + cursor. New suite `test:phase16-worker-b` 25/25.
+- **Worker C — copy/state fixes:** home + loading copy scoped
+  ("Small repos usually take 15–30 seconds; a large repo with a
+  long history takes several minutes"); new pure helper
+  `historyRatePerMin` in `src/lib/progress.ts` (commits/minute from
+  measured numbers only, null under 100 commits or 20 s — no ETA
+  exists before the scan finishes, only the observed rate, shown as
+  a live line during the history step); provisional ReportView no
+  longer claims "0 vulnerabilities" before the dependency check runs
+  (stat tile "— / not checked yet", same in `report-markdown.ts`);
+  typo fixed via shared helper `gradeWordWithArticle` in
+  `src/lib/score.ts` ("an excellent" for A, used by `explainScore`
+  and `ScoreDial`). New suite `test:ui-phase16c` 45/45;
+  `test:ui-phase15c` 36/36.
+- **MCP regression found at integration and fixed:** lone
+  `test:mcp` cold run 51 pass / 12 fail — all 12 were `scan_repo
+  GitSecure` returning a still-running cursor instead of report
+  JSON (cold self-scan ~52 s > 40 s API budget — the tool's
+  documented contract). Worse, resuming then returned only 18
+  secrets instead of 37: the first invocation's history-chunk
+  findings are lost on resume, because `runScanLoop` accumulates
+  `historyFindings` in memory and GET/MCP callers never pass them
+  back (only POST `/api/scan/chunk` clients, e.g. the browser via
+  sessionStorage, do). Fix 1 (test): `scripts/test-mcp.ts` follows
+  the documented resume contract — when `scan_repo` answers
+  still-running it extracts the cursor and calls `resume_scan` (up
+  to 6 attempts) until the full report arrives — 51 → 58 passes.
+  Fix 2 (code, `src/lib/chunks.ts`): the assemble stage is exempt
+  from the loop's start floor. Assemble is bounded and cheap
+  (deadline-capped OSV + scoring, ~seconds), and stopping before it
+  strands the scan across invocations where GET/MCP callers lose
+  findings. Worst case with the exemption ~57 s bound. Proved by a
+  new test (section 7 in `scripts/test-phase16-worker-b.ts`: mock
+  API list/detail each sleep 11 s — split because each API fetch
+  aborts at the 12 s `API_FETCH_TIMEOUT_MS` — so history ends after
+  the 21 s floor; the loop still finishes in one call, 22,194 ms).
+  Cold-server end-to-end after the fix: `test:mcp` 62/62, exit 0;
+  local API TechDirect 83/B (200, 3.7 s, 2,802 files, 62 commits);
+  self-scan 100/A (200, 6.1 s, 37 secrets, 34 commits).
+- **Known remaining gap (honest, pre-existing Phase 9 limitation,
+  not fixed here):** for huge repos whose history spans multiple
+  invocations via GET/MCP, earlier chunks' history findings are
+  still lost on resume. The assemble exemption fixes the mid-size
+  case (history fits one chunk); awesome-python-scale MCP scans
+  need the deeper cache/incremental-write fix — a Phase 17-sized
+  redesign, proposed not started.
+- **Verification (headless, local prod server):** Worker D offline
+  suites 1,101 PASS, 0 FAIL; zero-rest 26/26; techdirect exit 0.
+  Final headless run (`test-results/phase16/headless-final.json` +
+  screenshots; the v1 run is discarded — its "finished" signal
+  matched the provisional report because ReportView renders
+  ScoreDial for provisional too; v2 uses "Scan complete.", which
+  only the finished report prints): shell responseStart 81 ms;
+  reload at 21.6 s after 200 history commits → resume line
+  "Resumed — picked up where it left off (200 history commits
+  checked, 0 secrets found so far)", no bare spinner; finished
+  report at 264.8 s wall (4m25s vs 16 minutes on the device browser
+  pre-fix): 91/A, 0 secrets, 0 vulns, 3 posture, 126 files, 3,350
+  history commits, master 4c3cb15 — identical to the device-browser
+  result; "an excellent score" renders correctly; 360 px
+  scrollWidth 360, no overflow; Roll all into report present.
+  (The JSON's `historyCommits: null` is a regex miss in the
+  verification script — the finished text reads "History checked:
+  3350 commits"; the count is confirmed from the screenshot.)
+- **Live verification:** [TO FILL after push/deploy]
+
 ## Phase 2 status — built and pushed 2026-11-25, commit 870f889f, live at https://gitsecure.vercel.app/ (verified serving: home 200, live TechDirect scan 200, 83/B)
 - Next.js 16 / React 19 / TypeScript + Auth.js (NextAuth 5.0.0-beta.32,
   GitHub provider), in ~/workspace/gitsecure/.

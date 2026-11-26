@@ -1,0 +1,53 @@
+
+> gitsecure@0.1.0 test:resilience-phase15
+> tsx scripts/test-resilience-phase15.ts
+
+PASS  page error state renders a Retry this scan button
+PASS  RetryScanButton is a client component that reloads the same scan
+PASS  RetryScanButton says 'Retry this scan'
+PASS  page error state still offers 'Scan another repo' alongside
+PASS  ReportView accepts a paused prop
+PASS  paused banner says history and dependency checks stopped here
+PASS  running banner still says 'still running' when not paused
+PASS  ScanProgress error state renders the provisional report paused
+PASS  ScanProgress running state renders the provisional report unpaused
+PASS  chunk-error copy distinguishes the rate-limit reason
+PASS  chunk-error copy distinguishes the network reason
+PASS  chunk-error copy keeps the generic reason for other failures
+PASS  a 429 fails fast instead of burning three retries
+PASS  chunk-error card shows files scanned so far
+PASS  chunk-error card shows history commits checked so far
+PASS  chunk-error card shows secrets found so far
+PASS  chunk-error card keeps 'Retry from where it left off'
+PASS  provisional report summary says 'So far: ', never 'Scan complete.' — So far: No leaked secrets were found in the files scanned. The full detail is in this report — no sign-in needed.
+PASS  provisional zero-secrets summary is capitalised — So far: No leaked secrets were found in the files scanned. The full detail is in this report — no sign-in needed.
+PASS  provisional report is still flagged provisional
+PASS  reset time parses from x-ratelimit-reset (epoch seconds)
+PASS  reset time parses from retry-after (seconds)
+PASS  earliest of retry-after / x-ratelimit-reset wins
+PASS  no reset headers → null (unknown, never invented)
+PASS  a reset time in the past → null (clock skew is not a countdown)
+PASS  garbage header values → null
+PASS  reset minutes round up (61 s → 2)
+PASS  reset minutes are at least 1
+PASS  reset minutes unknown → null
+PASS  reset phrase with a known time names the minutes
+PASS  reset phrase singular minute
+PASS  reset phrase without a known time is hourly, no countdown
+PASS  page rate-limit body names the wait when known — Too many requests went to GitHub at once, so this scan couldn't run right now. GitHub's request limit resets in about 12 minutes — try this scan again then.
+PASS  page rate-limit body falls back to hourly when unknown — Too many requests went to GitHub at once, so this scan couldn't run right now. GitHub's request limit resets within the hour — try this scan again then.
+PASS  chunk rate-limit body names the wait and the resume point — GitHub's request limit was hit, so the scan paused here. The limit resets in about 12 minutes — retry then, and the scan picks up from the last finished chunk.
+PASS  rate-limit copy never proposes a token (standing ruling)
+PASS  scan error copy uses the honest reset body for rate limits
+PASS  ScanProgress terminal errors use the shared error copy
+PASS  rate-limit error offers 'Try this scan again'
+PASS  other errors keep 'Retry this scan'
+PASS  ScanProgress terminal errors use the matching retry label
+PASS  RetryScanButton accepts a label prop
+PASS  chunk route passes the reset time through on errors
+PASS  scan API route passes the reset time through on errors
+PASS  scan.ts captures the reset time from GitHub's rate-limit response
+PASS  ScanProgress reads the reset time from a 429 body
+PASS  No literal secret-pattern values in this file
+
+All Phase 15 resilience tests passed.

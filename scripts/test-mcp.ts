@@ -213,7 +213,34 @@ async function main() {
     { timeout: SCAN_TIMEOUT_MS },
   );
   check("scan_repo GitSecure is not an error", !gs.isError, toolText(gs).slice(0, 200));
-  const gsText = toolText(gs);
+  // Phase 16: a cold self-scan takes ~52 s end to end (clone + walk),
+  // longer than the 40 s API_FAST_PATH_WAIT_MS budget, so scan_repo
+  // legitimately answers "still running" with a cursor — the tool's
+  // documented contract (see src/lib/mcp.ts fullScan). Follow it with
+  // resume_scan until the full report arrives instead of assuming one
+  // call finishes; a warm cache usually completes in one call.
+  let gsText = toolText(gs);
+  let gsResumed = false;
+  const tryParseReport = (text: string) => {
+    try {
+      return JSON.parse(text) as { score?: number; grade?: string; counts?: Record<string, number>; kind?: string };
+    } catch {
+      return null;
+    }
+  };
+  for (let attempt = 0; attempt < 6 && tryParseReport(gsText) === null; attempt++) {
+    const m = /cursor ([A-Za-z0-9_\-=]+)/.exec(gsText);
+    if (!m) break;
+    console.log(`  scan_repo still running — resuming via resume_scan (attempt ${attempt + 1})...`);
+    const rs = await client.callTool(
+      { name: "resume_scan", arguments: { cursor: m[1] } },
+      undefined,
+      { timeout: SCAN_TIMEOUT_MS },
+    );
+    gsText = toolText(rs);
+    gsResumed = true;
+  }
+  if (gsResumed) check("scan_repo GitSecure still-running cursor resumes to a full report (Phase 16)", tryParseReport(gsText)?.kind === "full", gsText.slice(0, 200));
   let gsReport: { score?: number; grade?: string; counts?: Record<string, number>; kind?: string } | null = null;
   try {
     gsReport = JSON.parse(gsText) as typeof gsReport;

@@ -182,9 +182,9 @@ async function ghJson<T>(url: string): Promise<T> {
   }
 }
 
-async function fetchRaw(owner: string, repo: string, branch: string, path: string): Promise<string | null> {
+async function fetchRaw(owner: string, repo: string, branch: string, path: string, timeoutMs: number = 10_000): Promise<string | null> {
   const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), 10000);
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
   try {
     const res = await fetch(`https://raw.githubusercontent.com/${owner}/${repo}/${branch}/${path}`, { signal: controller.signal, cache: "no-store" });
     if (!res.ok) return null;
@@ -226,6 +226,14 @@ export interface ScanOptions {
   /** OSV budgets for this scan. Default (Phase 8): no budget — every
    *  pinned dep is queried and every advisory gets full detail. */
   osv?: { queryBudgetMs?: number | null; detailBudgetMs?: number | null };
+  /** Phase 16 (Worker B): absolute wall-clock deadline (epoch ms)
+   *  for this scan step, passed by the chunked driver (runScanLoop)
+   *  so a step started late still ends by the loop deadline.
+   *  Sub-steps cap their own timeouts at the time left (repo-meta
+   *  fetch, tarball download/stream, per-file fetches, OSV phases).
+   *  Unset = the old fixed timeouts, so one-shot callers (scanRepo,
+   *  the chunk endpoint) behave exactly as before. */
+  deadlineMs?: number;
 }
 
 /** Fetch the whole HEAD tree from ONE tarball download
@@ -269,10 +277,14 @@ async function fetchHeadFilesViaTarball(
   repo: string,
   branch: string,
   onFiles?: (fetched: number) => void,
+  // Phase 16: abort timeout for the download. Default 30 s; the
+  // chunked driver passes the time left to its loop deadline so a
+  // HEAD chunk started late still ends by that deadline.
+  timeoutMs: number = 30_000,
 ): Promise<Map<string, string>> {
   const url = `https://codeload.github.com/${owner}/${repo}/tar.gz/refs/heads/${encodeURIComponent(branch)}`;
   const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), 30_000);
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
   let gz: Buffer;
   try {
     const res = await fetch(url, { signal: controller.signal, cache: "no-store" });
@@ -362,13 +374,31 @@ async function fetchHeadFiles(
   branch: string,
   chosen: { path: string; size?: number }[],
   onFiles?: (fetched: number) => void,
+  // Phase 16: wall-clock budget for the whole per-file fallback
+  // (the tarball-unavailable path). Unset = no budget, as before.
+  // A chunk that runs out of time throws the timeout ScanError the
+  // chunk driver turns into a resumable partial cursor.
+  opts?: { budgetMs?: number },
 ): Promise<Map<string, string>> {
   const files = new Map<string, string>();
   let next = 0;
+  const started = Date.now();
+  const budgetMs = opts?.budgetMs ?? null;
   const workers = Array.from({ length: HEAD_FETCH_CONCURRENCY }, async () => {
     while (next < chosen.length) {
+      if (budgetMs != null && Date.now() - started > budgetMs) {
+        throw new ScanError(
+          504,
+          "timeout",
+          "The current-files download took too long, so this chunk stopped before finishing. Nothing was half-reported — run the scan again and it picks up from the start of the current-files step.",
+        );
+      }
       const entry = chosen[next++];
-      const content = await fetchRaw(owner, repo, branch, entry.path);
+      // Phase 16: a fetch started just before the budget ends must
+      // not run its full 10 s past the deadline — cap it at the time
+      // left. Without a caller budget this is the old 10 s default.
+      const fetchTimeout = budgetMs != null ? Math.min(10_000, Math.max(500, started + budgetMs - Date.now())) : 10_000;
+      const content = await fetchRaw(owner, repo, branch, entry.path, fetchTimeout);
       if (content == null) continue;
       files.set(entry.path, content);
       onFiles?.(files.size);
@@ -557,14 +587,22 @@ export async function streamHeadFilesViaTarball(
   const budgetMs = opts?.budgetMs ?? 50_000;
   const url = `https://codeload.github.com/${owner}/${repo}/tar.gz/refs/heads/${encodeURIComponent(branch)}`;
   const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), 55_000);
+  // Phase 16: the abort timer also covers a stalled mid-body stream
+  // (it used to be cleared once headers arrived, so a stall after
+  // that hung forever — the per-chunk budget check below only runs
+  // when a chunk arrives). Capped at the caller's budget when one is
+  // passed, so a chunk started late in a loop still ends by the loop
+  // deadline instead of at 55 s. Cleared in the outer finally, once
+  // the stream is done.
+  const timer = setTimeout(() => controller.abort(), Math.min(55_000, budgetMs));
   let res: Response;
   try {
     res = await fetch(url, { signal: controller.signal, cache: "no-store" });
     if (!res.ok) throw new Error(`tarball fetch ${res.status}`);
     if (!res.body) throw new Error("tarball has no body");
-  } finally {
+  } catch (err) {
     clearTimeout(timer);
+    throw err;
   }
   const input = Readable.fromWeb(res.body as unknown as Parameters<typeof Readable.fromWeb>[0]);
   // Large zlib chunks: the default 16 KB chunkSize made the async
@@ -665,6 +703,7 @@ export async function streamHeadFilesViaTarball(
     }
     throw err;
   } finally {
+    clearTimeout(timer);
     input.destroy();
     gunzip.destroy();
   }
@@ -697,7 +736,11 @@ export async function streamHeadFilesPerFile(
         );
       }
       const entry = chosen[next++];
-      const content = await fetchRaw(owner, repo, branch, entry.path);
+      // Phase 16: a fetch started just before the budget ends must
+      // not run its full 10 s past the deadline — cap it at the time
+      // left. Without a caller budget this is the old 10 s default.
+      const fetchTimeout = Math.min(10_000, Math.max(500, started + budgetMs - Date.now()));
+      const content = await fetchRaw(owner, repo, branch, entry.path, fetchTimeout);
       if (content == null) continue;
       onEntry(entry.path, content);
       scanned++;
@@ -786,12 +829,19 @@ export async function scanHead(
   validateOwnerRepo(owner, repo);
   const progress: ScanProgress = emptyProgress();
   const emit = () => options.onProgress?.({ ...progress });
+  // Phase 16: time left to the loop deadline, recomputed at each
+  // sub-step so every timeout below is capped at what remains.
+  const remainingMs = () => (options.deadlineMs != null ? options.deadlineMs - Date.now() : null);
   // Phase 15 (worker D): branch + HEAD sha over the git protocol —
   // no REST repo-info call, no commits-list call. A missing or
   // private repo answers 401 on info/refs, which resolveRemoteHead
   // reports as not-found (same plain-English 404 as before); any
   // other failure is an upstream 502. Nothing here guesses a branch.
-  const remoteHead = await resolveRemoteHead(owner, repo);
+  const resolveRemaining = remainingMs();
+  const remoteHead = await resolveRemoteHead(
+    owner, repo,
+    resolveRemaining != null ? { timeoutMs: Math.min(12_000, Math.max(1_000, resolveRemaining)) } : {},
+  );
   if (!remoteHead.ok) {
     if (remoteHead.reason === "not-found") {
       throw new ScanError(404, "not-found", "Repository not found (or it is private). GitSecure scans public repos only.");
@@ -881,6 +931,21 @@ export async function scanHead(
     progress.filesScanned = n;
     emit();
   };
+  // Phase 16: the whole-buffer paths parse + secret-scan the entire
+  // tree in memory after the download — CPU proportional to tree
+  // size, with no timeout of its own. If the loop deadline passes
+  // mid-parse, stop with the timeout the chunk driver turns into a
+  // resumable partial cursor, instead of running on past Vercel's
+  // 60 s ceiling and returning nothing. Checked every 256 files so
+  // the check itself costs nothing.
+  const HEAD_TIMEOUT_MESSAGE =
+    "The current-files download took too long, so this chunk stopped before finishing. Nothing was half-reported — run the scan again and it picks up from the start of the current-files step.";
+  let parseCount = 0;
+  const checkParseDeadline = () => {
+    if (options.deadlineMs != null && ++parseCount % 256 === 0 && Date.now() > options.deadlineMs) {
+      throw new ScanError(504, "timeout", HEAD_TIMEOUT_MESSAGE);
+    }
+  };
 
   let tarballFallback = false;
   // Phase 11: the whole-buffer tarball path returns the full file
@@ -902,7 +967,11 @@ export async function scanHead(
     return tree.tree;
   };
   try {
-    const full = await fetchHeadFilesViaTarball(owner, repo, branch, onCount);
+    const tarballRemaining = remainingMs();
+    const full = await fetchHeadFilesViaTarball(
+      owner, repo, branch, onCount,
+      tarballRemaining != null ? Math.min(30_000, Math.max(500, tarballRemaining)) : 30_000,
+    );
     headCorpus = full;
     // The tarball is the complete file list — UNLIMITED, no slice,
     // no count cap.
@@ -911,7 +980,10 @@ export async function scanHead(
       .sort((a, b) => priority(a.path) - priority(b.path) || a.path.localeCompare(b.path));
     progress.filesTotal = chosen.length;
     emit();
-    for (const [path, content] of full) onEntry(path, content);
+    for (const [path, content] of full) {
+      onEntry(path, content);
+      checkParseDeadline();
+    }
   } catch (err) {
     // Phase 15 (worker D): a tarball TIMEOUT is not a missing
     // tarball — it propagates as the ScanError 504 the chunk driver
@@ -924,7 +996,11 @@ export async function scanHead(
       // buffering it — same files, bounded memory.
       streaming = true;
       try {
-        await streamHeadFilesViaTarball(owner, repo, branch, onEntry, { onCount, budgetMs: 50_000 });
+        const streamRemaining = remainingMs();
+        await streamHeadFilesViaTarball(owner, repo, branch, onEntry, {
+          onCount,
+          budgetMs: streamRemaining != null ? Math.max(500, streamRemaining) : 50_000,
+        });
       } catch (streamErr) {
         if (streamErr instanceof ScanError && streamErr.kind === "timeout") throw streamErr;
         tarballFallback = true;
@@ -934,7 +1010,11 @@ export async function scanHead(
         const remaining = (await fetchTree())
           .filter((t) => t.type === "blob" && !isSkippable(t.path) && !scannedPaths.has(t.path))
           .sort((a, b) => priority(a.path) - priority(b.path) || a.path.localeCompare(b.path));
-        await streamHeadFilesPerFile(owner, repo, branch, remaining, onEntry, { onCount, budgetMs: 50_000 });
+        const perFileRemaining = remainingMs();
+        await streamHeadFilesPerFile(owner, repo, branch, remaining, onEntry, {
+          onCount,
+          budgetMs: perFileRemaining != null ? Math.max(500, perFileRemaining) : 50_000,
+        });
       }
       // The tarball is the complete file list in streaming mode — the
       // tree is never consulted, so it cannot truncate the count.
@@ -952,9 +1032,16 @@ export async function scanHead(
       // UNLIMITED: the whole non-skipped tree, no slice, no count cap.
       progress.filesTotal = chosen.length;
       emit();
-      const full = await fetchHeadFiles(owner, repo, branch, chosen, onCount);
+      const perFileRemaining = remainingMs();
+      const full = await fetchHeadFiles(
+        owner, repo, branch, chosen, onCount,
+        perFileRemaining != null ? { budgetMs: Math.max(500, perFileRemaining) } : undefined,
+      );
       headCorpus = full;
-      for (const [path, content] of full) onEntry(path, content);
+      for (const [path, content] of full) {
+        onEntry(path, content);
+        checkParseDeadline();
+      }
     }
   }
   progress.filesScanned = scannedCount;
@@ -1105,6 +1192,9 @@ export async function assembleReport(
   const { vulnerabilities, unavailable: osvUnavailable, detailCapped, depsChecked, depsQueryable } = await checkDependencies(head.dependencies, {
     queryBudgetMs: options.osv?.queryBudgetMs ?? null,
     detailBudgetMs: options.osv?.detailBudgetMs ?? null,
+    // Phase 16: the loop deadline, so an in-flight OSV query does
+    // not run its full 15 s past it (see osv.ts).
+    deadlineMs: options.deadlineMs,
     onProgress: (p) => {
       progress.depsChecked = p.depsChecked;
       progress.depsTotal = p.depsTotal;

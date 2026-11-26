@@ -1,0 +1,32 @@
+
+> gitsecure@0.1.0 test:zero-rest
+> tsx scripts/test-zero-rest.ts
+
+PASS  bounded http: pack past the byte bound throws PackTooLargeError — history pack download passed 1000 bytes (1200 bytes read) — too large to clone inside a serverless function
+PASS  bounded http: error carries the byte count read — 1200 bytes
+PASS  bounded http: the underlying request was aborted — aborted=true
+PASS  bounded http: non-pack request is not bounded — 2 chunks
+PASS  resolveRemoteHead times out on a silent server (reason timeout) — timeout
+PASS  fixture resolveRemoteHead succeeds over the git protocol
+PASS  fixture resolveRemoteHead reports the default branch — main
+PASS  fixture resolveRemoteHead reports the HEAD sha — 3da8b5d71de06a342ba6c5804817c60eeea552bd
+PASS  fixture git history succeeds
+PASS  fixture git history made zero REST calls — 0 REST calls
+PASS  fixture: no api.github.com fetch during the git-protocol legs — 0 calls
+PASS  live resolveRemoteHead succeeds over the git protocol
+PASS  live resolveRemoteHead reports the default branch (main) — main
+PASS  live resolveRemoteHead reports a 40-hex HEAD sha — fd35814ad7d9553723bdb21e82b4e714f200e0d5
+PASS  live resolveRemoteHead reports a missing repo as not-found — not-found
+PASS  live resolveRemoteHead: no api.github.com fetch so far — 0 calls
+live scan: 14460ms, score 83/B, files 2802, history commits 62
+fetch calls by host during the scan: codeload.github.com=1, api.osv.dev=5
+PASS  live full scan made ZERO api.github.com requests — 0 calls
+PASS  live full scan still scores 83/B — 83/B
+PASS  live full scan reports the default branch (main) — main
+PASS  live full scan pinned a 40-hex HEAD sha — fd35814ad7d9553723bdb21e82b4e714f200e0d5
+PASS  live full scan HEAD sha matches resolveRemoteHead — fd35814ad7d9553723bdb21e82b4e714f200e0d5 vs fd35814ad7d9553723bdb21e82b4e714f200e0d5
+PASS  live full scan covered the whole file list — 2802 files
+PASS  live full scan history ran over the git protocol — Scanned all 2802 files in the tree (binary, dist, node_modules and .next skipped — generated/vendored paths, not source files). | History checked: 62 commits, newest first (git protocol — no git binary, no REST quota). | Public repos only. No secret is ever stored, logged, or shown in full.
+PASS  live full scan history covered commits — 62 commits
+PASS  live full scan: no api.github.com fetch in total — 0 calls
+Zero-REST test crashed: tree cross-check fetch failed: 403

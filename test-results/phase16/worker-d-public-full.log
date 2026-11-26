@@ -1,0 +1,62 @@
+
+> gitsecure@0.1.0 test:public-full
+> tsx scripts/test-public-full.ts
+
+PASS  src/lib/auth.ts is gone
+PASS  src/lib/owner.ts is gone
+PASS  src/app/api/auth route is gone
+PASS  no auth/owner module is imported anywhere in src
+PASS  home page has no 'Honest limits' section
+PASS  home page has no 'owner only' copy
+PASS  home page has no sign-in copy
+PASS  home page says everyone gets the full report
+PASS  report page has no sign-in copy
+PASS  report page has no 'Owner view' banner
+PASS  report page has no 'Public view' banner
+PASS  report page has no canViewFull / owner gate
+PASS  layout footer has no 'owner only' copy
+PASS  layout metadata has no 'owner-only' copy
+PASS  next-auth dependency is gone
+PASS  test:owner-gate script is gone
+PASS  test:public-full script exists
+PASS  scanner has no MAX_FILES constant
+PASS  scanner has no per-file/total size cap
+PASS  scanner mentions no '250 files' limit
+PASS  scanner mentions no '200 KB' / '3 MB' cap
+PASS  scanner fetches the whole tree (no slice cap on chosen)
+PASS  Phase 5: scanner has no 100-secret slice
+PASS  Phase 5: scanner has no secretOverflow / truncation bookkeeping
+PASS  Phase 5: scanner has no secret-findings cap copy
+PASS  Phase 5: scanner lists every dependency (no 200 slice)
+PASS  Phase 5: OSV has no advisory list cap (VULN_CAP)
+PASS  Phase 5: OSV has no fixed 50-detail cap constant (DETAIL_CAP)
+PASS  Phase 5: OSV queries every pinned dep (no 60 slice)
+PASS  Phase 5: MCP notes state no 100-finding cap
+PASS  Phase 5: MCP notes state no 50-detail cap
+PASS  Phase 5: report page renders lists progressively (Show more)
+PASS  Phase 5: report page lists dependencies, not just counts
+PASS  Phase 5: report page passes owner/repo/branch to the secrets list (GitHub links)
+PASS  nav: secrets list groups by type and file
+PASS  nav: secrets list filters by type, severity, and file name
+PASS  nav: vulnerabilities group by advisory/package with severity filter
+PASS  nav: posture groups + filters exist
+PASS  nav: dependencies filter by ecosystem and name
+PASS  nav: file map view exists (SVG spider, top files by count)
+PASS  nav: map aggregates by file (one node per file, no node per finding)
+PASS  nav: every secret row links to the exact GitHub file + line
+PASS  nav: every finding has an in-page anchor + copy-link button
+PASS  nav: link helper builds blob URLs with file + line
+PASS  nav: link helper uses the commit for history findings
+PASS  nav: map tooltips carry only file + count, never a fragment
+PASS  fixture scan still finds the planted secrets — 8 found
+PASS  redaction: full fake secret never appears (https://discord.co…)
+PASS  redaction: full fake secret never appears (AKIAIOSFODNN7EXAMP…)
+PASS  redaction: full fake secret never appears (ghp_FAKEFAKEFAKEFA…)
+PASS  redaction: full fake secret never appears (sk_live_FAKEFAKEFA…)
+PASS  redaction: full fake secret never appears (sk-proj-FAKEFAKEFA…)
+PASS  redaction: full fake secret never appears (postgres://fakeuse…)
+PASS  redaction: full fake secret never appears (FAKEFAKEFAKEFAKEFA…)
+PASS  full report detail includes file names
+PASS  full report detail includes secret fragments (redacted)
+
+All public-full tests passed.

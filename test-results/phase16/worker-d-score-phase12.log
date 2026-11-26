@@ -1,0 +1,46 @@
+
+> gitsecure@0.1.0 test:score-phase12
+> tsx scripts/test-score-phase12.ts
+
+PASS  All-test-key: secrets deduction is 0 — 0
+PASS  All-test-key: score equals the zero-secrets control (100/A) — 100/A vs control 100/A
+PASS  All-test-key: 3 excluded, 0 full, 0 half — full=0 half=0 excluded=3
+PASS  All-test-key: wouldBeScore is the old-rule score (100-48=52/D) — 52
+PASS  Mixed: secrets deduction is 36 (25 + 7.5 + 0 + 3, rounded) — 36
+PASS  Mixed: score 64/C — 64/C
+PASS  Mixed: counts full=2 half=1 excluded=1 — full=2 half=1 excluded=1
+PASS  Mixed: wouldBeScore is the old-rule score (100-51=49/D) — 49
+PASS  Rounding: 12.5 + 1.5 sums to 14 (not 13 + 2 = 15) — 14
+PASS  Rounding: score 86/B — 86/B
+PASS  Rounding: single low uncertain 1.5 rounds to 2 — 2
+PASS  No-triage: full weight (25 + 15 = 40) — 40
+PASS  No-triage: score 60/C — 60/C
+PASS  No-triage: counted as full weight (never assumed a test key) — full=2
+PASS  No-triage: wouldBeScore equals the score (nothing to discount) — wouldBe=60 score=60
+PASS  Upgrade: fixture AWS key triages likely-test-key without usage — likely-test-key
+PASS  Upgrade: before upgrade it deducts 0 (score 100/A) — 0 / 100
+PASS  Upgrade: production usage upgrades it to likely-genuine-leak — likely-genuine-leak
+PASS  Upgrade: after upgrade it deducts full 25 (score 75/B) — 25 / 75/B
+PASS  Upgrade: counted as full weight after upgrade — full=1 excluded=0
+PASS  TechDirect fixture: score 83/B unchanged — 83/B
+PASS  TechDirect fixture: vuln 8, posture 9, unpinned 0 — v=8 p=9 u=0
+PASS  TechDirect fixture: wouldBeScore equals score (no secrets) — 83
+PASS  Self-scan repro: secrets deduction 8 (32 test at 0, 2 uncertain at half) — 8
+PASS  Self-scan repro: vuln 547, posture 84, unpinned 4 — v=547 p=84 u=4
+PASS  Self-scan repro: new score still 0/F (vulns alone floor it) — 0/F
+PASS  Self-scan repro: wouldBeScore 0/F (old rule) — 0
+PASS  Self-scan repro: counts full=0 half=2 excluded=32 — full=0 half=2 excluded=32
+PASS  Phase 13 repro: vuln 206 (20 medium, 53 low), posture 84, unpinned 4 — v=206 p=84 u=4
+PASS  Phase 13 repro: secrets deduction still 8 — 8
+PASS  Phase 13 repro: new score still 0/F (kept fixtures + posture floor it) — 0/F
+PASS  Phase 13 repro: wouldBeScore 0/F (old rule) — 0
+PASS  Provisional: carries scoreDetail — [object Object]
+PASS  Provisional: scoreDetail matches computeScore (15 deducted, 85/B) — ded=15 85/B
+PASS  Provisional: counts full=1 excluded=1 — full=1 excluded=1
+PASS  Provisional summary starts 'So far: ', never 'Scan complete.' — So far: 1 possible leaked secret found — rotate and remove these first; 1 look like test keys and do not count toward the score. The full detail is in this report — no sign-in needed.
+PASS  Finished summary starts 'Scan complete. ' — Scan complete. 2 possible leaked secrets found — rotate and remove these first. The full detail is in this report — no sign-in needed.
+PASS  Zero-secrets summary is capitalised ('No leaked secrets…') — Scan complete. No leaked secrets were found in the files scanned. The full detail is in this report — no sign-in needed.
+PASS  Provisional zero-secrets summary is 'So far: No leaked secrets…' — So far: No leaked secrets were found in the files scanned. The full detail is in this report — no sign-in needed.
+PASS  No literal secret-pattern values in this file
+
+All Phase 12 score tests passed.

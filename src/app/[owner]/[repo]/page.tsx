@@ -2,80 +2,35 @@
 // public repos, so the detail is information already public in the
 // repo. No login flow, no owner gate, no ?full flag.
 // Phase 9: the scan runs as stateless chunks (see src/lib/chunks.ts).
-// This page drives chunks server-side for up to ~50 s (the fast path
-// — a small repo renders in one request). If the scan is still running,
-// it renders the HEAD report when the HEAD chunk is done (provisional
-// score, clearly labelled) and the client keeps driving chunks from
-// the cursor, saving progress in sessionStorage so a reload resumes
-// instead of restarting. No scan is ever killed for taking too long,
-// and no server restart can lose it — there is no job to lose.
-import { FAST_PATH_WAIT_MS, runScanLoop } from "@/lib/chunks";
-import { buildProvisionalReport } from "@/lib/provisional";
-import { rateLimitBody } from "@/lib/rate-limit";
-import { ScanError } from "@/lib/scan";
-import ReportView from "@/components/ReportView";
+// Phase 16: this page NO LONGER awaits the scan server-side. It used
+// to drive chunks for up to ~50 s (the fast path) before rendering —
+// on a big repo the document took 53–64 s and slow runs had their
+// stream cut at Vercel's 60 s function ceiling, which Safari/WebKit
+// reported as "This page couldn't load" (live: vinta/awesome-python,
+// 2026-11-26). The page now renders the progress shell immediately
+// and the browser drives the scan chunk by chunk from the start
+// (POST /api/scan/start, then POST /api/scan/chunk — see
+// ScanProgress), saving progress in sessionStorage so a reload resumes
+// instead of restarting. A single HEAD chunk can stall up to ~30 s on
+// a huge repo's tarball download, so no short server budget could be
+// proven to stay under ~5 s total including cold start — zero server
+// await is the only budget that holds for every repo. The shell
+// completes in well under a second; the scan itself still takes as
+// long as it takes, chunk by chunk, and no scan is ever killed for
+// taking too long. The one failure the page can still know
+// server-side is a malformed owner/repo name, which keeps its error
+// page here; every other failure surfaces in the client driver with
+// the same words (see src/lib/scan-error-copy.ts).
+import { validateOwnerRepo, ScanError } from "@/lib/scan";
+import { scanErrorCopy, scanErrorRetryLabel } from "@/lib/scan-error-copy";
+import { emptyProgress } from "@/lib/progress";
 import RetryScanButton from "@/components/RetryScanButton";
 import ScanProgress from "@/components/ScanProgress";
-import type { FullReport } from "@/lib/types";
 
 // Scan-on-demand page: never prerendered — each visit runs a live scan.
-export const instant = false;
+// (No `dynamic` export: it is incompatible with cacheComponents, and
+// awaiting `params` already makes this page render on demand.)
 export const maxDuration = 60;
-
-/** Plain-English message for each way a scan can fail. The API carries
- *  the matching HTTP status; this page shows the same words. */
-function errorCopy(err: unknown, owner: string, repo: string): { title: string; body: string } {
-  if (err instanceof ScanError) {
-    switch (err.kind) {
-      case "not-found":
-        return {
-          title: `Couldn't find ${owner}/${repo}`,
-          body: "We couldn't find that repo on GitHub, or it is private. GitSecure only scans public repos — check the spelling of the owner and repo names, and make sure the repo is public.",
-        };
-      case "private":
-        return {
-          title: `${owner}/${repo} is private`,
-          body: "That repo is private, and GitSecure only scans public repos.",
-        };
-      case "rate-limit":
-        // Phase 15 (rate-limit recovery): the page Freddy hit live
-        // stranded him with no sense of the wait. When GitHub's
-        // response said when the limit resets, say so honestly ("in
-        // about N minutes"); when it did not, say "within the hour"
-        // — never an invented countdown. The retry button below reads
-        // "Try this scan again" for this case (same mechanism as the
-        // other error states, its own wording).
-        return {
-          title: "GitHub's request limit was hit",
-          body: rateLimitBody(err.resetAtMs ?? null),
-        };
-      case "timeout":
-        return {
-          title: "GitHub took too long to answer",
-          body: "A request to GitHub timed out, so this scan couldn't run right now. The scan itself has no time limit — try again in a bit.",
-        };
-      case "bad-format":
-        return {
-          title: "That doesn't look like a valid repo",
-          body: "Owner and repo names can only use letters, numbers, dots, hyphens and underscores — check for typos or extra characters.",
-        };
-      case "head-moved":
-        return {
-          title: `The repo changed while scanning ${owner}/${repo}`,
-          body: "New commits landed while the scan was running, so the saved progress belongs to the previous HEAD. Start a fresh scan for the new HEAD.",
-        };
-      default:
-        return {
-          title: `Couldn't scan ${owner}/${repo}`,
-          body: "GitHub didn't answer as expected. Try again in a bit.",
-        };
-    }
-  }
-  return {
-    title: `Couldn't scan ${owner}/${repo}`,
-    body: "Something went wrong on our side. Try again in a bit.",
-  };
-}
 
 export default async function ReportPage({
   params,
@@ -84,59 +39,37 @@ export default async function ReportPage({
 }) {
   const { owner, repo } = await params;
 
-  let full: FullReport | null = null;
-  let partial: Awaited<ReturnType<typeof runScanLoop>> | null = null;
   try {
-    const result = await runScanLoop(owner, repo, { budgetMs: FAST_PATH_WAIT_MS });
-    if (result.status === "done" && result.report) {
-      full = result.report;
-    } else {
-      partial = result;
-    }
+    validateOwnerRepo(owner, repo);
   } catch (err) {
-    const { title, body } = errorCopy(err, owner, repo);
-    // The rate-limit case gets its own button wording ("Try this scan
-    // again") — same reload-the-same-scan mechanism as the other
-    // error states, which keep "Retry this scan".
-    const retryLabel = err instanceof ScanError && err.kind === "rate-limit" ? "Try this scan again" : "Retry this scan";
+    if (!(err instanceof ScanError)) throw err;
+    const { title, body } = scanErrorCopy(err.kind, owner, repo, err.resetAtMs ?? null);
     return (
       <div>
         <p className="back-link"><a href="/">← Scan another repo</a></p>
         <h1>{title}</h1>
         <div className="card error-card" role="alert">
           <p>{body}</p>
-          <p><RetryScanButton label={retryLabel} />{" "}<a className="button-link" href="/">Scan another repo</a></p>
+          <p><RetryScanButton label={scanErrorRetryLabel(err.kind)} />{" "}<a className="button-link" href="/">Scan another repo</a></p>
         </div>
       </div>
     );
   }
 
-  if (full) {
-    return <ReportView report={full} />;
-  }
-  if (!partial || partial.status !== "partial" || !partial.cursor || !partial.partial) {
-    throw new Error("Unreachable: scan neither done nor partial.");
-  }
-
-  // Still running after the fast-path wait: the HEAD report renders
-  // first when the HEAD chunk is done (provisional score, labelled),
-  // and the client drives the remaining history chunks from the
-  // cursor, saving progress so a reload resumes where it left off.
-  const head = partial.head ?? null;
-  const provisional =
-    head !== null
-      ? buildProvisionalReport(head, partial.historyFindings ?? [], partial.partial.historyScanned, partial.partial.historyComplete)
-      : null;
+  // Zero server await: the progress shell renders immediately and the
+  // browser starts the scan (no cursor yet — the first chunk runs
+  // through POST /api/scan/start). Saved progress from this tab, if
+  // any, is picked up by the driver on mount.
   return (
     <ScanProgress
       owner={owner}
       repo={repo}
-      cursor={partial.cursor}
-      head={head}
-      historyFindings={partial.historyFindings ?? []}
-      historyScanned={partial.partial.historyScanned}
-      initial={partial.progress ?? partial.partial.progress}
-      provisional={provisional}
+      cursor={null}
+      head={null}
+      historyFindings={[]}
+      historyScanned={0}
+      initial={emptyProgress()}
+      provisional={null}
     />
   );
 }

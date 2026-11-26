@@ -1,0 +1,48 @@
+
+> gitsecure@0.1.0 test:fixtures-phase14
+> tsx scripts/test-fixtures-phase14.ts
+
+PASS  generated fixtures: OSV reachable
+PASS  generated github.com/labstack/echo/v4 detects the same 28 advisories as the old committed fixture — got 28: same set
+PASS  generated vite detects the same 23 advisories as the old committed fixture — got 23: same set
+PASS  generated tokio detects the same 9 advisories as the old committed fixture — got 9: same set
+PASS  generated laravel/framework detects the same 7 advisories as the old committed fixture — got 7: same set
+PASS  generated org.springframework:spring-core detects the same 3 advisories as the old committed fixture — got 3: same set
+PASS  generated Flask detects the same 2 advisories as the old committed fixture — got 2: same set
+PASS  generated rails detects the same 1 advisories as the old committed fixture — got 1: same set
+PASS  generated fixtures: total is 73, the old committed-fixture total — got 73
+PASS  generated fixtures: total matches the expected ID sets — 73 vs 73
+PASS  generated vite.config.ts yields the same 3 posture items (host, plugins, public vars) — VITE_ variables are public by design; Vite dev server bound to 0.0.0.0; Vite plugins in use
+PASS  generated Tier 3 fixtures yield the same 9 infra posture items — Docker base image is not pinned to a version; Dockerfile downloads a file with ADD; Dockerfile runs as root; Kubernetes container image is not pinned to a version; Kubernetes container runs as root (UID 0); Kubernetes container runs privileged; Kubernetes pod uses the host network; Possible secret passed as a Docker build argument; Terraform provider random has no version constraint
+PASS  generated Tier 3 (relative keys): unpinned setup-node action finding also present
+PASS  generated .env still trips the env-file finding
+PASS  generated fixtures through buildPosture give exactly the 13 fixture-driven posture items — env-committed, infra-docker-base-image-is-not-pinned-to-a-version, infra-dockerfile-downloads-a-file-with-add, infra-dockerfile-runs-as-root, infra-kubernetes-container-image-is-not-pinned-to-a-version, infra-kubernetes-container-runs-as-root-uid-0-, infra-kubernetes-container-runs-privileged, infra-kubernetes-pod-uses-the-host-network, infra-possible-secret-passed-as-a-docker-build-argument, infra-terraform-provider-random-has-no-version-constraint, vite-vite-dev-server-bound-to-0-0-0-0, vite-vite-plugins-in-use, vite-vite-variables-are-public-by-design
+PASS  temp-dir fixture: go.mod on disk still pins Echo v4.11.1 — v4.11.1
+PASS  temp-dir fixture: app.csproj generated on disk (not committed)
+PASS  temp-dir fixture: Dockerfile generated on disk (not committed)
+PASS  temp-dir fixture: k8s manifest generated on disk (not committed)
+PASS  generated Tier 3: Docker node image 20-alpine still detected
+PASS  committed manifests: OSV reachable
+PASS  committed manifests: ZERO OSV advisories (was 73 before the migration)
+PASS  committed manifests: zero unpinned direct dependencies (was 2)
+PASS  committed tests/fixtures/fake-repo/package.json no longer contains vite 5.0.0
+PASS  committed tests/fixtures/fake-repo/requirements.txt no longer contains Flask 3.0.0
+PASS  committed tests/fixtures/fake-repo/Cargo.toml no longer contains tokio 1.0.0
+PASS  committed tests/fixtures/fake-repo-tier2/go.mod no longer contains Echo v4.11.1
+PASS  committed tests/fixtures/fake-repo-tier2/composer.lock no longer contains laravel v10.34.2
+PASS  committed tests/fixtures/fake-repo-tier2/Gemfile.lock no longer contains rails 7.1.3
+PASS  committed tests/fixtures/fake-repo-tier2/pom.xml no longer contains spring-core 6.1.2
+PASS  committed tests/fixtures/fake-repo-tier2/pom.xml no longer contains org.example:unresolvable
+PASS  committed tests/fixtures/fake-repo/.env no longer exists (generated at test time)
+PASS  committed tests/fixtures/fake-repo-tier2/app.csproj no longer exists (generated at test time)
+PASS  committed tests/fixtures/fake-repo-tier3/Dockerfile no longer exists (generated at test time)
+PASS  committed tests/fixtures/fake-repo-tier3/k8s/deployment.yaml no longer exists (generated at test time)
+PASS  committed tests/fixtures/fake-repo-tier3/main.tf no longer exists (generated at test time)
+PASS  committed vite.config.ts yields zero vite findings
+PASS  committed fixture maps: zero fixture-driven posture items left (was 13)
+PASS  committed fixture maps: no infra findings left
+PASS  scanner lib: no owner/repo literal comparison anywhere
+PASS  scanner lib: 'Squ1zM0' appears only in doc comments / tool examples
+PASS  scanner lib: no conditional keyed on the product/repo name
+
+All Phase 14 fixture checks passed.

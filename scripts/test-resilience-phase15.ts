@@ -144,10 +144,16 @@ check(
   "rate-limit copy never proposes a token (standing ruling)",
   !/token/i.test(rateLimitBody(NOW + 12 * 60_000, NOW)) && !/token/i.test(rateLimitPausedBody(NOW + 12 * 60_000, NOW)) && !/token/i.test(rateLimitBody(null, NOW)),
 );
-const pageSrc = src("src/app/[owner]/[repo]/page.tsx");
-check("page rate-limit error uses the honest reset body", pageSrc.includes("rateLimitBody(err.resetAtMs ?? null)"));
-check("page rate-limit error offers 'Try this scan again'", pageSrc.includes('"Try this scan again"'));
-check("other page errors keep 'Retry this scan'", pageSrc.includes('"Retry this scan"'));
+// Phase 16: the error page moved out of the report page (which renders
+// the progress shell immediately now) into the shared error-copy module,
+// shown by ScanProgress when a scan fails before any progress. The
+// words are unchanged — only their home moved.
+const errorCopySrc = src("src/lib/scan-error-copy.ts");
+check("scan error copy uses the honest reset body for rate limits", errorCopySrc.includes("rateLimitBody(resetAtMs"));
+check("ScanProgress terminal errors use the shared error copy", scanProgress.includes("scanErrorCopy(terminalError.kind"));
+check("rate-limit error offers 'Try this scan again'", errorCopySrc.includes('"Try this scan again"'));
+check("other errors keep 'Retry this scan'", errorCopySrc.includes('"Retry this scan"'));
+check("ScanProgress terminal errors use the matching retry label", scanProgress.includes("scanErrorRetryLabel(terminalError.kind)"));
 check("RetryScanButton accepts a label prop", src("src/components/RetryScanButton.tsx").includes("label"));
 const chunkRoute = src("src/app/api/scan/chunk/route.ts");
 check("chunk route passes the reset time through on errors", chunkRoute.includes("resetAtMs"));
