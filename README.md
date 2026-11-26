@@ -527,12 +527,24 @@ npm run test:cursor-phase9 # Phase 9: stateless chunked scans — cursor
                          # equivalence, sessionStorage resume helpers,
                          # provisional reports, no in-memory job store
                          # anywhere in src — 181 checks
+npm run test:deps-phase13 # Phase 13: dependency-flaw fixes — upgraded
+                         # fixture + real-dep versions return zero OSV
+                         # advisories; kept-vulnerable fixtures still
+                         # flag; repo-wide total 73, deduction 206 —
+                         # 22 checks, needs network (api.osv.dev)
+npm run test:score-phase12 # Phase 12 + 13: triage-weighted scoring —
+                         # test keys ×0, uncertain ×0.5, genuine ×1,
+                         # would-be score, frozen Phase 12 repro
+                         # (197/547) and current Phase 13 repro
+                         # (73/206) — 36 checks, no network
 npm run test:mcp         # MCP end-to-end: needs a running production server
                          # (npm run build && npm start) — real SDK-client
                          # handshake, tools/list, live scan_repo calls for
                          # TechDirect (83/B, full detail) and GitSecure
-                         # (0/F, 32 secrets — all 32 triage likely-test-key,
-                         # full detail, no full fake secret), error cases,
+                         # (0/F, 34 secrets — 32 triage likely-test-key,
+                         # 2 uncertain; 73 vulnerabilities after the
+                         # Phase 13 fixes — full detail, no full fake
+                         # secret), error cases,
                          # snippet JSON validity, resume_scan with a bogus
                          # cursor, usage annotations on findings — 60 checks.
                          # Set MCP_BASE_URL to test another server.
@@ -1289,6 +1301,28 @@ without the detail, MCP prose). No literal secret-pattern values
 committed (grep-verified; fixtures still use `__SECRET_n__`
 placeholders, test-assembled fakes only). NOT pushed — the
 coordinator integrates and pushes.
+
+## Phase 13 — fix the dependency flaws for real (built 2026-11-26)
+
+Freddy: "Fix the dep flaws." Phase 12 left 197 vulnerabilities at full
+weight — real OSV advisories on deliberately old pinned versions in
+the repo's own fixtures. This phase upgrades the versions instead of
+relabelling them. Measured split: real deps 2, Tier 2 fixtures 65,
+Tier 1 fixtures 130 in-scan, Tier 3 fixtures 0. Upgraded: Django
+4.2.0 → 5.2.17, next 14.2.5 → 15.5.29, fiber v2.49.0 → v2.52.14,
+sinatra 3.0.5 → 4.2.0, puma 6.4.0 → 7.2.1, phpunit 10.5.0 → 10.5.62,
+diff 8.0.2 → 8.0.4, zod 4.3.5 → 4.6.7 (all branch-correct fixed
+versions, re-checked clean on OSV). Kept vulnerable, one per
+ecosystem for detection coverage: Echo v4.11.1, rails 7.1.3,
+laravel/framework v10.34.2, spring-core 6.1.2, Flask 3.0.0, vite
+5.0.0, tokio 1.0.0. Result, measured with the scanner's own code:
+**197 → 73 vulnerabilities** (20 medium, 53 low), deduction 547 →
+**206**; total 302, so the self-scan is still **0/F** honestly — the
+kept fixtures plus posture (84, untouched) still floor it. No
+critical or high vulns remain. New `npm run test:deps-phase13` 22/22;
+full suite green (scanner 73/73, tier3 40/40, history 56/56,
+public-full 56/56, cursor 181/181, triage 63/63, usage 77/77, score
+36/36, UI 110/110).
 
 ## Project notes
 

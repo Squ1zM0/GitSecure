@@ -337,16 +337,17 @@ check("phase11 map: degrades gracefully with no usage data (file-count spider)",
 check("phase11 CSS: verdict sections, dead-end pill, map edges and track detail styled", css.includes(".verdict-test") && css.includes(".pill.dead-end") && css.includes(".map-edge-test") && css.includes(".map-edge-own") && css.includes(".map-finding-deadend") && css.includes(".map-track-detail"));
 
 // --- 5. Phase 12: triage-weighted score explanation ----------------
-// Self-scan detail, measured (test-results/phase12-score-breakdown.md):
-// 34 secrets (32 test keys excluded, 2 uncertain at half weight, 0
-// genuine), secrets deduction 384 -> 8, vulns 547, posture 84,
-// unpinned 6 — score still 0/F, would-be score also 0/F.
+// Self-scan detail, measured Phase 13 (test-results/phase13-vuln-inventory.md
+// + scripts/test-deps-phase13.ts): 34 secrets (32 test keys excluded,
+// 2 uncertain at half weight, 0 genuine), secrets deduction 384 -> 8,
+// vulns 206 (73 vulns: 20 medium, 53 low — was 547 / 197 in Phase 12),
+// posture 84, unpinned 4 — score still 0/F, would-be score also 0/F.
 const selfScanDetail: ScoreDetail = {
   score: 0, grade: "F", secretsDeduction: 8, secretsFullWeight: 0,
   secretsHalfWeight: 2, secretsExcluded: 32, wouldBeScore: 0,
-  vulnDeduction: 547, postureDeduction: 84, unpinnedDeduction: 6,
+  vulnDeduction: 206, postureDeduction: 84, unpinnedDeduction: 4,
 };
-const selfScanCounts = { secrets: 34, vulnerabilities: 197, postureIssues: 15 };
+const selfScanCounts = { secrets: 34, vulnerabilities: 73, postureIssues: 15 };
 // A case where the adjustment changes the score: 4 test keys, no
 // genuine secrets, vulns 10 + posture 7 -> 83/B; at full weight the 4
 // critical test keys (4 x 25) would floor it to 0.
@@ -381,7 +382,7 @@ check("phase12: explanation handles zero secrets", zeroExplain.includes("No secr
 
 const selfVerdict = adjustedVerdict(selfScanDetail, selfScanCounts);
 check("phase12: all-test-key verdict does not present secrets as the biggest problem", !selfVerdict.includes("possible leaked secrets — rotate") && !selfVerdict.startsWith("Biggest problem: 34"));
-check("phase12: all-test-key verdict names the real driver (vulnerabilities)", selfVerdict.includes("Biggest problem: 197 known flaws in dependencies"));
+check("phase12: all-test-key verdict names the real driver (vulnerabilities)", selfVerdict.includes("Biggest problem: 73 known flaws in dependencies"));
 check("phase12: all-test-key verdict says the test keys are excluded", selfVerdict.includes("The 32 look like test keys and do not count toward the score; the 2 uncertain ones count at half weight"));
 check("phase12: all-excluded verdict (no uncertain) says all are excluded", adjustedVerdict(adjustedDetail, adjustedCounts).includes("The 4 possible leaked secrets all look like test keys, so they do not count toward the score"));
 check("phase12: verdict falls back to the old wording with no scoreDetail", adjustedVerdict(undefined, { secrets: 2, vulnerabilities: 4, postureIssues: 1 }) === biggestProblem({ secrets: 2, vulnerabilities: 4, postureIssues: 1 }));
@@ -389,7 +390,7 @@ const genuineVerdict = adjustedVerdict(genuineDetail, genuineCounts);
 check("phase12: genuine-leak verdict still names the secrets", genuineVerdict.includes("Biggest problem: 2 genuine leaked secrets"));
 
 const selfExplainScore = adjustedExplainScore(0, "F", selfScanDetail, selfScanCounts);
-check("phase12: explainScore names the real driver, not the test keys", selfExplainScore.includes("197 known flaws") && !selfExplainScore.includes("possible leaked secrets — rotating"));
+check("phase12: explainScore names the real driver, not the test keys", selfExplainScore.includes("73 known flaws") && !selfExplainScore.includes("possible leaked secrets — rotating"));
 check("phase12: explainScore says the test keys are excluded", selfExplainScore.includes("do not count toward the score"));
 check("phase12: genuine-leak explainScore still names the secrets", adjustedExplainScore(40, "D", genuineDetail, genuineCounts).includes("2 genuine leaked secrets"));
 check("phase12: explainScore falls back with no scoreDetail", adjustedExplainScore(83, "B", undefined, { secrets: 2, vulnerabilities: 4, postureIssues: 1 }).includes("2 possible leaked secrets"));

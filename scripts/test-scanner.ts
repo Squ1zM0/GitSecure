@@ -121,10 +121,10 @@ const deps: Dependency[] = [
 ];
 const frameworks = fingerprintFrameworks(deps, contents);
 const byName = new Map(frameworks.map((f) => [f.name, f]));
-check("fingerprints Next.js 14.2.5", byName.get("Next.js")?.version === "14.2.5", byName.get("Next.js")?.version ?? "missing");
+check("fingerprints Next.js 15.5.29", byName.get("Next.js")?.version === "15.5.29", byName.get("Next.js")?.version ?? "missing"); // Phase 13: next 14.2.5 -> 15.5.29 (26 advisories had no 14.2 fix)
 check("fingerprints React 18.3.1", byName.get("React")?.version === "18.3.1");
 check("fingerprints Vite 5.0.0", byName.get("Vite")?.version === "5.0.0");
-check("fingerprints Django 4.2.0", byName.get("Django")?.version === "4.2.0");
+check("fingerprints Django 5.2.17", byName.get("Django")?.version === "5.2.17"); // Phase 13: Django 4.2.0 -> 5.2.17 (10 advisories had no 4.2 fix)
 check("fingerprints Serde (Rust)", byName.has("Serde"));
 check("flags unpinned express (*)", byName.get("Express")?.unpinned === true || deps.some((d) => d.name === "express" && (!d.version || d.version === "*")));
 
@@ -146,9 +146,9 @@ const frameworks2 = fingerprintFrameworks(deps2, t2);
 const byName2 = new Map(frameworks2.map((f) => [f.name, f]));
 check("Tier 2: fingerprints Gin v1.9.1", byName2.get("Gin")?.version === "v1.9.1", byName2.get("Gin")?.version ?? "missing");
 check("Tier 2: fingerprints Echo v4.11.1", byName2.get("Echo")?.version === "v4.11.1");
-check("Tier 2: fingerprints Fiber v2.49.0", byName2.get("Fiber")?.version === "v2.49.0");
+check("Tier 2: fingerprints Fiber v2.52.14", byName2.get("Fiber")?.version === "v2.52.14"); // Phase 13: fiber v2.49.0 -> v2.52.14 (19 advisories fixed)
 check("Tier 2: Rails lockfile 7.1.3 wins over Gemfile range", byName2.get("Rails")?.version === "7.1.3" && byName2.get("Rails")?.versionSource === "lockfile", `${byName2.get("Rails")?.version ?? "missing"} / ${byName2.get("Rails")?.versionSource ?? "?"}`);
-check("Tier 2: fingerprints Sinatra 3.0.5", byName2.get("Sinatra")?.version === "3.0.5");
+check("Tier 2: fingerprints Sinatra 4.2.0", byName2.get("Sinatra")?.version === "4.2.0"); // Phase 13: sinatra 3.0.5 -> 4.2.0 (no 3.x fix exists)
 check("Tier 2: Laravel lockfile v10.34.2 wins over ^10.0", byName2.get("Laravel")?.version === "v10.34.2" && byName2.get("Laravel")?.versionSource === "lockfile", byName2.get("Laravel")?.version ?? "missing");
 check("Tier 2: fingerprints Symfony v6.3.8", byName2.get("Symfony")?.version === "v6.3.8");
 check("Tier 2: Spring Boot 3.2.0, one entry (parent + starter + gradle)", frameworks2.filter((f) => f.name === "Spring Boot").length === 1 && byName2.get("Spring Boot")?.version === "3.2.0", byName2.get("Spring Boot")?.version ?? "missing");

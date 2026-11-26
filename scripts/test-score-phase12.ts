@@ -166,11 +166,13 @@ check("TechDirect fixture: score 83/B unchanged", techdirect.score === 83 && tec
 check("TechDirect fixture: vuln 8, posture 9, unpinned 0", techdirect.vulnDeduction === 8 && techdirect.postureDeduction === 9 && techdirect.unpinnedDeduction === 0, `v=${techdirect.vulnDeduction} p=${techdirect.postureDeduction} u=${techdirect.unpinnedDeduction}`);
 check("TechDirect fixture: wouldBeScore equals score (no secrets)", techdirect.wouldBeScore === 83, `${techdirect.wouldBeScore}`);
 
-// --- 6. Self-scan reproduction (measured 2026-11-26, see
-// test-results/phase12-score-breakdown.md): 34 secrets (32 test, 2
-// uncertain), 197 vulns (51 medium, 146 low), 15 posture (5 high,
-// 6 medium, 2 low, 2 info), 2 unpinned direct deps. New rule: secrets 8, total
-// 643 -> still 0/F; wouldBe 0/F. The vulns alone (547) floor it.
+// --- 6. Self-scan reproduction, FROZEN Phase 12 measurement (measured
+// 2026-11-26, see test-results/phase12-score-breakdown.md): 34 secrets
+// (32 test, 2 uncertain), 197 vulns (51 medium, 146 low), 15 posture
+// (5 high, 6 medium, 2 low, 2 info), 2 unpinned direct deps. New rule:
+// secrets 8, total 643 -> still 0/F; wouldBe 0/F. The vulns alone (547)
+// floor it. Kept frozen as a regression for the scorer arithmetic; the
+// CURRENT measurement lives in section 7 (Phase 13) below.
 const selfSecrets: SecretFinding[] = [];
 for (let i = 0; i < 16; i++) selfSecrets.push(triaged("high", "likely-test-key", "github-token", `tests/fixture-${i}.txt`));
 for (let i = 0; i < 16; i++) selfSecrets.push(triaged("medium", "likely-test-key", "hardcoded-password", `tests/fixture-${16 + i}.txt`));
@@ -192,7 +194,28 @@ check("Self-scan repro: new score still 0/F (vulns alone floor it)", selfScan.sc
 check("Self-scan repro: wouldBeScore 0/F (old rule)", selfScan.wouldBeScore === 0, `${selfScan.wouldBeScore}`);
 check("Self-scan repro: counts full=0 half=2 excluded=32", selfScan.secretsFullWeight === 0 && selfScan.secretsHalfWeight === 2 && selfScan.secretsExcluded === 32, `full=${selfScan.secretsFullWeight} half=${selfScan.secretsHalfWeight} excluded=${selfScan.secretsExcluded}`);
 
-// --- 7. The provisional report carries the same ScoreDetail ---
+// --- 7. Self-scan reproduction, CURRENT Phase 13 measurement --------
+// Measured 2026-11-26 by running the scanner's own dep parsers + OSV
+// check over the local working copy (see scripts/test-deps-phase13.ts,
+// which asserts the same numbers live): after upgrading Django 4.2.0 ->
+// 5.2.17, next 14.2.5 -> 15.5.29, fiber/sinatra/puma/phpunit and the real
+// deps diff/zod, the repo carries 73 vulns (20 medium, 53 low) -> vuln
+// deduction 206 (was 547). Secrets 8, posture 84, unpinned 4 -> total
+// 302, still 0/F; wouldBe 0/F. The remaining 73 are the deliberately
+// kept-vulnerable fixtures (one per ecosystem); posture is unchanged.
+// The grade stays F honestly — the kept fixtures + posture still floor
+// it — but the vuln count genuinely fell 197 -> 73.
+const selfVulns13 = [
+  ...Array.from({ length: 20 }, (_, i) => ({ id: `GHSA-m13-${i}`, packageName: "pkg-m", ecosystem: "npm", installedVersion: "1.0.0", fixedVersion: "1.0.1", severity: "medium" as Severity, summary: "m", plainEnglish: "m", upgrade: "u" })),
+  ...Array.from({ length: 53 }, (_, i) => ({ id: `GHSA-l13-${i}`, packageName: "pkg-l", ecosystem: "npm", installedVersion: "1.0.0", fixedVersion: "1.0.1", severity: "low" as Severity, summary: "l", plainEnglish: "l", upgrade: "u" })),
+];
+const selfScan13 = computeScore({ secrets: selfSecrets, vulnerabilities: selfVulns13, posture: selfPosture, unpinnedCount: 2 });
+check("Phase 13 repro: vuln 206 (20 medium, 53 low), posture 84, unpinned 4", selfScan13.vulnDeduction === 206 && selfScan13.postureDeduction === 84 && selfScan13.unpinnedDeduction === 4, `v=${selfScan13.vulnDeduction} p=${selfScan13.postureDeduction} u=${selfScan13.unpinnedDeduction}`);
+check("Phase 13 repro: secrets deduction still 8", selfScan13.secretsDeduction === 8, `${selfScan13.secretsDeduction}`);
+check("Phase 13 repro: new score still 0/F (kept fixtures + posture floor it)", selfScan13.score === 0 && selfScan13.grade === "F", `${selfScan13.score}/${selfScan13.grade}`);
+check("Phase 13 repro: wouldBeScore 0/F (old rule)", selfScan13.wouldBeScore === 0, `${selfScan13.wouldBeScore}`);
+
+// --- 8. The provisional report carries the same ScoreDetail ---
 // (score and sections computed from the same annotations).
 const head: HeadPartial = {
   owner: "fake-owner", repo: "fake-repo", branch: "main", headSha: "abc1234",
@@ -209,7 +232,7 @@ check("Provisional: carries scoreDetail", provisional.scoreDetail !== undefined,
 check("Provisional: scoreDetail matches computeScore (15 deducted, 85/B)", provisional.scoreDetail?.secretsDeduction === 15 && provisional.score === 85 && provisional.grade === "B", `ded=${provisional.scoreDetail?.secretsDeduction} ${provisional.score}/${provisional.grade}`);
 check("Provisional: counts full=1 excluded=1", provisional.scoreDetail?.secretsFullWeight === 1 && provisional.scoreDetail?.secretsExcluded === 1, `full=${provisional.scoreDetail?.secretsFullWeight} excluded=${provisional.scoreDetail?.secretsExcluded}`);
 
-// --- 8. No literal secret-pattern values in this file ---
+// --- 9. No literal secret-pattern values in this file ---
 import { readFileSync } from "node:fs";
 const self = readFileSync(new URL(import.meta.url).pathname, "utf8");
 const leaked = ["AKIA" + "IOSFODNN7EXAMPLE", "ghp_" + "FAKE".repeat(8) + "1234", "sk_test_" + "FAKE".repeat(6) + "12", "discord.com/api/webhooks/" + "123456789012345678/"].some((s) => self.includes(s));

@@ -68,6 +68,15 @@
 //      fixture-driven vulnerabilities stand. The 0/F here is honest,
 //      not a leftover of the old rule — and it is the stable assertion:
 //      the secret count drifts up as history grows, the grade does not.
+//      Phase 13: the vulnerabilities were FIXED, not relabelled —
+//      Django 4.2.0 -> 5.2.17, next 14.2.5 -> 15.5.29, fiber/sinatra/
+//      puma/phpunit and the real deps diff/zod upgraded to fixed
+//      versions; one vulnerable fixture per ecosystem deliberately kept
+//      (Echo, Rails, Laravel, Spring, Flask, vite, tokio). Measured
+//      2026-11-26 (scripts/test-deps-phase13.ts): 73 vulnerabilities
+//      (20 medium, 53 low) deducting 206, so the total is 8 + 206 +
+//      84 + 4 = 302 — still 0/F, honestly, because the kept fixtures
+//      plus posture still floor it.
 //   6. bad owner/repo format and a missing repo return plain-English
 //      errors, never a stack trace
 //   7. the config snippets shown on the human pages are valid JSON
@@ -203,16 +212,20 @@ async function main() {
     gsReport = null;
   }
   check("scan_repo GitSecure returns parseable JSON", gsReport !== null);
-  // Score is STILL 0/F in Phase 12 (was 0/F in Phase 5/10/11, for the
-  // old reason: secrets deducted at full weight). The new rule cuts
-  // the secrets deduction 384 -> 8 (32 test keys at weight 0, 2
-  // uncertain at half), but the 197 vulnerabilities alone deduct 547
-  // and posture 84 + unpinned 4, so the total is still 643 and the
-  // score floors at 0 — see test-results/phase12-score-breakdown.md.
-  // Phase 12: 34 secrets, not 32 — history grew to 27 commits (see
-  // the header note); the count drifts with history, the grade does not.
-  check("scan_repo GitSecure score 0 / grade F (Phase 12: 34 secrets, secrets deduction 8, vulns 547 — see header note)", gsReport?.score === 0 && gsReport?.grade === "F", `got ${gsReport?.score}/${gsReport?.grade}`);
+  // Score is STILL 0/F in Phase 13 (was 0/F in Phase 5/10/11/12, for the
+  // old reason: secrets deducted at full weight, then vulns 547). The
+  // Phase 12 rule cuts the secrets deduction 384 -> 8 (32 test keys at
+  // weight 0, 2 uncertain at half), and Phase 13 fixed the
+  // vulnerabilities for real (197 -> 73, deduction 547 -> 206), but
+  // posture 84 + unpinned 4 plus the deliberately kept-vulnerable
+  // fixtures still floor the total at 302 — see
+  // test-results/phase13-vuln-inventory.md and
+  // scripts/test-deps-phase13.ts. Phase 13: 34 secrets, not 32 —
+  // history grew to 27 commits (see the header note); the count drifts
+  // with history, the grade does not.
+  check("scan_repo GitSecure score 0 / grade F (Phase 13: 34 secrets, secrets deduction 8, vulns 206 — see header note)", gsReport?.score === 0 && gsReport?.grade === "F", `got ${gsReport?.score}/${gsReport?.grade}`);
   check("scan_repo GitSecure counts 34 secrets", gsReport?.counts?.secrets === 34, `got ${gsReport?.counts?.secrets}`);
+  check("scan_repo GitSecure counts 73 vulnerabilities (Phase 13: was 197)", gsReport?.counts?.vulnerabilities === 73, `got ${gsReport?.counts?.vulnerabilities}`);
   // Phase 12 dogfood: 32 of the 34 are known-fake fixture secrets
   // triaging likely-test-key; the other 2 are uncertain (the
   // test-scanner.ts:104 and test-usage-phase11.ts:333 fixtures) — and
@@ -222,7 +235,7 @@ async function main() {
   const gsUncertain = gsFull?.secrets?.filter((s) => s.triage?.verdict === "uncertain").length ?? -1;
   check("scan_repo GitSecure: 32 of 34 secrets triage likely-test-key, 2 uncertain", gsFull?.secrets?.length === 34 && gsTestKeys === 32 && gsUncertain === 2, `test keys ${gsTestKeys}, uncertain ${gsUncertain} of ${gsFull?.secrets?.length ?? "?"}`);
   check("scan_repo GitSecure: counts.testKeySecrets is 32", gsReport?.counts?.testKeySecrets === 32, `got ${gsReport?.counts?.testKeySecrets}`);
-  check("scan_repo GitSecure: scoreDetail carries the Phase 12 breakdown (secrets 8, wouldBe 0, excluded 32, half 2)", gsFull?.scoreDetail?.secretsDeduction === 8 && gsFull?.scoreDetail?.wouldBeScore === 0 && gsFull?.scoreDetail?.secretsExcluded === 32 && gsFull?.scoreDetail?.secretsHalfWeight === 2, JSON.stringify(gsFull?.scoreDetail));
+  check("scan_repo GitSecure: scoreDetail carries the Phase 12 breakdown (secrets 8, wouldBe 0, excluded 32, half 2) and Phase 13 vulns (206)", gsFull?.scoreDetail?.secretsDeduction === 8 && gsFull?.scoreDetail?.wouldBeScore === 0 && gsFull?.scoreDetail?.secretsExcluded === 32 && gsFull?.scoreDetail?.secretsHalfWeight === 2 && gsFull?.scoreDetail?.vulnDeduction === 206, JSON.stringify(gsFull?.scoreDetail));
   // Phase 11 dogfood: every secret finding in the MCP response
   // carries usage alongside triage (HEAD findings from scanHead,
   // history findings from the git-path HEAD corpus).

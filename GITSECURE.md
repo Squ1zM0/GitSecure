@@ -1415,6 +1415,84 @@ alarms train people to ignore real ones.
   placeholders, test-assembled fakes only). NOT pushed — the
   coordinator integrates and pushes.
 
+## Phase 13 status — fix the dependency flaws for real (built 2026-11-26, three workers)
+
+Trigger: Freddy — "Fix the dep flaws." Phase 12 measured the self-scan
+at 0/F with 197 vulnerabilities (547 points) — real OSV advisories on
+deliberately old pinned versions in the repo's own test fixtures — and
+deliberately left them at full weight. This phase upgrades the versions
+instead of relabelling them.
+
+- **Measured split (before, real local scan of Squ1zM0/GitSecure).**
+  197 vulns: real dependencies 2 (`diff` 8.0.2, `zod` 4.3.5 in
+  `package-lock.json`), Tier 2 fixtures 65 (Echo 28, Fiber 19, Laravel
+  7, Puma 4, Rails 1, Sinatra 2, PHPUnit 1, spring-core 3), Tier 1
+  fixtures 130 in-scan (Django 4.2.0 ×96, vite 5.0.0 ×23, tokio 1.0.0
+  ×9, Flask 3.0.0 ×2; next 14.2.5 ×38 shadowed in-scan by the root
+  `package.json` next 16.4.6 via the name+ecosystem dedupe, first
+  pinned wins). Tier 3 fixtures contribute 0 vulns. Full 197-row
+  grouped inventory: `test-results/phase13-vuln-inventory.md`.
+- **Real dependencies (fixed first — the actual risk).** `diff`
+  8.0.2 → 8.0.4 (GHSA-73rr-hh4g-fpgx / CVE-2026-24001, LOW —
+  parsePatch/applyPatch infinite loop, DoS; GitSecure diffs patches
+  with it) and `zod` 4.3.5 → 4.6.7 (GHSA-mrhx-c7xc-m3w5 /
+  CVE-2023-54404, HIGH, CVSS 7.5 — uncontrolled resource consumption,
+  OOM). Both re-checked clean on OSV; exact pins preserved;
+  `package-lock.json` updated with `npm install --package-lock-only`
+  (only the two entries changed). `npm audit` is blocked in this
+  sandbox (registry policy 403), so the evidence is an OSV batch query
+  of all 215 lockfile packages. Build exit 0 after the upgrade.
+  Caveat: `node_modules/` still held the old copies (no full install
+  was run), so the fixed versions take effect on the next fresh
+  install — which is what the Vercel deploy does.
+- **Upgrades (branch-correct fixed versions).** The scanner's
+  `fixedVersion` is the first `fixed` event across all advisory
+  ranges and misleads on multi-branch advisories, so every target was
+  re-checked per-advisory against the OSV API for the range actually
+  containing the installed version: Django 4.2.0 → 5.2.17 (10 of its
+  96 advisories have no 4.2 fix at all; 5.2 is the LTS line), next
+  14.2.5 → 15.5.29 (26 of 38 have no 14.2 fix), fiber/v2 v2.49.0 →
+  v2.52.14, sinatra 3.0.5 → 4.2.0 (no 3.x fix exists), puma 6.4.0 →
+  7.2.1, phpunit/phpunit 10.5.0 → 10.5.62. Manifest + lockfile kept
+  consistent where both exist (fake-repo has no lockfiles).
+  Unfixable: none in this scope — every advisory had a fix in some
+  release line. `org.example:unresolvable` stays version-null by
+  design (proves unresolvable versions stay null).
+- **Kept vulnerable (one per ecosystem, detection coverage).**
+  Echo v4.11.1 (28, Go), rails 7.1.3 (1, Ruby — preserves the
+  lockfile-wins test), laravel/framework v10.34.2 (7, PHP — preserves
+  the lockfile-wins test), spring-core 6.1.2 (3, Java — the only
+  vulnerable Java package, preserves the `${spring.version}` test),
+  Flask 3.0.0 (2, PyPI), vite 5.0.0 (23, npm), tokio 1.0.0 (9,
+  crates). Note: 2 of Echo's advisories have no fix in the v4 line
+  (need v5.4.0), 4 of Laravel's only in 12.x, 2 of spring-core's need
+  6.2.11+ — future fixes are major jumps, recorded here, not taken.
+  Fixture-only caveat: fake-repo's `package.json` now pairs next
+  15.5.29 with React 18.3.1, which is not a supported combination for
+  a real Next 15 app — fixture-only, nothing is installed or run from
+  it; React stays 18.3.1 (0 vulns, fingerprint assertion intact).
+- **No gaming.** No fixture directory excluded from scanning, no
+  severity changed, no fixture deleted to drop the count. The score
+  improves only because the versions are actually fixed.
+- **Result (measured, scanner's own code over the local working
+  copy).** 197 → **73 vulnerabilities** (20 medium, 53 low), vuln
+  deduction 547 → **206**; total deductions 8 + 206 + 84 + 4 = 302 —
+  self-scan still **0/F**, honestly, because the deliberately kept
+  fixtures (73 vulns) plus posture (84) still floor it. No critical
+  or high vulns remain. Posture untouched (15 issues, out of scope).
+- **Tests.** New `npm run test:deps-phase13` 22/22 (upgraded versions
+  return zero advisories live on OSV; kept fixtures still flag;
+  repo-wide total 73, deduction 206). Fingerprint assertions updated
+  with reasons recorded (Next.js 15.5.29, Django 5.2.17, Fiber
+  v2.52.14, Sinatra 4.2.0). `test:score-phase12` keeps the frozen
+  Phase 12 repro (197/547) and adds a Phase 13 repro (73/206).
+  `test:ui-phase7` fixture updated to the Phase 13 numbers (73
+  vulns, deduction 206). `test:mcp` header + scoreDetail checks
+  updated (73 vulns, deduction 206). Full suite: build exit 0;
+  scanner 73/73, tier3 40/40, history 56/56, public-full 56/56,
+  cursor 181/181, triage 63/63, usage 77/77, score 36/36, deps 22/22,
+  UI 110/110 (test:mcp + test:techdirect run live after the push).
+
 ## Phase 2 status — built and pushed 2026-11-25, commit 870f889f, live at https://gitsecure.vercel.app/ (verified serving: home 200, live TechDirect scan 200, 83/B)
 - Next.js 16 / React 19 / TypeScript + Auth.js (NextAuth 5.0.0-beta.32,
   GitHub provider), in ~/workspace/gitsecure/.
