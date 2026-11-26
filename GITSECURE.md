@@ -548,14 +548,31 @@ Two spec items, in order:
   2,802, `test:mcp` 51/51 against a local production server. No
   literal secret-pattern values committed (grep-verified; fixtures
   use `__SECRET_n__` placeholders, test-assembled fakes only).
-- **Pushed 2026-11-25, commit <SHA>** (remote head + remote tree
-  verified by read-back: exact match with local).
-- **Live verification (2026-11-25, after <SHA>):** home 200; live scan
+- **Pushed 2026-11-25, commit c58d7b077d1419e2057996043de92bc0d574697d**
+  (68 files, remote head + remote tree verified by read-back: exact
+  match with local, no stale files).
+- **Live verification (2026-11-25, after c58d7b07):** home 200; live scan
   API `Squ1zM0/TechDirect` 200, 83/B, filesScanned 2,802,
-  historyCommitsScanned <N> via the API path (was 5 — the Vercel
-  no-git fallback); live Tier 3 example: `actions/checkout` scan
-  shows the 3 GitHub Action frameworks with versions. Live MCP
-  initialize 200 (protocol 2025-03-26, gitsecure 0.1.0).
+  historyCommitsScanned **56 via the API path** (was 5 — the Vercel
+  no-git fallback is gone; the report says "History scan (GitHub API —
+  no git binary in this runtime)"). NOT all 62: the scan stops at 56
+  because the unauthenticated GitHub API limit is 60 requests/hour and
+  a full 62-commit API history needs ~65 requests from Vercel (repo +
+  tree + commits list + API list + 62 detail fetches), so the quota
+  runs out first — the report says so honestly ("GitHub API rate limit
+  was hit — scanned 56 commits before stopping. Setting a GITHUB_TOKEN
+  raises the limit."). The code is correct — the same API path run
+  from a machine with quota scans all 62 in ~6 s — the fix is setting
+  a `GITHUB_TOKEN` env var in Vercel (5,000/hour), which needs
+  dashboard access (Vercel MCP is 403, so Cobalt cannot set it). Live
+  Tier 3 example (`actions/checkout`) could NOT be verified live in
+  this session: the two TechDirect verification scans consumed the
+  shared unauthenticated quota, so the checkout scan answers 429
+  "request limit was hit" — same root cause, same fix. Tier 3 is
+  verified locally end-to-end instead (`actions/checkout`: 3 GitHub
+  Action frameworks with versions, 27 vulnerabilities) and by
+  `test:tier3` 40/40. Live MCP initialize 200 (protocol 2025-03-26,
+  gitsecure 0.1.0).
 
 ## Phase 2 status — built and pushed 2026-11-25, commit 870f889f, live at https://gitsecure.vercel.app/ (verified serving: home 200, live TechDirect scan 200, 83/B)
 - Next.js 16 / React 19 / TypeScript + Auth.js (NextAuth 5.0.0-beta.32,
