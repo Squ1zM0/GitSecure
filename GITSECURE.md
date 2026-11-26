@@ -994,8 +994,19 @@ Tests: scanner 73/73, tier3 40/40, history 56/56, public-full 56/56,
 ui-phase7 53/53, cursor-phase9 181/181 (new: interrupted mid-history
 resume produces the identical final report, bogus cursors, second
 page-load resume), techdirect 83/B (2,802 files, 62/62 history),
-mcp 56/56. Build exit 0. Live verification: pending push (see
-README.md Phase 9 section).
+mcp 56/56. Build exit 0. Pushed 2026-11-25 as 8f4ffa4f (remote head +
+tree verified by read-back). Live: home 200, chunk route live (new
+Phase 9 400 without a cursor), TechDirect 200 in 8.5 s, 83/B, 2,802
+files, 62/62 history; MCP initialize 200, tools/list shows
+resume_scan. torvalds/linux live: HEAD chunk 504s at ~51 s twice on
+a slow-download day, then the third attempt returned 202 with the
+full HEAD (96,985/96,985 files, 20 secrets — same 20 as the local
+disk profile) + 10 history commits; two fresh `POST /api/scan/chunk`
+calls advanced history 10 → 20 → 30 with only the cursor — the
+resume proof. A fresh `GET ?cursor=…` resume then hit the shared
+Vercel IP's unauthenticated GitHub quota (429), not a cursor
+failure. Full Linux history (~1M commits) remains a very long walk;
+the report always says exactly how far it got.
 
 ## Phase 2 status — built and pushed 2026-11-25, commit 870f889f, live at https://gitsecure.vercel.app/ (verified serving: home 200, live TechDirect scan 200, 83/B)
 - Next.js 16 / React 19 / TypeScript + Auth.js (NextAuth 5.0.0-beta.32,

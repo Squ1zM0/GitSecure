@@ -918,8 +918,34 @@ lose and the old dead-end is impossible.
   2802 files in the tree" and 62/62 history via git protocol,
   `test:mcp` 56/56 (51 + 5 resume_scan checks) against a local
   production server. Secret-pattern grep clean (fixtures assemble
-  fakes from fragments, as before). Live verification: pending the
-  push below.
+  fakes from fragments, as before).
+- **Pushed 2026-11-25 as 8f4ffa4f** (remote head + tree verified by
+  read-back: 118 entries, new files present, jobs files gone).
+  **Live (2026-11-25, after the push):** home 200; `POST
+  /api/scan/chunk` with no cursor answers the new Phase 9 400;
+  TechDirect live scan **200 in 8.5 s, 83/B, 2,802 files, 62/62
+  history, 0 secrets, 4 vulns**; MCP initialize 200 (protocol
+  2025-03-26, gitsecure 0.1.0), tools/list shows all four tools
+  including `resume_scan` with a `{ cursor }` input.
+  **torvalds/linux live, the honest result:** the HEAD chunk 504s
+  at ~51 s on a slow-download day — the 275 MB tarball does not
+  always arrive inside the 50 s chunk budget from Vercel, so the
+  first two attempts stopped cleanly and retried the HEAD chunk
+  from its cursor (clean retry, no dead-end, nothing half-reported).
+  The third attempt landed in a fast window and **returned 202 with
+  the full HEAD: 96,985 of 96,985 files scanned, 20 HEAD secrets**
+  (the same 20 the local disk profile found), plus the first history
+  chunk (10 commits). Two further `POST /api/scan/chunk` calls —
+  each a fresh serverless invocation carrying only the cursor —
+  advanced history **10 → 20 → 30 commits**, no errors, no
+  re-scan of HEAD. That is the Phase 9 proof: a restart between
+  chunks loses nothing. A fresh `GET ?cursor=…` resume then hit
+  the shared Vercel IP's unauthenticated GitHub quota (429) — the
+  quota, not the cursor, was the blocker; the scan answers 429
+  instead of crashing, as designed. Full Linux history (~1M
+  commits, API path, 10 per chunk) remains a very long walk, and
+  the report will say exactly how far it got — it is never
+  presented as complete.
 
 ## Project notes
 
