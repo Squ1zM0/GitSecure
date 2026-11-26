@@ -1,0 +1,16 @@
+# Fake-repo fixture for Tier 3 infra tests. Placeholder values only.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: fake-app
+spec:
+  replicas: 1
+  template:
+    spec:
+      hostNetwork: true
+      containers:
+        - name: app
+          image: myapp:latest
+          securityContext:
+            privileged: true
+            runAsUser: 0

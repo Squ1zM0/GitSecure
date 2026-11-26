@@ -40,6 +40,12 @@ No install, no config — swap the URL, get a security report.
   huge lists: collapsible groups, type/severity/file filters, a file
   map, a GitHub blob link on every secret and an in-page anchor per
   finding. See "Phase 5 status" below.
+- PHASE 6 (Freddy, 2026-11-25, "Continue development yourself, Auto —
+  you know the vision."): Tier 3 infra fingerprinting (Docker /
+  Kubernetes / Terraform / GitHub Actions / CI configs) and the
+  API-based full-history path that fixes the Vercel no-git live caveat
+  (live history fell back to 5 commits; now it pages the commits API
+  for the full history). See "Phase 6 status" below.
 - DEPLOYED 2026-11-25 by Freddy: live at https://gitsecure.vercel.app/,
   verified live by Cobalt (home page + live TechDirect scan 83/B, matching
   the local test). Vercel MCP still returns 403 on team scope
@@ -159,7 +165,8 @@ aion-index commit as regression test), deploy on Vercel, iterate.
   commits and say so in the report; full-history (62 commits on TechDirect)
   works locally where git exists. Fixing that in production needs either
   a GITHUB_TOKEN in Vercel or an API-based history path — a Phase 3 item,
-  not a Phase 2 blocker.
+  not a Phase 2 blocker. **FIXED in Phase 6 (2026-11-25): the API history
+  path now scans the full history on Vercel too — see "Phase 6 status".**
 - V1: + dependencies, workflows, posture checks.
 - V2: stack watch / alerts, GitHub App, private repos, CI badge.
 
@@ -487,6 +494,68 @@ No scanner logic, scores, or public/full split changed. TechDirect still
   (`.../blob/master/.github/workflows/CI.yml#L132`) resolves 200 to
   the real file. Live MCP initialize 200 (protocol 2025-03-26,
   gitsecure 0.1.0).
+
+## Phase 6 status — Tier 3 fingerprinting + API-based full history (built 2026-11-25, Freddy: "Continue development yourself, Auto — you know the vision.")
+
+Two spec items, in order:
+
+- **1. Tier 3 framework fingerprinting** (`src/lib/infra.ts`, fixtures
+  `tests/fixtures/fake-repo-tier3/`, `npm run test:tier3` 40/40).
+  Docker (Dockerfile `FROM` image[:tag], compose `image:`), Kubernetes
+  manifests (Deployment / StatefulSet / DaemonSet / Job / CronJob / Pod
+  + container images), Terraform (`required_providers` / `provider`
+  blocks + `required_version`), GitHub Actions (`uses: owner/action@ref`),
+  Vercel preset, Supabase config. Versions are read honestly or
+  reported null — `latest` / missing tag, a Terraform range (`~> 5.0`),
+  a 40-char SHA ref, and a K8s manifest version are all null, never
+  guessed; `latest`/missing/branch refs are unpinned. Risky patterns
+  are posture findings with a plain-English detail ending in an exact
+  `Fix:`: Dockerfile running as root (or no USER), `latest` base image,
+  secret-looking build args, remote-URL `ADD`, K8s `privileged` /
+  `hostNetwork` / `hostPID` / `runAsUser: 0`, unpinned Terraform
+  providers, unpinned Action refs. Deliberately NOT flagged: exposed
+  ports (too noisy), `pull_request_target` (scan.ts already owns it),
+  `persist-credentials: true` (default behaviour). Action deps are
+  OSV-checked via the "GitHub Actions" ecosystem (`actions` in the
+  osv.ts ecosystemMap); a SHA ref is not queryable, so it stays
+  version-null. Wiring in `src/lib/scan.ts`: workflow files feed
+  `parseWorkflowActions` into the dep loop, `detectInfraFrameworks`
+  merges into the frameworks list (one entry per name, known version
+  wins), `infraFindings` feeds the posture list. End-to-end proof:
+  `actions/checkout` scans to 3 Action frameworks (checkout v7,
+  setup-node v6, upload-artifact v7) with 27 vulnerabilities.
+- **2. API-based full history on Vercel** (`src/lib/history.ts`,
+  `scanHistoryViaApi`, `HistoryScanResult.method: "clone" | "api"`).
+  When the git binary is unavailable or the clone fails, the scan now
+  pages the GitHub commits API (100/page, `Link` next headers) up to
+  the same 1,000-commit / 50 MB / 45 s caps, fetches each commit's
+  patch (5 concurrent, 12 s per-fetch timeout), scans added lines only
+  with hunk-accurate line numbers, per-commit attribution, redacted
+  fragments only. Rate limit (429 / 403 with an empty bucket) stops
+  gracefully: findings so far kept, note says a `GITHUB_TOKEN` raises
+  the limit. One bad commit never fails the scan. The report says
+  which path was used (`History scan (GitHub API — no git binary in
+  this runtime)` vs `(ephemeral git clone)`). The old 5-commit patch
+  fallback only runs if the API path also fails. Tested against a
+  local mock GitHub API (`test:history` 9 → 23 checks): planted secret
+  in an old commit found + attributed to the right commit, pagination
+  across list pages, rate-limit behaviour. Live proof: API history
+  against the real GitHub API scans all 62 TechDirect commits in
+  ~6 s, unauthenticated.
+- **Verification (2026-11-25):** `npm run build` exit 0;
+  `test:scanner` 68/68, `test:tier3` 40/40, `test:history` 23/23,
+  `test:public-full` 56/56, `test:techdirect` 83/B with filesScanned =
+  2,802, `test:mcp` 51/51 against a local production server. No
+  literal secret-pattern values committed (grep-verified; fixtures
+  use `__SECRET_n__` placeholders, test-assembled fakes only).
+- **Pushed 2026-11-25, commit <SHA>** (remote head + remote tree
+  verified by read-back: exact match with local).
+- **Live verification (2026-11-25, after <SHA>):** home 200; live scan
+  API `Squ1zM0/TechDirect` 200, 83/B, filesScanned 2,802,
+  historyCommitsScanned <N> via the API path (was 5 — the Vercel
+  no-git fallback); live Tier 3 example: `actions/checkout` scan
+  shows the 3 GitHub Action frameworks with versions. Live MCP
+  initialize 200 (protocol 2025-03-26, gitsecure 0.1.0).
 
 ## Phase 2 status — built and pushed 2026-11-25, commit 870f889f, live at https://gitsecure.vercel.app/ (verified serving: home 200, live TechDirect scan 200, 83/B)
 - Next.js 16 / React 19 / TypeScript + Auth.js (NextAuth 5.0.0-beta.32,

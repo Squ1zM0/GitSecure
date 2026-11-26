@@ -1,0 +1,12 @@
+# Fake-repo fixture for Tier 3 infra tests. Placeholder values only.
+services:
+  db:
+    image: postgres:15
+    environment:
+      POSTGRES_DB: fakedb
+  cache:
+    image: redis
+  app:
+    build: .
+    ports:
+      - "3000:3000"

@@ -140,8 +140,12 @@ in full.
   patches): history step 6–12 s, whole scan ~15 s — inside the 60 s route
   limit. A secret in a very old commit of a huge repo may still be missed,
   and the report says when a cap was hit. If the runtime has no `git`
-  binary, or the clone fails, the scan falls back to API patches of the
-  5 most recent commits and says so in the report's limits.
+  binary (Vercel serverless ships none), or the clone fails, the scan
+  uses the **API history path** instead (Phase 6): it pages the GitHub
+  commits API and fetches each commit's patch — same caps, per-commit
+  attribution, and the report says which path was used. Only if the API
+  path also fails does it fall back to patches of the 5 most recent
+  commits.
 - **HEAD scan: unlimited.** Every file in the HEAD tree is scanned,
   manifests and configs first (fetched 10 at a time). There is no
   file-count cap and no per-file or total size cap — no 250, no 1,000,
@@ -167,7 +171,11 @@ in full.
   budget never drops a finding from the list. If OSV is unreachable the
   scan continues and says so.
 - **Rate limits:** unauthenticated GitHub API is 60 requests/hour. A scan uses
-  roughly 7 API calls plus raw file fetches.
+  roughly 7 API calls plus raw file fetches — but the API history path
+  (Phase 6) uses about one request per commit, so a repo with more than
+  ~50 commits can hit the unauthenticated limit on Vercel; when it does,
+  the scan keeps the findings so far and says so plainly. Setting a
+  `GITHUB_TOKEN` env var raises the limit to 5,000/hour.
 - GitSecure is **not a replacement for GitHub Advanced Security**.
 
 ## Dogfooding note
@@ -321,7 +329,12 @@ npm run test:scanner     # synthetic fixture with FAKE planted secrets only
                          # 150-finding no-cap proof + score floor + nav links
 npm run test:history     # full-history regression: a fake secret planted in
                          # an old commit of a throwaway local repo, removed
-                         # from HEAD — 9 checks, clone + log + detect
+                         # from HEAD — 23 checks, clone + API path (mock
+                         # GitHub API: pagination, per-commit attribution,
+                         # rate-limit behaviour)
+npm run test:tier3       # Tier 3 infra detectors on fixtures (Docker,
+                         # Kubernetes, Terraform, GitHub Actions, Vercel /
+                         # Supabase) — 40 checks, no network
 npm run test:public-full # Phase 4: no login flow, no owner gate, no
                          # "Honest limits" copy anywhere in src; no file-count
                          # cap in the scanner; full detail + redaction —
@@ -459,6 +472,56 @@ findings.
   7ed620e0): DefinitelyTyped API 200, 0/F, **403 secrets listed**,
   61,814 files, 9,401 dependencies; TechDirect API still 83/B.
   Full live numbers in GITSECURE.md.
+
+## Phase 6 — Tier 3 fingerprinting + API-based full history (built 2026-11-25)
+
+Freddy: "Continue development yourself, Auto — you know the vision."
+The vision: fingerprint every framework a repo uses and alert on flaws
+in its stack. Phase 6 does Tier 3 (infra) and fixes the oldest live
+caveat — Vercel has no git binary, so live history fell back to 5
+commits while local scans read all 62 TechDirect commits.
+
+- **Tier 3 detectors** (`src/lib/infra.ts`, fixtures in
+  `tests/fixtures/fake-repo-tier3/`, `npm run test:tier3` 40/40):
+  Docker (Dockerfile `FROM` image + tag, compose `image:` entries —
+  `latest`/missing tag means version unknown + unpinned), Kubernetes
+  manifests (Deployment/StatefulSet/etc. + container images, version
+  honestly unknown), Terraform (providers from `required_providers` /
+  `provider` blocks — an exact version is a version, a range like
+  `~> 5.0` is not; a missing constraint is flagged), GitHub Actions
+  (`uses: owner/action@ref` — tag/SHA/branch; `@main`/`@master`/no ref
+  is unpinned), Vercel preset and Supabase config where a version can
+  be read honestly. Versions are never guessed. Risky patterns become
+  posture findings with a plain-English detail ending in an exact
+  `Fix:` — Dockerfile running as root, `latest` base images,
+  secret-looking build args, K8s `privileged` / `hostNetwork` /
+  `hostPID` / `runAsUser: 0`, unpinned Terraform providers, unpinned
+  Action refs. `pull_request_target` is not duplicated (scan.ts owns
+  it) and exposed ports are deliberately not flagged (too noisy).
+- **Actions flaws via OSV:** GitHub Action deps are checked against
+  OSV.dev's "GitHub Actions" ecosystem (`actions: "GitHub Actions"` in
+  `src/lib/osv.ts`); a full SHA ref is not a queryable version, so it
+  is reported as version null (pinned) and skipped by the OSV query.
+- **API history path** (`src/lib/history.ts`, `scanHistoryViaApi`):
+  pages the commits API (100/page, `Link` next headers) up to the same
+  1,000-commit / 50 MB / 45 s caps, fetches each commit's patch (5
+  concurrent), scans added lines only with hunk-accurate line numbers,
+  per-commit attribution, redacted fragments only. A 429 / 403 with an
+  empty rate-limit bucket stops gracefully — findings so far are kept
+  and the note says a `GITHUB_TOKEN` raises the limit. One bad commit
+  never fails the scan. The report says which path was used (clone vs
+  API). The old 5-commit patch fallback only runs if the API path also
+  fails. Tested against a local mock GitHub API (`test:history` now
+  23/23): planted secret in an old commit found and attributed to the
+  right commit, pagination across list pages, rate-limit behaviour.
+- **Verification (2026-11-25):** `npm run build` exit 0;
+  `test:scanner` 68/68, `test:tier3` 40/40, `test:history` 23/23,
+  `test:public-full` 56/56, `test:techdirect` 83/B with filesScanned =
+  2,802, `test:mcp` 51/51. End-to-end: `actions/checkout` scan finds
+  3 GitHub Action frameworks (checkout v7, setup-node v6,
+  upload-artifact v7) with 27 vulnerabilities; API history against the
+  real GitHub API scans all 62 TechDirect commits in ~6 s,
+  unauthenticated. Live numbers after the push are in GITSECURE.md.
 
 ## Project notes
 

@@ -1,0 +1,14 @@
+# Fake-repo fixture for Tier 3 infra tests. Placeholder values only.
+name: CI
+on:
+  push:
+    branches: [main]
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@main
+        with:
+          node-version: "20"
+      - uses: docker/build-push-action@v5

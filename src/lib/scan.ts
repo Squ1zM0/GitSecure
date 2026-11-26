@@ -12,13 +12,16 @@
 // Score still floors at 0 (see score.ts) however many findings there
 // are — DefinitelyTyped stays 0/F, it just lists everything now.
 //
-// HISTORY DEPTH (Phase 2): full history via an ephemeral git clone into
+// HISTORY DEPTH (Phase 2, API path Phase 6): full history via an ephemeral git clone into
 // /tmp, streaming `git log -p --all` newest-first through the same secret
 // detectors as the HEAD scan, capped at 1000 commits / 50 MB of patches /
 // 45 s (measured on Squ1zM0/TechDirect: 62 commits, 40.8 MB of patches,
-// ~12 s total). If git is unavailable in the runtime or the clone fails,
-// the scan falls back to the MVP path — patches of the 5 most recent
-// commits via the GitHub API — and the report says so in `limits`.
+// ~12 s total). If git is unavailable in the runtime (Vercel serverless
+// ships no git binary) or the clone fails, the scan falls back to the
+// API history path (history.ts scanHistoryViaApi: page the commits API,
+// fetch each commit's patch, same caps, per-commit attribution) — and
+// only if that also fails to patches of the 5 most recent commits.
+// The report says which path was used.
 // A secret deleted long ago in an old commit is now caught, up to the caps.
 //
 // HEAD SCAN (Phase 4): UNLIMITED. The entire HEAD tree is scanned —
@@ -44,14 +47,15 @@
 
 import { gunzipSync } from "node:zlib";
 import { checkDependencies } from "./osv";
-import { scanFullHistory, MAX_HISTORY_COMMITS, MAX_HISTORY_PATCH_BYTES, HISTORY_TIMEOUT_MS } from "./history";
+import { scanFullHistory, scanHistoryViaApi, API_HISTORY_NOTE, MAX_HISTORY_COMMITS, MAX_HISTORY_PATCH_BYTES, HISTORY_TIMEOUT_MS } from "./history";
+import { detectInfraFrameworks, infraFindings, parseWorkflowActions } from "./infra";
 import { isSkippablePath } from "./paths";
 import { computeScore, plainSummary } from "./score";
 import { envFileFinding, scanTextForSecrets, type ScannedFile } from "./secrets";
 import { fingerprintFrameworks, parseCargoLock, parseCargoToml, parseComposerJson, parseComposerLock, parseCsproj, parseGemfile, parseGemfileLock, parseGoMod, parseGradle, parsePackagesConfig, parsePackageJson, parsePackageLock, parsePomXml, parseRequirements, parseYamlLock, viteFindings } from "./frameworks";
 import type { Dependency, Framework, FullReport, PostureIssue, SecretFinding, Vulnerability } from "./types";
 
-export const HISTORY_DEPTH = `Full history (newest-first) via ephemeral git clone: up to ${MAX_HISTORY_COMMITS} commits / ${MAX_HISTORY_PATCH_BYTES / 1_000_000} MB of patches, ${HISTORY_TIMEOUT_MS / 1000}s cap. Falls back to API patches of the 5 most recent commits when git/clone is unavailable.`;
+export const HISTORY_DEPTH = `Full history (newest-first) via ephemeral git clone: up to ${MAX_HISTORY_COMMITS} commits / ${MAX_HISTORY_PATCH_BYTES / 1_000_000} MB of patches, ${HISTORY_TIMEOUT_MS / 1000}s cap. ${API_HISTORY_NOTE}`;
 export const HEAD_LIMITS = "HEAD: every file in the tree is scanned, manifests and configs first. Binary, dist, node_modules and .next are skipped — generated/vendored paths, not source files.";
 
 const GH_API = "https://api.github.com";
@@ -364,26 +368,40 @@ export async function scanRepo(owner: string, repo: string, options: ScanOptions
   let historyScanned = 0;
   let historyNote: string | null = null;
   const historyStarted = Date.now();
-  const history = await historyPromise;
+  // `let`, not `const`: when the clone path fails, a successful API-history
+  // result takes its place so the limits lines below work unchanged.
+  let history = await historyPromise;
   if (history.ok) {
     historyScanned = history.commitsScanned;
     secrets.push(...history.findings);
     if (history.note) historyNote = history.note;
   } else {
-    // Fallback: patches of the most recent commits via the GitHub API.
-    historyNote = `${history.note ?? "Full-history clone unavailable."} Used API patches of the ${historyCount} most recent commits instead.`;
-    for (const commit of commits.slice(0, historyCount)) {
-      try {
-        const detail = await ghJson<{ files?: { filename: string; patch?: string }[] }>(`${GH_API}/repos/${owner}/${repo}/commits/${commit.sha}`);
-        historyScanned++;
-        for (const f of detail.files ?? []) {
-          if (!f.patch || isSkippable(f.filename)) continue;
-          // Patches are diffs: scan added lines only (lines starting with +).
-          const added = f.patch.split("\n").filter((l) => l.startsWith("+") && !l.startsWith("+++")).map((l) => l.slice(1)).join("\n");
-          secrets.push(...scanTextForSecrets({ path: f.filename, content: added, commit: commit.sha.slice(0, 7) }));
+    // Phase 6: clone unavailable (e.g. no git binary on Vercel) — full
+    // history via the GitHub API instead of the old 5-commit patch
+    // fallback. Only if the API path also fails do we fall back to
+    // patches of the most recent commits.
+    const cloneNote = history.note ?? "Full-history clone unavailable.";
+    const apiHistory = await scanHistoryViaApi(owner, repo, branch);
+    if (apiHistory.ok) {
+      history = apiHistory;
+      historyScanned = apiHistory.commitsScanned;
+      secrets.push(...apiHistory.findings);
+      if (apiHistory.note) historyNote = apiHistory.note;
+    } else {
+      historyNote = `${cloneNote} ${apiHistory.note ?? ""} Used API patches of the ${historyCount} most recent commits instead.`;
+      for (const commit of commits.slice(0, historyCount)) {
+        try {
+          const detail = await ghJson<{ files?: { filename: string; patch?: string }[] }>(`${GH_API}/repos/${owner}/${repo}/commits/${commit.sha}`);
+          historyScanned++;
+          for (const f of detail.files ?? []) {
+            if (!f.patch || isSkippable(f.filename)) continue;
+            // Patches are diffs: scan added lines only (lines starting with +).
+            const added = f.patch.split("\n").filter((l) => l.startsWith("+") && !l.startsWith("+++")).map((l) => l.slice(1)).join("\n");
+            secrets.push(...scanTextForSecrets({ path: f.filename, content: added, commit: commit.sha.slice(0, 7) }));
+          }
+        } catch {
+          // One bad commit must not fail the whole scan.
         }
-      } catch {
-        // One bad commit must not fail the whole scan.
       }
     }
   }
@@ -415,6 +433,7 @@ export async function scanRepo(owner: string, repo: string, options: ScanOptions
     else if (base === "build.gradle" || base === "build.gradle.kts") deps.push(...parseGradle(content, path));
     else if (base.endsWith(".csproj")) deps.push(...parseCsproj(content, path));
     else if (base === "packages.config") deps.push(...parsePackagesConfig(content, path));
+    else if (path.startsWith(".github/workflows/") && (base.endsWith(".yml") || base.endsWith(".yaml"))) deps.push(...parseWorkflowActions(content, path));
   }
   // Dedupe dependencies by name+ecosystem (a package can appear in both a
   // manifest and a lockfile): keep the pinned version when one exists.
@@ -435,6 +454,17 @@ export async function scanRepo(owner: string, repo: string, options: ScanOptions
   deps.push(...dedupedDeps);
 
   const frameworks: Framework[] = fingerprintFrameworks(deps, files);
+  // Phase 6, Tier 3: infra frameworks (Docker, Kubernetes, Terraform,
+  // GitHub Actions, CI/infra configs). One entry per framework name,
+  // preferring a known version — same rule as fingerprintFrameworks'
+  // internal dedupe (e.g. a Vercel preset naming a framework the
+  // manifests already pin).
+  for (const f of detectInfraFrameworks(files)) {
+    const existing = frameworks.find((x) => x.name === f.name);
+    if (!existing) frameworks.push(f);
+    else if (!existing.version && f.version) Object.assign(existing, f);
+  }
+  frameworks.sort((a, b) => a.name.localeCompare(b.name));
   const unpinnedCount = deps.filter((d) => d.direct && (!d.version || d.version === "*" || d.version.toLowerCase() === "latest")).length;
 
   const { vulnerabilities, unavailable: osvUnavailable, detailCapped, depsChecked, depsQueryable } = await checkDependencies(deps);
@@ -465,14 +495,26 @@ export async function scanRepo(owner: string, repo: string, options: ScanOptions
   for (const v of viteFindings(files)) {
     posture.push({ id: `vite-${v.title.toLowerCase().replace(/[^a-z0-9]+/g, "-")}`, title: v.title, severity: v.severity, detail: v.detail, fix: v.title.includes("VITE_") ? "Move real secrets out of VITE_ variables — use server-side secrets instead." : "Restrict the dev server to localhost and review the plugins you install." });
   }
+  // Phase 6, Tier 3 infra findings (Docker / K8s / Terraform / Actions).
+  // Each detail ends with "Fix: …" — split it out into the fix field.
+  for (const v of infraFindings(files)) {
+    const fixIdx = v.detail.indexOf("Fix: ");
+    posture.push({
+      id: `infra-${v.title.toLowerCase().replace(/[^a-z0-9]+/g, "-")}`,
+      title: v.title,
+      severity: v.severity,
+      detail: fixIdx >= 0 ? v.detail.slice(0, fixIdx).trim() : v.detail,
+      fix: fixIdx >= 0 ? v.detail.slice(fixIdx + 5).trim() : v.detail,
+    });
+  }
   if (osvUnavailable) {
     posture.push({ id: "osv-unavailable", title: "Dependency check unavailable", severity: "info", detail: "The public flaw database (OSV.dev) could not be reached, so dependency vulnerabilities could not be checked in this scan.", fix: "Re-run the scan later." });
   }
 
   const { score, grade } = computeScore({ secrets: dedupedSecrets, vulnerabilities, posture, unpinnedCount });
   const limits = [HISTORY_DEPTH, HEAD_LIMITS, "Public repos only. No secret is ever stored, logged, or shown in full."];
-  if (history.ok) limits.push(`History scan: ${history.commitsScanned} commits, ${(history.patchBytes / 1_000_000).toFixed(1)} MB of patches, ${(history.ms / 1000).toFixed(1)}s (caps: ${MAX_HISTORY_COMMITS} commits / ${MAX_HISTORY_PATCH_BYTES / 1_000_000} MB / ${HISTORY_TIMEOUT_MS / 1000}s, newest-first).`);
-  else limits.push(`History scan took ${(historyMs / 1000).toFixed(1)}s (clone path unavailable; API fallback scanned ${historyScanned} commits).`);
+  if (history.ok) limits.push(`History scan (${history.method === "api" ? "GitHub API — no git binary in this runtime" : "ephemeral git clone"}): ${history.commitsScanned} commits, ${(history.patchBytes / 1_000_000).toFixed(1)} MB of patches, ${(history.ms / 1000).toFixed(1)}s (caps: ${MAX_HISTORY_COMMITS} commits / ${MAX_HISTORY_PATCH_BYTES / 1_000_000} MB / ${HISTORY_TIMEOUT_MS / 1000}s, newest-first).`);
+  else limits.push(`History scan took ${(historyMs / 1000).toFixed(1)}s (clone and API history paths both unavailable; last-resort fallback scanned ${historyScanned} most recent commits).`);
   if (historyNote) limits.push(historyNote);
   // Phase 5: no result list is capped, so there is no truncation line
   // any more. What the time budgets could not cover is stated plainly

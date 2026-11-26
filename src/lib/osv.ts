@@ -67,7 +67,7 @@ export async function checkDependencies(deps: Dependency[]): Promise<{ vulnerabi
   const queryable = deps.filter((d) => d.version && !/[\^~><*]/.test(d.version) && d.name.length > 0);
   const empty = { vulnerabilities: [], unavailable: false, advisoriesFound: 0, detailCapped: 0, depsChecked: 0, depsQueryable: queryable.length };
   if (queryable.length === 0) return empty;
-  const ecosystemMap: Record<string, string> = { npm: "npm", pypi: "PyPI", crates: "crates.io", go: "Go", ruby: "RubyGems", php: "Packagist", java: "Maven", dotnet: "NuGet" };
+  const ecosystemMap: Record<string, string> = { npm: "npm", pypi: "PyPI", crates: "crates.io", go: "Go", ruby: "RubyGems", php: "Packagist", java: "Maven", dotnet: "NuGet", actions: "GitHub Actions" };
   // Query phase: every pinned dep, QUERY_BATCH_SIZE per querybatch call,
   // until the time budget runs out. At least one batch always runs.
   // Collect (dep, vuln id) pairs from every batch that answers.
