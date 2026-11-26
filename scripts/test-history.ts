@@ -142,6 +142,15 @@ async function main() {
     check("API finding points at app.js", apiHooks[0]?.file === "app.js", apiHooks[0]?.file ?? "?");
     check("no full fake secret in API findings", !leaksSecret(JSON.stringify(api.findings), fakeWebhookApi));
     check("API scan ran inside its time cap", api.ms < 45_000, `${api.ms}ms`);
+
+    // Phase 8.1 size gate: a repo above HISTORY_CLONE_SIZE_LIMIT_KB
+    // must skip the clone-based paths and go through the API path,
+    // with a note saying why (no cloneUrlOverride here, so the gate
+    // applies; the mock API answers, so the result is ok).
+    const big = await scanHistory({ owner: "testowner", repo: "testrepo", branch: "main", repoSizeKb: 200 * 1024, apiBase });
+    check("size gate: huge repo uses the API path, not git/clone", big.ok && big.method === "api", `ok=${big.ok} method=${big.method}`);
+    check("size gate: note names the size and the reason", (big.note ?? "").includes("too large to clone") && (big.note ?? "").includes("200 MB"), big.note ?? "(no note)");
+    check("size gate: API path still finds the old-commit webhook", big.findings.some((f) => f.type === "discord-webhook"), `${big.findings.length} findings`);
   } finally {
     await new Promise<void>((resolve) => apiServer.close(() => resolve()));
   }

@@ -62,6 +62,16 @@ export const HISTORY_TIMEOUT_MS = 45_000;
  *  on how much history is scanned; it only stops a pathological repo
  *  from exhausting serverless memory. */
 export const HISTORY_MEMORY_GUARD_BYTES = 500_000_000;
+
+/** Repos larger than this (GitHub repo `size`, KB) cannot be fully
+ *  cloned inside a serverless function — DefinitelyTyped is 818 MB
+ *  against a 1 GB function and 512 MB /tmp, and the clone OOM-crashes
+ *  the function (measured live: DT scan 500s at ~23 s). Above this
+ *  size the git-protocol and clone paths are skipped and history goes
+ *  through the API path instead, which pages and stops honestly. This
+ *  is a physical bound of the runtime, not a scan cap: HEAD is still
+ *  scanned in full whatever the repo size. */
+export const HISTORY_CLONE_SIZE_LIMIT_KB = 100 * 1024;
 /** One-line plain-English description of the API history path, for the report's limits. */
 export const API_HISTORY_NOTE =
   `Full history via the GitHub API (no git binary needed): up to ${MAX_HISTORY_COMMITS} commits / ${MAX_HISTORY_PATCH_BYTES / 1_000_000} MB of patches, ${HISTORY_TIMEOUT_MS / 1000}s cap, newest-first.`;
@@ -663,6 +673,17 @@ export async function scanHistoryViaGit(
         stopSha = oid;
         break;
       }
+      // Phase 8.1 safety valve: a walk that runs too long or grows too
+      // big in memory stops cleanly with truncated:true and an honest
+      // note — it never OOM-crashes the function (DefinitelyTyped's
+      // 92k-commit walk did exactly that on Vercel). Checked every 64
+      // commits so the check itself costs nothing.
+      if (newOrder.length > 0 && newOrder.length % 64 === 0) {
+        if (Date.now() - started > 40_000 || process.memoryUsage().heapUsed > 700_000_000) {
+          truncated = true;
+          break;
+        }
+      }
       newOrder.push(oid);
       const parents = entry.commit.parent ?? [];
       const changes = entry.commit.changes ?? [];
@@ -727,7 +748,7 @@ export async function scanHistoryViaGit(
     let note: string | null = null;
     if (truncated) {
       const last = newOrder.length > 0 ? `${newOrder[newOrder.length - 1].slice(0, 7)}` : "none";
-      note = `History scan stopped at the emergency memory guard after scanning ${newOrder.length} newest commit${newOrder.length === 1 ? "" : "s"} (through ${last}) — commits older than ${last} were not checked, so this report's history is incomplete.`;
+      note = `History scan stopped early at a safety guard (time or memory) after scanning ${newOrder.length} newest commit${newOrder.length === 1 ? "" : "s"} (through ${last}) — commits older than ${last} were not checked, so this report's history is incomplete.`;
     }
     return {
       ok: true, findings, commitsScanned: mergedOrder.length, patchBytes,
@@ -767,6 +788,12 @@ export interface ScanHistoryOptions {
   /** Live progress: called with the number of commits walked so far
    *  (git path only; clone/API paths report on return). */
   onProgress?: (commitsScanned: number) => void;
+  /** Repo size in KB (GitHub repo `size` field). Above
+   *  HISTORY_CLONE_SIZE_LIMIT_KB the clone-based paths are skipped —
+   *  the pack cannot fit in a serverless function — and history goes
+   *  through the API path. Not applied when cloneUrlOverride is set
+   *  (tests use a mock server). */
+  repoSizeKb?: number;
 }
 
 export async function scanHistory(opts: ScanHistoryOptions): Promise<HistoryScanResult> {
@@ -775,14 +802,47 @@ export async function scanHistory(opts: ScanHistoryOptions): Promise<HistoryScan
   const gitPath = () => scanHistoryViaGit(owner, repo, branch, { cloneUrlOverride: opts.cloneUrlOverride, headSha: opts.commit, onProgress: opts.onProgress });
   const clonePath = () => scanFullHistory(owner, repo, branch, opts.cloneUrlOverride);
   const apiPath = () => scanHistoryViaApi(owner, repo, branch, { apiBase: opts.apiBase });
+  // Phase 8.1: a repo too large to clone inside a serverless function
+  // (818 MB DefinitelyTyped OOM-crashes the function) skips both
+  // clone-based paths and goes straight to the API path. Not a cap on
+  // what is reported — the API path pages newest-first and says
+  // exactly how far it got.
+  const tooBigToClone =
+    !opts.cloneUrlOverride &&
+    typeof opts.repoSizeKb === "number" &&
+    opts.repoSizeKb > HISTORY_CLONE_SIZE_LIMIT_KB;
   const attempts: Array<() => Promise<HistoryScanResult>> =
-    want === "api" ? [apiPath]
+    tooBigToClone ? [apiPath]
+    : want === "api" ? [apiPath]
     : want === "clone" ? [clonePath, gitPath, apiPath]
     : [gitPath, clonePath, apiPath];
   let last: HistoryScanResult | null = null;
   for (const attempt of attempts) {
-    const result = await attempt();
-    if (result.ok) return result;
+    let result: HistoryScanResult;
+    try {
+      result = await attempt();
+    } catch (e) {
+      // A history path must never throw the whole scan: record it and
+      // try the next path. Only when every path fails does scan.ts
+      // fall back to patches of the most recent commits.
+      result = {
+        ok: false, findings: [], commitsScanned: 0, patchBytes: 0,
+        truncated: false, timedOut: false,
+        note: `History path failed (${e instanceof Error ? e.message : "unknown error"}) — trying the next path.`,
+        ms: 0, method: "git", cachedCommits: 0, commitsFetched: 0,
+        restCalls: 0, gitRequests: 0,
+      };
+    }
+    if (result.ok) {
+      if (tooBigToClone && result.method === "api") {
+        const sizeMb = Math.round((opts.repoSizeKb ?? 0) / 1024);
+        result = {
+          ...result,
+          note: `This repo is ${sizeMb} MB — too large to clone inside a serverless function, so history was checked through the GitHub API instead.${result.note ? ` ${result.note}` : ""}`,
+        };
+      }
+      return result;
+    }
     last = result;
   }
   // Unreachable in practice (attempts is never empty), but typed.

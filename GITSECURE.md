@@ -885,6 +885,44 @@ ruling stands — no token, do not raise it).
   tested (the guard is a module constant, not an option) — it is code-
   reviewed only. NOT pushed, NOT deployed — the push worker owns that.
 
+## Phase 8.1 status — giant-repo history fix (built 2026-11-25, integration)
+
+Found live, after the Phase 8 push (cf88fe4c): the DefinitelyTyped scan
+**500s at ~23 s, reproducibly**, returning a Next.js error page, while
+TechDirect (62 commits) works in ~8 s. Root cause, measured:
+DefinitelyTyped is **818 MB with 91,984 commits** (TechDirect: 3.8 MB,
+62 commits). The Phase 8 git-protocol path clones the whole repo and
+walks every commit inside a 1 GB Vercel function with 512 MB /tmp —
+the clone OOM-crashes the function before the walk's guards can trip.
+Phase 5 never hit this: live history then was only 5 commits.
+
+- **Size gate** (`HISTORY_CLONE_SIZE_LIMIT_KB` = 100 MB in
+  `src/lib/history.ts`, `repoSizeKb` from the repo API's `size` field
+  passed through `scanRepo` → `scanHistory`). Above the limit, both
+  clone-based paths (git protocol and binary clone) are skipped and
+  history goes straight through the API path, which pages newest-first
+  and stops honestly at quota/caps with a note. The note names the
+  size and the reason. HEAD is still scanned in full whatever the repo
+  size. This is a physical bound of the runtime, not a scan cap.
+- **History can never 500 a scan.** `scanHistory` catches per-path
+  (a throwing path falls through to the next one), and `scanRepo`
+  wraps the history await in try/catch degrading to the patch
+  fallback. A history failure is a note in the report, never a
+  failed scan.
+- **Walk safety valve** (`scanHistoryViaGit`): every 64 commits the
+  walk checks wall-clock (> 40 s) and heap (> 700 MB) and stops
+  cleanly with `truncated: true` and an honest note naming the last
+  commit scanned. The old truncated note now says "safety guard
+  (time or memory)" instead of only "memory guard".
+- **Test:** `test:history` gains the size-gate checks (huge repo →
+  API path, note names size + reason, webhook still found).
+- **Honest remainder:** full history of a 92k-commit repo cannot be
+  walked inside one serverless invocation without durable
+  cross-invocation storage, which the project does not have. The API
+  path's partial history + note is the honest maximum today; a
+  durable per-commit cache (KV/DB) would be a separate, paid
+  decision, not taken here.
+
 ## Phase 2 status — built and pushed 2026-11-25, commit 870f889f, live at https://gitsecure.vercel.app/ (verified serving: home 200, live TechDirect scan 200, 83/B)
 - Next.js 16 / React 19 / TypeScript + Auth.js (NextAuth 5.0.0-beta.32,
   GitHub provider), in ~/workspace/gitsecure/.

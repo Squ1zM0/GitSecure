@@ -186,9 +186,14 @@ background (`after()` keeps the invocation alive past the response).
   patch, per-commit attribution). The report says which path was used
   and exactly how many commits were checked. Only if every path fails
   does it fall back to patches of the 5 most recent commits. The only
-  remaining history bound is an emergency memory guard (500 MB of
-  patches) that, if it ever trips, says exactly what was scanned and
-  what was not — never a partial scan presented as complete.
+  remaining history bounds are physical ones: an emergency memory guard
+  (500 MB of patches) and a walk safety valve (40 s / 700 MB heap) that
+  stop a giant walk cleanly with an honest note — and a size gate
+  (repos over 100 MB, e.g. DefinitelyTyped at 818 MB, skip the
+  clone-based paths entirely because the pack cannot fit in a
+  serverless function, and go through the API path instead). A history
+  failure is never a failed scan: the report carries a note and the
+  HEAD scan still completes in full.
 - **HEAD scan: unlimited.** Every file in the HEAD tree is scanned,
   manifests and configs first (fetched from one tarball download,
   falling back to per-file fetches). There is no

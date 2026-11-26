@@ -386,7 +386,7 @@ export async function scanRepo(owner: string, repo: string, options: ScanOptions
   const progress: ScanProgress = emptyProgress();
   const emit = () => options.onProgress?.({ ...progress });
   const historyCount = options.historyCommits ?? HISTORY_COMMITS;
-  const repoInfo = await ghJson<{ default_branch: string; description: string | null; private: boolean }>(`${GH_API}/repos/${owner}/${repo}`);
+  const repoInfo = await ghJson<{ default_branch: string; description: string | null; private: boolean; size: number }>(`${GH_API}/repos/${owner}/${repo}`);
   if (repoInfo.private) throw new ScanError(404, "private", "This repository is private. GitSecure scans public repos only.");
   const branch = repoInfo.default_branch || "main";
 
@@ -396,6 +396,7 @@ export async function scanRepo(owner: string, repo: string, options: ScanOptions
   // other paths report their count when they return.
   const historyPromise = scanHistory({
     owner, repo, branch,
+    repoSizeKb: repoInfo.size ?? 0,
     onProgress: (n) => {
       progress.commitsScanned = n;
       emit();
@@ -457,7 +458,21 @@ export async function scanRepo(owner: string, repo: string, options: ScanOptions
   // Phase 8: scanHistory already tried git protocol, then the clone,
   // then the API — so a failed result means every path failed, and only
   // then do we fall back to patches of the most recent commits.
-  const history = await historyPromise;
+  // Phase 8.1: history must never kill the scan — if the orchestrator
+  // itself throws (it should not: it catches per path), degrade to the
+  // patch fallback below instead of 500ing the whole report.
+  let history;
+  try {
+    history = await historyPromise;
+  } catch (e) {
+    history = {
+      ok: false, findings: [], commitsScanned: 0, patchBytes: 0,
+      truncated: false, timedOut: false,
+      note: `History scan failed (${e instanceof Error ? e.message : "unknown error"}).`,
+      ms: 0, method: "git" as const, cachedCommits: 0, commitsFetched: 0,
+      restCalls: 0, gitRequests: 0,
+    };
+  }
   if (history.ok) {
     historyScanned = history.commitsScanned;
     secrets.push(...history.findings);
