@@ -143,14 +143,14 @@ async function main() {
     check("no full fake secret in API findings", !leaksSecret(JSON.stringify(api.findings), fakeWebhookApi));
     check("API scan ran inside its time cap", api.ms < 45_000, `${api.ms}ms`);
 
-    // Phase 8.1 size gate: a repo above HISTORY_CLONE_SIZE_LIMIT_KB
-    // must skip the clone-based paths and go through the API path,
-    // with a note saying why (no cloneUrlOverride here, so the gate
-    // applies; the mock API answers, so the result is ok).
-    const big = await scanHistory({ owner: "testowner", repo: "testrepo", branch: "main", repoSizeKb: 200 * 1024, apiBase });
-    check("size gate: huge repo uses the API path, not git/clone", big.ok && big.method === "api", `ok=${big.ok} method=${big.method}`);
-    check("size gate: note names the size and the reason", (big.note ?? "").includes("too large to clone") && (big.note ?? "").includes("200 MB"), big.note ?? "(no note)");
-    check("size gate: API path still finds the old-commit webhook", big.findings.some((f) => f.type === "discord-webhook"), `${big.findings.length} findings`);
+    // Phase 15 (worker D): the Phase 8.1 size gate is GONE — it read
+    // the repo's `size` from the REST repo-info call, which the scan
+    // no longer makes. Its replacement is a streaming byte bound on
+    // the pack download (history.ts PACK_MAX_BYTES): a pack past the
+    // bound aborts the clone and the orchestrator falls through to
+    // the API path. That fallback is proved below, in the git section
+    // (pack-bound git path + orchestrator note), against the mock
+    // git server with a test-only maxPackBytes.
   } finally {
     await new Promise<void>((resolve) => apiServer.close(() => resolve()));
   }
@@ -281,6 +281,18 @@ async function main() {
       await new Promise<void>((resolve) => gitServer.listen(0, "127.0.0.1", resolve));
       const gitBase = `http://127.0.0.1:${(gitServer.address() as { port: number }).port}/repo`;
       try {
+        // Phase 15 (worker D): pack-download byte bound. With a
+        // test-only maxPackBytes of 100 bytes the mock repo's pack
+        // (a few KB) must abort the clone: the git path fails
+        // closed, flags packTooLarge, and makes zero REST calls.
+        // The cache is empty here (clearHistoryCache above), so the
+        // clone is genuinely attempted — a cache hit would skip it.
+        const tooBig = await scanHistoryViaGit("gitowner", "gitrepo", "main", { cloneUrlOverride: gitBase, maxPackBytes: 100 });
+        check("pack bound: git path fails when the pack passes the byte bound", !tooBig.ok, `ok=${tooBig.ok}`);
+        check("pack bound: result flags packTooLarge", tooBig.packTooLarge === true, `packTooLarge=${tooBig.packTooLarge}`);
+        check("pack bound: note says the history is too large to clone", (tooBig.note ?? "").includes("too large to clone"), tooBig.note ?? "(no note)");
+        check("pack bound: no REST calls during the aborted clone", tooBig.restCalls === 0, `${tooBig.restCalls} REST calls`);
+
         const g1 = await scanHistoryViaGit("gitowner", "gitrepo", "main", { cloneUrlOverride: gitBase });
         check("git path succeeds over smart HTTP", g1.ok, g1.note ?? "");
         check("git path reports method git", g1.method === "git", g1.method);
@@ -315,6 +327,41 @@ async function main() {
         const g4 = await scanHistory({ owner: "gitowner", repo: "gitrepo", branch: "main", method: "git", cloneUrlOverride: gitBase });
         check("scanHistory method git returns the git path", g4.ok && g4.method === "git", g4.method);
         check("scanHistory method git covers all 4 commits", g4.commitsScanned === 4, `${g4.commitsScanned} scanned`);
+
+        // Phase 15 (worker D): orchestrator pack fallback. The cache
+        // is cleared first — otherwise the git path would return the
+        // cached 4 commits without cloning and the bound would never
+        // trigger. With maxPackBytes 100 the git path aborts the
+        // clone, the orchestrator falls through to the API path
+        // (inline mock answering the 4 real fixture shas), and the
+        // result says plainly why history went through the API.
+        clearHistoryCache();
+        const fixtureShas = (await git(gitRepo, ["rev-list", "HEAD"])).split("\n").filter(Boolean);
+        const orchApi = createServer((req: IncomingMessage, res: ServerResponse) => {
+          const url = new URL(req.url ?? "/", `http://${req.headers.host}`);
+          res.setHeader("Content-Type", "application/json");
+          if (url.pathname === "/repos/gitowner/gitrepo/commits") {
+            res.end(JSON.stringify(fixtureShas.map((sha) => ({ sha }))));
+            return;
+          }
+          const m = /^\/repos\/gitowner\/gitrepo\/commits\/([0-9a-f]+)$/.exec(url.pathname);
+          if (m) {
+            res.end(JSON.stringify({ sha: m[1], files: [] }));
+            return;
+          }
+          res.statusCode = 404;
+          res.end("not found");
+        });
+        await new Promise<void>((resolve) => orchApi.listen(0, "127.0.0.1", resolve));
+        const orchBase = `http://127.0.0.1:${(orchApi.address() as { port: number }).port}`;
+        try {
+          const big = await scanHistory({ owner: "gitowner", repo: "gitrepo", branch: "main", method: "git", cloneUrlOverride: gitBase, apiBase: orchBase, maxPackBytes: 100 });
+          check("orchestrator pack fallback: API path wins after the pack bound trips", big.ok && big.method === "api", `ok=${big.ok} method=${big.method}`);
+          check("orchestrator pack fallback: note says the history is too large to clone", (big.note ?? "").includes("too large to clone"), big.note ?? "(no note)");
+          check("orchestrator pack fallback: API path still covers all 4 commits", big.commitsScanned === 4, `${big.commitsScanned} scanned`);
+        } finally {
+          await new Promise<void>((resolve) => orchApi.close(() => resolve()));
+        }
 
         // --- Phase 14, Bug 1 regression: the history usage corpus
         // must actually contain the HEAD files. Commit 1 plants

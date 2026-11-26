@@ -10,8 +10,9 @@
 // A counting fetch wrapper is installed first: if any code path in
 // the git scan touched api.github.com, the assertion fails loudly.
 // The HEAD tarball fetch is NOT part of this script (history only);
-// a full scanRepo still makes its normal repo/tree + tarball calls,
-// which the scan worker reports separately.
+// a full scanRepo also makes zero REST calls on the happy path
+// (Phase 15, worker D — proved by test:zero-rest), so this script
+// stays history-only.
 
 import { scanHistoryViaGit } from "../src/lib/history";
 

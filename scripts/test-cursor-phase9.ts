@@ -38,6 +38,13 @@
 //   8. Source checks: no jobs imports remain, the "no longer running"
 //      dead-end copy is gone, the chunk endpoint exists, and the
 //      cursor protocol is documented in README.md.
+//   9. Phase 15 (finding 1): a fetch timeout inside the HEAD chunk
+//      returns a partial cursor (stage "head") instead of throwing —
+//      so ScanProgress mounts and the resume path engages. Mocked at
+//      the chunk-driver level: the repo-info and HEAD-sha fetches
+//      answer, the tarball body stream aborts mid-download — no live
+//      100k-file repo involved. And a timeout before the HEAD meta is
+//      known still throws (nothing scanned yet, nothing to resume).
 //
 // The fake secrets below are assembled from fragments (never a literal
 // secret-pattern string in this file), as in test-scanner.ts.
@@ -48,10 +55,11 @@ import { mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { execFile, spawn } from "node:child_process";
 import { createServer, type IncomingMessage, type ServerResponse } from "node:http";
+import { gzipSync } from "node:zlib";
 import { decodeCursor, encodeCursor, initialHistoryCursor, type ScanCursorData } from "../src/lib/cursor";
-import { advanceScan } from "../src/lib/chunks";
+import { advanceScan, runScanLoop } from "../src/lib/chunks";
 import { assembleReport, buildLimits } from "../src/lib/scan";
-import { scanHistoryViaApi, scanHistoryViaGit, clearHistoryCache, scanHistoryApiChunk } from "../src/lib/history";
+import { scanHistoryViaApi, scanHistoryViaGit, clearHistoryCache, scanHistoryApiChunk, setRemoteHeadResolverForTests } from "../src/lib/history";
 import { buildProvisionalReport } from "../src/lib/provisional";
 import { loadProgress, loadReport, resumedLine, saveProgress, saveReport, type ProgressStorage } from "../src/lib/resume";
 import { ScanError } from "../src/lib/scan";
@@ -459,7 +467,7 @@ async function main() {
     filesScanned: 3, filesTotal: 3, treeTruncated: false, tarballFallback: false,
     secrets: [headFinding], frameworks: [], dependencies: [],
     posture: [{ id: "no-security-md", title: "No SECURITY.md", severity: "low", detail: "No SECURITY.md.", fix: "Add one." }],
-    unpinnedCount: 0, repoSizeKb: 10, historyMethod: "git", retainedIncomplete: false,
+    unpinnedCount: 0, historyMethod: "git", retainedIncomplete: false,
   };
   const assembled = await assembleReport(head, { findings: [historyFinding], commitsScanned: 3, ok: true, method: "git", note: null });
   check("assembled report counts both HEAD + history secrets", assembled.counts.secrets === 2, `${assembled.counts.secrets}`);
@@ -564,6 +572,202 @@ async function main() {
   const readme = src("README.md");
   check("README documents the cursor protocol", readme.includes("Scan cursors") && readme.includes("POST /api/scan/chunk"));
   check("README says the server holds no scan state", /no scan state|holds no state/i.test(readme));
+
+  // --- 9. Phase 15 (finding 1): HEAD-chunk fetch timeout → partial cursor. ---
+  const SHA_TIMEOUT = "b".repeat(40);
+  const realFetch = globalThis.fetch;
+  // Phase 15 (worker D): the HEAD meta (branch + HEAD sha) no longer
+  // comes from the REST repo-info call — it comes from one
+  // git-protocol info/refs request — so the fetch stub below answers
+  // ONLY the tarball. The meta is supplied by the test-only resolver
+  // override (the mock-git-server equivalent for the driver test:
+  // branch main, HEAD sha SHA_TIMEOUT). Any fetch call to a REST URL
+  // would throw "unexpected URL" — proving the meta no longer uses
+  // fetch at all. The tarball body delivers one real file, then
+  // aborts mid-download (the torvalds/linux slow-download-day
+  // failure, at the driver level). The one file proves the partial
+  // keeps the live progress reached before the stall — it is not
+  // just a zeroed placeholder.
+  setRemoteHeadResolverForTests(async () => ({ ok: true, branch: "main", headSha: SHA_TIMEOUT, gitRequests: 0 }));
+  const fakeTarball = (): Buffer => {
+    const header = Buffer.alloc(512);
+    header.write("a.txt", 0, "utf8");
+    header.write("00000000005\0", 124, "ascii"); // size 5, octal
+    header.write("0", 156, "ascii"); // regular file
+    const data = Buffer.alloc(512);
+    data.write("hello", 0, "utf8");
+    // Deliberately NO end-of-archive zero blocks: the parser is still
+    // waiting for the next header when the stream aborts, so the
+    // abort — not a clean finish — ends the download.
+    return gzipSync(Buffer.concat([header, data]));
+  };
+  const timeoutFetch = (async (url: unknown): Promise<Response> => {
+    const u = String(url);
+    if (u.includes("codeload.github.com")) {
+      const gz = fakeTarball();
+      let pulled = 0;
+      const body = new ReadableStream({
+        pull(controller) {
+          if (pulled++ === 0) {
+            controller.enqueue(gz);
+          } else {
+            // The stall comes AFTER the first chunk was delivered
+            // and processed — like a real mid-download stall — so
+            // the abort must not fire before the loop consumes it.
+            // (An immediate abort destroys gunzip while its
+            // decompressed output is still buffered, and the file
+            // that already arrived is never counted.)
+            setTimeout(() => controller.error(new DOMException("The operation was aborted.", "AbortError")), 50);
+          }
+        },
+      });
+      return new Response(body, { status: 200, headers: { "Content-Type": "application/gzip" } });
+    }
+    throw new Error(`timeoutFetch: unexpected URL ${u}`);
+  }) as typeof fetch;
+  try {
+    (globalThis as { fetch: typeof fetch }).fetch = timeoutFetch;
+    // Fresh scan (no cursor): timeout → partial, not a throw.
+    const t1 = await advanceScan({ owner: "testowner", repo: "testrepo", cursor: null });
+    check(
+      "HEAD timeout (fresh scan) returns a partial, never throws",
+      t1.status === "partial",
+      `status=${t1.status}`,
+    );
+    if (t1.status === "partial") {
+      const decoded = decodeCursor(t1.cursor, "testowner", "testrepo");
+      check("HEAD-timeout cursor stays at the head stage", decoded.stage === "head", `stage=${decoded.stage}`);
+      check("HEAD-timeout cursor pins the HEAD sha the repo reported", decoded.headSha === SHA_TIMEOUT, decoded.headSha);
+      check("HEAD-timeout partial has no HEAD yet (nothing half-reported)", t1.partial.head === null);
+      check("HEAD-timeout partial says the download timed out", typeof t1.note === "string" && /timed out/i.test(t1.note), t1.note ?? "");
+      // Phase 15 (worker D): the stall aborts the whole-buffer
+      // download BEFORE any entry is parsed — the download and the
+      // parse are separate phases there, so zero files were scanned
+      // yet and the partial honestly keeps 0. (The old test forced
+      // the streaming transport with a fake 2 GB repo size, where
+      // entries are scanned as they arrive and 1 file was counted;
+      // the size gate is gone, so a small tarball takes the
+      // whole-buffer path and the count is 0. The invariants that
+      // matter — partial not throw, head stage, nothing
+      // half-reported, timed-out note — all still hold.)
+      check("HEAD-timeout partial keeps live progress (0 files scanned before the stall)", t1.progress.step === "files" && t1.progress.filesScanned === 0, `step=${t1.progress.step} files=${t1.progress.filesScanned}`);
+    }
+    // Same via an explicit head-stage cursor (a client retrying it).
+    const headCursor = encodeCursor({
+      v: 1, owner: "testowner", repo: "testrepo", branch: "main", headSha: SHA_TIMEOUT,
+      stage: "head", historyMethod: "api", histScanned: 0, histResumeAfter: null,
+      histPage: 1, histIdx: 0, histPageShas: [], histDone: false, histStop: null, histNote: null,
+    });
+    const t2 = await advanceScan({ owner: "testowner", repo: "testrepo", cursor: headCursor });
+    check(
+      "HEAD timeout (head-stage cursor) returns a partial, never throws",
+      t2.status === "partial" && decodeCursor(t2.cursor, "testowner", "testrepo").stage === "head",
+      `status=${t2.status}`,
+    );
+    // runScanLoop drives the same path: partial, not a throw.
+    const t3 = await runScanLoop("testowner", "testrepo", { budgetMs: 500 });
+    check(
+      "runScanLoop on a HEAD timeout returns a partial, never throws",
+      t3.status === "partial" && !!t3.cursor && decodeCursor(t3.cursor, "testowner", "testrepo").stage === "head",
+      `status=${t3.status}`,
+    );
+  } finally {
+    (globalThis as { fetch: typeof fetch }).fetch = realFetch;
+    setRemoteHeadResolverForTests(null);
+  }
+  // Timeout BEFORE the HEAD meta is known (the git-protocol info/refs
+  // request itself stalls): still throws — there is no sha to pin a
+  // cursor to and nothing was scanned yet. Phase 15 (worker D): the
+  // meta step is a git-protocol request now, not a REST fetch, so the
+  // stall is scripted through the resolver override (a "timeout"
+  // outcome), not a fetch stub — no fetch call is involved at all.
+  setRemoteHeadResolverForTests(async () => ({ ok: false, reason: "timeout", gitRequests: 1 }));
+  try {
+    let earlyThrew: unknown = null;
+    try {
+      await advanceScan({ owner: "testowner", repo: "testrepo", cursor: null });
+    } catch (e) {
+      earlyThrew = e;
+    }
+    check(
+      "HEAD timeout before the repo meta is known still throws (ScanError 504 timeout)",
+      earlyThrew instanceof ScanError && earlyThrew.kind === "timeout" && earlyThrew.status === 504,
+      earlyThrew instanceof Error ? `${earlyThrew.name}: ${earlyThrew.message}` : String(earlyThrew),
+    );
+  } finally {
+    setRemoteHeadResolverForTests(null);
+  }
+
+  // --- 9b. Phase 15 (rate-limit recovery): a 429 carries the reset time. ---
+  // ghJson reads GitHub's x-ratelimit-reset / retry-after headers onto
+  // the ScanError, so the error page can say honestly how long to
+  // wait. Mocked at the fetch level — no quota burned, no live 429.
+  // Phase 15 (worker D): the repo-info REST call is gone, so the 429
+  // is retargeted at the one REST call the HEAD step still makes on
+  // failure — the recursive-tree fetch the per-file fallback needs
+  // when the tarball is unavailable. The meta comes from the resolver
+  // override; the tarball answers 500 so the scan reaches the tree.
+  const resetEpoch = Math.floor(Date.now() / 1000) + 600;
+  setRemoteHeadResolverForTests(async () => ({ ok: true, branch: "main", headSha: SHA_TIMEOUT, gitRequests: 0 }));
+  const rateLimitFetch = (async (url: unknown): Promise<Response> => {
+    const u = String(url);
+    if (u.includes("codeload.github.com")) {
+      return new Response("tarball unavailable", { status: 500 });
+    }
+    if (u.includes("/repos/testowner/testrepo/git/trees/")) {
+      return new Response(JSON.stringify({ message: "API rate limit exceeded" }), {
+        status: 429,
+        headers: { "Content-Type": "application/json", "x-ratelimit-reset": String(resetEpoch), "x-ratelimit-remaining": "0" },
+      });
+    }
+    throw new Error(`rateLimitFetch: unexpected URL ${u}`);
+  }) as typeof fetch;
+  try {
+    (globalThis as { fetch: typeof fetch }).fetch = rateLimitFetch;
+    let rlThrew: unknown = null;
+    try {
+      await advanceScan({ owner: "testowner", repo: "testrepo", cursor: null });
+    } catch (e) {
+      rlThrew = e;
+    }
+    check(
+      "429 with x-ratelimit-reset → ScanError 429 carrying the reset time",
+      rlThrew instanceof ScanError && rlThrew.kind === "rate-limit" && rlThrew.status === 429 && rlThrew.resetAtMs === resetEpoch * 1000,
+      rlThrew instanceof ScanError ? `kind=${rlThrew.kind} resetAtMs=${rlThrew.resetAtMs}` : String(rlThrew),
+    );
+  } finally {
+    (globalThis as { fetch: typeof fetch }).fetch = realFetch;
+    setRemoteHeadResolverForTests(null);
+  }
+  // 429 with no reset headers: still a rate-limit error, reset unknown.
+  setRemoteHeadResolverForTests(async () => ({ ok: true, branch: "main", headSha: SHA_TIMEOUT, gitRequests: 0 }));
+  const bareRateLimitFetch = (async (url: unknown): Promise<Response> => {
+    const u = String(url);
+    if (u.includes("codeload.github.com")) {
+      return new Response("tarball unavailable", { status: 500 });
+    }
+    if (u.includes("/repos/testowner/testrepo/git/trees/")) {
+      return new Response(JSON.stringify({ message: "API rate limit exceeded" }), { status: 429, headers: { "Content-Type": "application/json" } });
+    }
+    throw new Error(`bareRateLimitFetch: unexpected URL ${u}`);
+  }) as typeof fetch;
+  try {
+    (globalThis as { fetch: typeof fetch }).fetch = bareRateLimitFetch;
+    let bareThrew: unknown = null;
+    try {
+      await advanceScan({ owner: "testowner", repo: "testrepo", cursor: null });
+    } catch (e) {
+      bareThrew = e;
+    }
+    check(
+      "429 with no reset headers → ScanError 429, reset time absent (hourly fallback)",
+      bareThrew instanceof ScanError && bareThrew.kind === "rate-limit" && bareThrew.resetAtMs === undefined,
+      bareThrew instanceof ScanError ? `kind=${bareThrew.kind} resetAtMs=${bareThrew.resetAtMs}` : String(bareThrew),
+    );
+  } finally {
+    (globalThis as { fetch: typeof fetch }).fetch = realFetch;
+    setRemoteHeadResolverForTests(null);
+  }
 
   console.log(failures === 0 ? "\nAll cursor (Phase 9) tests passed." : `\n${failures} test(s) FAILED.`);
   process.exit(failures === 0 ? 0 : 1);

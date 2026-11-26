@@ -65,15 +65,78 @@ export const HISTORY_TIMEOUT_MS = 45_000;
  *  from exhausting serverless memory. */
 export const HISTORY_MEMORY_GUARD_BYTES = 500_000_000;
 
-/** Repos larger than this (GitHub repo `size`, KB) cannot be fully
- *  cloned inside a serverless function — DefinitelyTyped is 818 MB
- *  against a 1 GB function and 512 MB /tmp, and the clone OOM-crashes
- *  the function (measured live: DT scan 500s at ~23 s). Above this
- *  size the git-protocol and clone paths are skipped and history goes
- *  through the API path instead, which pages and stops honestly. This
- *  is a physical bound of the runtime, not a scan cap: HEAD is still
- *  scanned in full whatever the repo size. */
-export const HISTORY_CLONE_SIZE_LIMIT_KB = 100 * 1024;
+/** Phase 15 (worker D): the history-clone size gate is a STREAMING
+ *  byte bound on the pack download, not a REST pre-check. The old
+ *  gate read the repo's `size` from the GitHub REST API and skipped
+ *  the clone paths above 100 MB — that call was the scan's last
+ *  REST request on the happy path, so the gate had to go. The gate
+ *  exists because isomorphic-git buffers the whole pack in memory
+ *  before writing it (`collect(response.packfile)`), so an unbounded
+ *  clone OOM-crashes a 1 GB function (measured live: DefinitelyTyped
+ *  500s at ~23 s). The bound below is enforced while the pack
+ *  streams in (see boundedGitHttp): past it the download is aborted
+ *  and the clone fails with PackTooLargeError, and the orchestrator
+ *  falls through to the API path, which pages and stops honestly.
+ *  This is a physical bound of the runtime, not a scan cap: HEAD is
+ *  still scanned in full whatever the repo size. */
+export const PACK_MAX_BYTES = 150_000_000;
+
+/** Thrown by the bounded git HTTP client when a pack download passes
+ *  its byte bound. Carries the byte count so the caller can say
+ *  plainly why the git path gave up. */
+export class PackTooLargeError extends Error {
+  readonly bytes: number;
+  constructor(bytes: number, maxPackBytes: number = PACK_MAX_BYTES) {
+    super(`history pack download passed ${maxPackBytes} bytes (${bytes} bytes read) — too large to clone inside a serverless function`);
+    this.name = "PackTooLargeError";
+    this.bytes = bytes;
+  }
+}
+
+/** Wrap an isomorphic-git HTTP client so the pack download
+ *  (POST .../git-upload-pack) is byte-bounded: chunks are counted as
+ *  they stream in, and past the bound the underlying request is
+ *  aborted and the iterator throws PackTooLargeError. Every other
+ *  request (notably the info/refs GET that resolves the branch and
+ *  HEAD) passes through untouched — it is small and needs no bound.
+ *  An incoming AbortSignal, when the caller supplies one, is
+ *  forwarded to the inner request. */
+export function boundedGitHttp(inner: typeof http, maxPackBytes: number = PACK_MAX_BYTES): typeof http {
+  return {
+    async request(args) {
+      const isPack =
+        (args.method ?? "GET").toUpperCase() === "POST" &&
+        typeof args.url === "string" &&
+        args.url.endsWith("/git-upload-pack");
+      const controller = new AbortController();
+      if (args.signal) {
+        if (args.signal.aborted) controller.abort();
+        else args.signal.addEventListener("abort", () => controller.abort(), { once: true });
+      }
+      const res = await inner.request({ ...args, signal: controller.signal });
+      if (!isPack || !res.body) return res;
+      const body = res.body as AsyncIterable<Uint8Array>;
+      let bytes = 0;
+      const counted: AsyncIterable<Uint8Array> = {
+        async *[Symbol.asyncIterator]() {
+          for await (const chunk of body) {
+            bytes += chunk.byteLength;
+            if (bytes > maxPackBytes) {
+              controller.abort();
+              throw new PackTooLargeError(bytes, maxPackBytes);
+            }
+            yield chunk;
+          }
+        },
+      };
+      return { ...res, body: counted as unknown as typeof res.body };
+    },
+  };
+}
+
+/** The production git HTTP client: the default isomorphic-git node
+ *  client with the pack-download bound applied. */
+const boundedHttp = boundedGitHttp(http);
 /** One-line plain-English description of the API history path, for the report's limits. */
 export const API_HISTORY_NOTE =
   `Full history via the GitHub API (no git binary needed): up to ${MAX_HISTORY_COMMITS} commits / ${MAX_HISTORY_PATCH_BYTES / 1_000_000} MB of patches, ${HISTORY_TIMEOUT_MS / 1000}s cap, newest-first.`;
@@ -111,6 +174,10 @@ export interface HistoryScanResult {
    *  HTTP client and are not counted here; they hit github.com, never
    *  the REST API, so they cost zero REST quota either way. */
   gitRequests: number;
+  /** Phase 15 (worker D): true when the git path gave up because the
+   *  pack download passed PACK_MAX_BYTES. The orchestrator reads it
+   *  to say plainly why history went through the API instead. */
+  packTooLarge?: boolean;
   /** Phase 9 (git chunked walk only): full sha of the last commit
    *  scanned in this call, or null when nothing was scanned. The next
    *  chunk resumes older than this sha. */
@@ -883,11 +950,87 @@ async function readBlobText(dir: string, oid: string | null, cache: object): Pro
  *  private repo) — the caller then fails over to the next path. */
 async function resolveRemoteTip(url: string, branch: string): Promise<{ tip: string | null; gitRequests: number }> {
   try {
-    const info = await git.getRemoteInfo({ http, url });
+    const info = await git.getRemoteInfo({ http: boundedHttp, url });
     const heads = (info.refs as unknown as Record<string, Record<string, string>>)?.heads;
     return { tip: heads?.[branch] ?? null, gitRequests: 1 };
   } catch {
     return { tip: null, gitRequests: 1 };
+  }
+}
+
+/** Phase 15 (worker D): resolve the default branch AND the HEAD sha
+ *  over the git protocol in one info/refs request to github.com —
+ *  NOT api.github.com, so it costs zero REST quota. This is what
+ *  scanHead uses instead of the REST repo-info call
+ *  (GET /repos/{owner}/{repo}) plus the commits-list call that used
+ *  to fetch the HEAD sha: `getRemoteInfo` returns both the HEAD
+ *  symref (`refs/heads/main`) and the sha of every branch head.
+ *  Returns not-found when GitHub answers 401/404 on info/refs —
+ *  that is how GitHub reports a missing or private repo to an
+ *  unauthenticated git client — "timeout" when the request does not
+ *  answer inside 12 s (same bound ghJson used to give the REST
+ *  calls), and unreachable for anything else (network error, other
+ *  status, unparseable refs). An empty repo
+ *  (no HEAD, no branch heads) is not-found too: it has no HEAD to
+ *  scan, matching the old commits-list behaviour. The caller must
+ *  have validated owner/repo already (scanHead does). */
+export type RemoteHeadResult =
+  | { ok: true; branch: string; headSha: string; gitRequests: number }
+  | { ok: false; reason: "not-found" | "unreachable" | "timeout"; gitRequests: number };
+
+/** Test-only: replace the remote-HEAD resolver for the whole
+ *  process. Lets the chunked-scan tests point scanHead at a mock
+ *  git server (or a scripted failure) without threading an option
+ *  through the driver (chunks.ts). Production code never sets this;
+ *  tests must reset it to null in a finally block. */
+let remoteHeadResolverOverride: ((owner: string, repo: string) => Promise<RemoteHeadResult>) | null = null;
+export function setRemoteHeadResolverForTests(fn: ((owner: string, repo: string) => Promise<RemoteHeadResult>) | null): void {
+  remoteHeadResolverOverride = fn;
+}
+
+/** Wrap a git HTTP client so every request carries the given signal
+ *  (isomorphic-git itself supplies none on these paths, so the
+ *  caller's signal is the only abort source). */
+function withSignal(inner: typeof http, signal: AbortSignal): typeof http {
+  return {
+    async request(args) {
+      return inner.request({ ...args, signal });
+    },
+  };
+}
+
+export async function resolveRemoteHead(
+  owner: string,
+  repo: string,
+  opts: { cloneUrlOverride?: string; timeoutMs?: number } = {},
+): Promise<RemoteHeadResult> {
+  if (remoteHeadResolverOverride) return remoteHeadResolverOverride(owner, repo);
+  if (!NAME_RE.test(owner) || !NAME_RE.test(repo) || owner.includes("..") || repo.includes("..")) {
+    return { ok: false, reason: "not-found", gitRequests: 0 };
+  }
+  const url = opts.cloneUrlOverride ?? `https://github.com/${owner}/${repo}.git`;
+  // Phase 15 (worker D): the info/refs request has the same 12 s
+  // abort timeout ghJson used to give the REST calls — without it a
+  // hung git-protocol request would hang the scan instead of failing
+  // plainly with a 504.
+  const timeoutMs = opts.timeoutMs ?? 12_000;
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    const info = await git.getRemoteInfo({ http: withSignal(boundedHttp, controller.signal), url });
+    const headRef = typeof info.HEAD === "string" ? info.HEAD : null;
+    const branch = headRef?.startsWith("refs/heads/") ? headRef.slice("refs/heads/".length) : null;
+    const heads = (info.refs as unknown as Record<string, Record<string, string>>)?.heads;
+    const headSha = branch ? heads?.[branch] : null;
+    if (!branch || !headSha) return { ok: false, reason: "not-found", gitRequests: 1 };
+    return { ok: true, branch, headSha, gitRequests: 1 };
+  } catch (err) {
+    if (controller.signal.aborted) return { ok: false, reason: "timeout", gitRequests: 1 };
+    const status = (err as { data?: { statusCode?: number } })?.data?.statusCode;
+    if (status === 401 || status === 404) return { ok: false, reason: "not-found", gitRequests: 1 };
+    return { ok: false, reason: "unreachable", gitRequests: 1 };
+  } finally {
+    clearTimeout(timer);
   }
 }
 
@@ -918,6 +1061,11 @@ export interface GitHistoryOptions {
   /** Phase 9 chunking: added to the onProgress count, so progress
    *  reports the scan-wide total, not just this chunk's count. */
   progressBase?: number;
+  /** Phase 15 (worker D), test-only: byte bound for the pack
+   *  download (default PACK_MAX_BYTES). Lets the test suite prove
+   *  the too-large fallback against a small mock repo without
+   *  needing a 150 MB pack. */
+  maxPackBytes?: number;
 }
 
 /** Full history over the git protocol, no REST API calls, no git binary.
@@ -938,16 +1086,20 @@ export async function scanHistoryViaGit(
 ): Promise<HistoryScanResult> {
   const started = Date.now();
   let gitRequests = 0;
-  const fail = (note: string): HistoryScanResult => ({
+  const fail = (note: string, packTooLarge = false): HistoryScanResult => ({
     ok: false, findings: [], commitsScanned: 0, patchBytes: 0,
     truncated: false, timedOut: false, note, ms: Date.now() - started, method: "git",
-    cachedCommits: 0, commitsFetched: 0, restCalls: 0, gitRequests,
+    cachedCommits: 0, commitsFetched: 0, restCalls: 0, gitRequests, packTooLarge,
   });
   if (!NAME_RE.test(owner) || !NAME_RE.test(repo) || owner.includes("..") || repo.includes("..")) {
     return fail("Invalid owner/repo name — history git scan skipped.");
   }
   const cacheKey = `${owner}/${repo}@${branch}`;
   const url = opts.cloneUrlOverride ?? `https://github.com/${owner}/${repo}.git`;
+  // Phase 15 (worker D): the clone runs through the bounded HTTP
+  // client (pack-download byte bound — see PACK_MAX_BYTES). A
+  // test-only maxPackBytes builds a per-call client with that bound.
+  const gitHttp = opts.maxPackBytes != null ? boundedGitHttp(http, opts.maxPackBytes) : boundedHttp;
   let tip: string | null = opts.headSha ?? null;
   if (!tip) {
     const resolved = await resolveRemoteTip(url, branch);
@@ -973,7 +1125,7 @@ export async function scanHistoryViaGit(
 
   const dir = await mkdtemp(join(tmpdir(), "gitsecure-git-"));
   try {
-    await git.clone({ fs, http, dir, url, ref: branch, singleBranch: true, noCheckout: true });
+    await git.clone({ fs, http: gitHttp, dir, url, ref: branch, singleBranch: true, noCheckout: true });
     // One shared object cache across log + readBlob: without it the
     // same TechDirect walk took ~40 s (packfile re-parsed per blob);
     // with it, ~4 s. The cache is per-scan and discarded with the dir.
@@ -1176,7 +1328,14 @@ export async function scanHistoryViaGit(
       lastScannedSha: newOrder.length > 0 ? newOrder[newOrder.length - 1] : (opts.resumeAfterSha ?? null),
       complete, headMoved: false,
     };
-  } catch {
+  } catch (e) {
+    // Phase 15 (worker D): a pack past the byte bound is a distinct,
+    // expected outcome — the orchestrator falls through to the API
+    // path and says why. Anything else is the old generic clone
+    // failure.
+    if (e instanceof PackTooLargeError) {
+      return fail("History is too large to clone inside a serverless function — the git-protocol path gave up on the pack download.", true);
+    }
     return fail("History git-protocol clone failed (repo may be too large or unreachable).");
   } finally {
     await rm(dir, { recursive: true, force: true }).catch(() => undefined);
@@ -1209,35 +1368,35 @@ export interface ScanHistoryOptions {
   /** Live progress: called with the number of commits walked so far
    *  (git path only; clone/API paths report on return). */
   onProgress?: (commitsScanned: number) => void;
-  /** Repo size in KB (GitHub repo `size` field). Above
-   *  HISTORY_CLONE_SIZE_LIMIT_KB the clone-based paths are skipped —
-   *  the pack cannot fit in a serverless function — and history goes
-   *  through the API path. Not applied when cloneUrlOverride is set
-   *  (tests use a mock server). */
-  repoSizeKb?: number;
+  /** Phase 15 (worker D), test-only: byte bound for the git path's
+   *  pack download (default PACK_MAX_BYTES). Passed through to
+   *  scanHistoryViaGit so the test suite can prove the too-large
+   *  fallback against a small mock repo. */
+  maxPackBytes?: number;
 }
 
 export async function scanHistory(opts: ScanHistoryOptions): Promise<HistoryScanResult> {
   const { owner, repo, branch } = opts;
   const want = opts.method ?? "auto";
-  const gitPath = () => scanHistoryViaGit(owner, repo, branch, { cloneUrlOverride: opts.cloneUrlOverride, headSha: opts.commit, onProgress: opts.onProgress });
+  const gitPath = () => scanHistoryViaGit(owner, repo, branch, { cloneUrlOverride: opts.cloneUrlOverride, headSha: opts.commit, onProgress: opts.onProgress, maxPackBytes: opts.maxPackBytes });
   const clonePath = () => scanFullHistory(owner, repo, branch, opts.cloneUrlOverride);
   const apiPath = () => scanHistoryViaApi(owner, repo, branch, { apiBase: opts.apiBase });
-  // Phase 8.1: a repo too large to clone inside a serverless function
-  // (818 MB DefinitelyTyped OOM-crashes the function) skips both
-  // clone-based paths and goes straight to the API path. Not a cap on
-  // what is reported — the API path pages newest-first and says
-  // exactly how far it got.
-  const tooBigToClone =
-    !opts.cloneUrlOverride &&
-    typeof opts.repoSizeKb === "number" &&
-    opts.repoSizeKb > HISTORY_CLONE_SIZE_LIMIT_KB;
+  // Phase 15 (worker D): NO repo-size pre-check any more — the size
+  // used to come from the REST repo-info call, which the scan no
+  // longer makes. The git path is now bounded while it runs (the
+  // pack-download guard in boundedGitHttp): a pack past
+  // PACK_MAX_BYTES aborts the clone and the orchestrator falls
+  // through to the next path, which pages and stops honestly. The
+  // "git" pin is honoured as documented (git then API, no git-binary
+  // clone in between) — previously it fell through to the default
+  // order, which could return a clone-path result for a "git" pin.
   const attempts: Array<() => Promise<HistoryScanResult>> =
-    tooBigToClone ? [apiPath]
-    : want === "api" ? [apiPath]
+    want === "api" ? [apiPath]
     : want === "clone" ? [clonePath, gitPath, apiPath]
+    : want === "git" ? [gitPath, apiPath]
     : [gitPath, clonePath, apiPath];
   let last: HistoryScanResult | null = null;
+  let packTooLarge = false;
   for (const attempt of attempts) {
     let result: HistoryScanResult;
     try {
@@ -1255,15 +1414,15 @@ export async function scanHistory(opts: ScanHistoryOptions): Promise<HistoryScan
       };
     }
     if (result.ok) {
-      if (tooBigToClone && result.method === "api") {
-        const sizeMb = Math.round((opts.repoSizeKb ?? 0) / 1024);
+      if (packTooLarge && result.method === "api") {
         result = {
           ...result,
-          note: `This repo is ${sizeMb} MB — too large to clone inside a serverless function, so history was checked through the GitHub API instead.${result.note ? ` ${result.note}` : ""}`,
+          note: `This repo's history is too large to clone inside a serverless function, so history was checked through the GitHub API instead.${result.note ? ` ${result.note}` : ""}`,
         };
       }
       return result;
     }
+    if (result.packTooLarge) packTooLarge = true;
     last = result;
   }
   // Unreachable in practice (attempts is never empty), but typed.

@@ -21,6 +21,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { stepLabel, type ScanProgress as ScanProgressType } from "@/lib/progress";
+import { rateLimitPausedBody } from "@/lib/rate-limit";
 import { buildProvisionalReport } from "@/lib/provisional";
 import {
   clearProgress,
@@ -37,6 +38,21 @@ import type { FullReport, HeadPartial, SecretFinding } from "@/lib/types";
 function formatCount(n: number): string {
   return n.toLocaleString("en-US");
 }
+
+/** Phase 15 (finding 3): a chunk failure must say WHY it failed and
+ *  how far the scan got — a generic "try again" with no reason and no
+ *  progress is a retry loop with no information. The driver already
+ *  holds the numbers; the card shows them. */
+type ChunkErrorKind = "rate-limit" | "network" | "other";
+// The network/other copies are fixed; the rate-limit copy is computed
+// at fail time from GitHub's reset time when the chunk route knew it
+// (rateLimitPausedBody) — this entry is only the fallback when the
+// reset time could not be read.
+const CHUNK_ERROR_COPY: Record<ChunkErrorKind, string> = {
+  "rate-limit": "GitHub's request limit was hit, so the scan paused here. The limit resets within the hour — retry then, and the scan picks up from the last finished chunk.",
+  network: "The scan couldn't be reached — check your connection and try again. Nothing was lost: the scan picks up from the last finished chunk.",
+  other: "GitHub didn't answer as expected. Try again in a bit — the scan picks up from the last finished chunk.",
+};
 
 function dedupeKey(s: SecretFinding): string {
   return `${s.type}:${s.file}:${s.line}:${s.fragment}:${s.commit}`;
@@ -106,7 +122,7 @@ export default function ScanProgress({
   const [finalReport, setFinalReport] = useState<FullReport | null>(null);
   const [resumed, setResumed] = useState<string | null>(null);
   const [secretsFound, setSecretsFound] = useState<number>(() => dedupeFindings([...(initialHead?.secrets ?? []), ...initialFindings]).length);
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useState<{ kind: ChunkErrorKind; message: string } | null>(null);
   const [retryKey, setRetryKey] = useState(0);
   const startedRef = useRef(false);
 
@@ -151,6 +167,19 @@ export default function ScanProgress({
 
       // 3. Drive chunks until the assemble chunk returns the report.
       let failures = 0;
+      // A failure is terminal once it has failed 3 times — except a
+      // rate limit, which no quick retry will clear, so it fails
+      // fast on the first 429 instead of burning three attempts.
+      // `message` overrides the fixed copy (the rate-limit copy is
+      // computed from GitHub's reset time when the route knew it).
+      const fail = (kind: ChunkErrorKind, message?: string): boolean => {
+        failures++;
+        if (kind === "rate-limit" || failures >= 3) {
+          if (!stopped) setError({ kind, message: message ?? CHUNK_ERROR_COPY[kind] });
+          return true;
+        }
+        return false;
+      };
       for (;;) {
         if (stopped) return;
         let res: Response;
@@ -162,11 +191,7 @@ export default function ScanProgress({
             body: JSON.stringify({ cursor, head, historyFindings: findings }),
           });
         } catch {
-          failures++;
-          if (failures >= 3) {
-            if (!stopped) setError("The scan couldn't be reached — check your connection and try again. Nothing was lost: the scan picks up from the last finished chunk.");
-            return;
-          }
+          if (fail("network")) return;
           await new Promise((r) => setTimeout(r, 2000));
           continue;
         }
@@ -179,10 +204,22 @@ export default function ScanProgress({
           return;
         }
         if (!res.ok) {
-          failures++;
-          if (failures >= 3) {
-            if (!stopped) setError("GitHub didn't answer as expected. Try again in a bit — the scan picks up from the last finished chunk.");
-            return;
+          if (res.status === 429) {
+            // Phase 15 (rate-limit recovery): the chunk route carries
+            // GitHub's reset time when it knew it — read it so the
+            // card can say honestly how long to wait ("in about N
+            // minutes") instead of a vague "few minutes". An
+            // unreadable body falls back to the hourly wording.
+            let resetAtMs: number | null = null;
+            try {
+              const data = (await res.json()) as { resetAtMs?: unknown };
+              if (typeof data.resetAtMs === "number") resetAtMs = data.resetAtMs;
+            } catch {
+              // Fall through with resetAtMs null.
+            }
+            if (fail("rate-limit", rateLimitPausedBody(resetAtMs))) return;
+          } else {
+            if (fail("other")) return;
           }
           await new Promise((r) => setTimeout(r, 2000));
           continue;
@@ -220,12 +257,28 @@ export default function ScanProgress({
   }
 
   if (error) {
+    // Phase 15 (finding 3): the card names the failure reason and the
+    // progress reached — files / commits / secrets so far — so the
+    // user can judge whether retrying will help. The provisional
+    // report below renders with its banner switched to "paused"
+    // (finding 3a), never "still running".
+    const progressBits: string[] = [];
+    if (progress.filesScanned > 0) {
+      progressBits.push(
+        progress.filesTotal > 0
+          ? `${formatCount(progress.filesScanned)} of ${formatCount(progress.filesTotal)} files scanned`
+          : `${formatCount(progress.filesScanned)} files scanned`,
+      );
+    }
+    if (progress.commitsScanned > 0) progressBits.push(`${formatCount(progress.commitsScanned)} history commits checked`);
+    if (secretsFound > 0) progressBits.push(`${formatCount(secretsFound)} possible leaked secret${secretsFound === 1 ? "" : "s"} found so far`);
     return (
       <div>
         <p className="back-link"><a href="/">← Scan another repo</a></p>
         <h1>Couldn&apos;t scan {owner}/{repo}</h1>
         <div className="card error-card" role="alert">
-          <p>{error}</p>
+          <p>{error.message}</p>
+          {progressBits.length > 0 ? <p>So far: {progressBits.join(" · ")}.</p> : null}
           <p>
             <button
               className="button-link"
@@ -241,7 +294,7 @@ export default function ScanProgress({
             <a className="button-link" href="/">Scan another repo</a>
           </p>
         </div>
-        {provisional ? <ReportView report={provisional} /> : null}
+        {provisional ? <ReportView report={provisional} paused /> : null}
       </div>
     );
   }

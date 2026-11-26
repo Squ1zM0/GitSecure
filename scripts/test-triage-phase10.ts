@@ -326,7 +326,7 @@ const head: HeadPartial = {
   dependencies: [],
   posture: [],
   unpinnedCount: 0,
-  repoSizeKb: 1,
+
   historyMethod: "git",
   retainedIncomplete: false,
 };

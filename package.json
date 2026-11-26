@@ -23,6 +23,7 @@
     "dev": "next dev",
     "start": "next start",
     "test:score-phase12": "tsx scripts/test-score-phase12.ts",
+    "test:report-markdown": "tsx scripts/test-report-markdown.ts",
     "test:deps-phase13": "tsx scripts/test-deps-phase13.ts",
     "test:history": "tsx scripts/test-history.ts",
     "test:history-git": "tsx scripts/scan-history-git-live.ts",
@@ -31,11 +32,14 @@
     "test:tier3": "tsx scripts/test-tier3.ts",
     "test:techdirect": "tsx scripts/scan-techdirect.ts",
     "test:ui-phase7": "tsx scripts/test-ui-phase7.ts",
+    "test:ui-phase15c": "tsx scripts/test-ui-phase15-worker-c.ts",
     "test:triage-phase10": "tsx scripts/test-triage-phase10.ts",
     "test:usage-phase11": "tsx scripts/test-usage-phase11.ts",
     "test:mcp": "tsx scripts/test-mcp.ts",
     "test:cursor-phase9": "tsx scripts/test-cursor-phase9.ts",
-    "test:fixtures-phase14": "tsx scripts/test-fixtures-phase14.ts"
+    "test:resilience-phase15": "tsx scripts/test-resilience-phase15.ts",
+    "test:fixtures-phase14": "tsx scripts/test-fixtures-phase14.ts",
+    "test:zero-rest": "tsx scripts/test-zero-rest.ts"
   },
   "version": "0.1.0"
 }

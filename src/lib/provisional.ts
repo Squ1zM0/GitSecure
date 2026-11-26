@@ -90,6 +90,9 @@ export function buildProvisionalReport(
       postureIssues: head.posture.length,
       frameworks: head.frameworks.length,
       secretsByVerdict: { genuine: secrets.filter((s) => s.triage?.verdict === "likely-genuine-leak" || !s.triage).length, uncertain: secrets.filter((s) => s.triage?.verdict === "uncertain").length, test: secrets.filter((s) => s.triage?.verdict === "likely-test-key").length },
+      // Phase 15 (finding 5): a provisional report must never claim
+      // the scan is complete — its summary starts "So far: ".
+      provisional: true,
     }),
     scannedAt: new Date().toISOString(),
     historyDepth: "Full history, newest first.",

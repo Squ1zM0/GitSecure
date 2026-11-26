@@ -538,7 +538,7 @@ const head: HeadPartial = {
   owner: "fake-owner", repo: "fake-repo", branch: "main", headSha: "abc1234",
   filesScanned: 3, filesTotal: 3, treeTruncated: false, tarballFallback: false,
   secrets: [keyFinding], frameworks: [], dependencies: [], posture: [],
-  unpinnedCount: 0, repoSizeKb: 1, historyMethod: "git", retainedIncomplete: false,
+  unpinnedCount: 0, historyMethod: "git", retainedIncomplete: false,
 };
 const provisional = buildProvisionalReport(head, [histFinding], 1, true);
 check("Provisional: carries the usage annotation through", provisional.secrets.some((s) => !!s.usage));

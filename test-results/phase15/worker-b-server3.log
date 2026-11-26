@@ -1,0 +1,22 @@
+
+> gitsecure@0.1.0 start
+> next start -p 3217
+
+▲ Next.js 16.4.6
+- Local:         http://localhost:3217
+- Network:       http://198.19.0.2:3217
+✓ Ready in 195ms
+✓ Running next.config.ts took 39ms
+Error: Route "/[owner]/[repo]": Next.js encountered the unstable value `Date.now()` while prerendering.
+
+This value can change between renders, so it must be either prerendered or computed later.
+
+Ways to fix this:
+  - [dynamic] Render at request time by adding a dynamic data access (e.g. `await connection()`) before this call
+  - [cache] Prerender and cache the value with `"use cache"`
+  - [client] Render the value on the client with `"use client"`
+  - [measure] If the value is for telemetry, use a timing API such as `performance.now()`
+
+Learn more: https://nextjs.org/docs/messages/blocking-prerender-current-time
+    at ba (.next/server/chunks/ssr/_18_lnlyemdkv_._.js:44:152833)
+    at be (.next/server/chunks/ssr/_18_lnlyemdkv_._.js:44:153523)

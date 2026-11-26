@@ -1,0 +1,52 @@
+{
+  "worker-b-fixture-360-light": {
+    "scrollWidth": 360,
+    "innerWidth": 360,
+    "overflowing": []
+  },
+  "worker-b-fixture-360-dark": {
+    "scrollWidth": 360,
+    "innerWidth": 360,
+    "overflowing": []
+  },
+  "worker-b-fixture-usagemap-360-light": {
+    "scrollWidth": 360,
+    "innerWidth": 360,
+    "overflowing": []
+  },
+  "worker-b-fixture-usagemap-1280-light": {
+    "scrollWidth": 1280,
+    "innerWidth": 1280,
+    "overflowing": []
+  },
+  "worker-b-fixture-usagemap-1280-dark": {
+    "scrollWidth": 1280,
+    "innerWidth": 1280,
+    "overflowing": []
+  },
+  "worker-b-fixture-dials-1280-light": {
+    "scrollWidth": 1280,
+    "innerWidth": 1280,
+    "overflowing": []
+  },
+  "worker-b-fixture-hero-360-light": {
+    "scrollWidth": 360,
+    "innerWidth": 360,
+    "overflowing": []
+  },
+  "worker-b-fixture-hero-1280-light": {
+    "scrollWidth": 1280,
+    "innerWidth": 1280,
+    "overflowing": []
+  },
+  "worker-b-fixture-vulns-1280-light": {
+    "scrollWidth": 1280,
+    "innerWidth": 1280,
+    "overflowing": []
+  },
+  "worker-b-fixture-full-360-light": {
+    "scrollWidth": 360,
+    "innerWidth": 360,
+    "overflowing": []
+  }
+}

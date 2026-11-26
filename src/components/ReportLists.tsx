@@ -39,6 +39,7 @@
 import { useEffect, useMemo, useState, type ReactNode } from "react";
 import type { Dependency, Framework, PostureIssue, SecretFinding, SecretUsage, Severity, TriageVerdict, Vulnerability } from "@/lib/types";
 import { findingAnchorId, githubBlobUrl, osvAdvisoryUrl } from "@/lib/links";
+import { recommendedFixVersions } from "@/lib/versions";
 
 // Phase 11: usage annotation (SecretUsage on SecretFinding, see
 // src/lib/types.ts). `getUsage` validates the shape — a finding
@@ -67,10 +68,54 @@ export function getUsage(s: SecretFinding): SecretUsage | undefined {
   };
 }
 
+/** Phase 15 finding 9: the "Used by" segments for the usage-map
+ *  track detail — one segment per list that actually has entries.
+ *  A finding used only in tests renders ["in tests: …"] with no empty
+ *  "Used by: ;" segment; a finding with no listed references renders
+ *  []. Exported for the UI test. */
+export function trackDetailSegments(usage: SecretUsage): string[] {
+  const segments: string[] = [];
+  const nonTest = usage.referencedBy.slice(0, 10).map((r) => `${r.file}:${r.line}`);
+  const tests = usage.referencedByTests.slice(0, 10).map((r) => `${r.file}:${r.line}`);
+  if (nonTest.length > 0) segments.push(`Used by: ${nonTest.join(", ")}`);
+  if (tests.length > 0) segments.push(`in tests: ${tests.join(", ")}`);
+  return segments;
+}
+
 /** A finding with no triage annotation reads as uncertain — it is
  *  never silently counted as a test key or a genuine leak. */
 function verdictOf(s: SecretFinding): TriageVerdict | "uncertain" {
   return s.triage?.verdict ?? "uncertain";
+}
+
+/** Phase 15 finding 4: a file label that never clips mid-word with no
+ *  sign it was cut. Basenames of 14 chars or fewer render whole;
+ *  longer ones keep the head and the tail (extension included) with
+ *  an ellipsis in the middle: "test-usage-phase11.ts" becomes
+ *  "test-usa…11.ts". The full path stays in the node's <title> and
+ *  aria-label, and in the file-chip buttons below the map. */
+export function shortLabel(file: string): string {
+  const base = file.split("/").pop() ?? file;
+  if (base.length <= 14) return base;
+  return `${base.slice(0, 8)}…${base.slice(-5)}`;
+}
+
+/** Phase 15 finding 9: the "Used by:" line for one finding, or null
+ *  when there is nothing to list. The old code rendered "Used by: ;"
+ *  when the non-test list was empty but tests existed, and "Used by:
+ *  (+N more)" when the totals said there were references but the
+ *  lists were empty. Callers render the fallback sentence instead of
+ *  an empty label. */
+export function usageRefText(usage: SecretUsage, limit = 3): string | null {
+  const nonTest = usage.referencedBy.slice(0, limit).map((r) => `${r.file}:${r.line}`);
+  const tests = usage.referencedByTests.slice(0, limit).map((r) => `${r.file}:${r.line} (test)`);
+  const parts = [...nonTest, ...tests];
+  const total = usage.referencedByTotal + usage.referencedByTestsTotal;
+  if (parts.length === 0) {
+    if (total <= 0) return null;
+    return `Used by: ${total} reference${total === 1 ? "" : "s"} (file list not shown)`;
+  }
+  return `Used by: ${parts.join(", ")}${total > parts.length ? ` (+${total - parts.length} more)` : ""}`;
 }
 
 const PAGE_SIZE = 100;
@@ -192,14 +237,9 @@ function SecretRow({ entry, owner, repo, branch }: { entry: Indexed<SecretFindin
     usage?.deadEnd && !(s.triage?.explanation ?? "").toLowerCase().includes("references")
       ? "Nothing in this repo references this key — a true dead end."
       : null;
-  const usageRefs =
-    usage && !usage.deadEnd
-      ? [
-          ...usage.referencedBy.slice(0, 3).map((r) => `${r.file}:${r.line}`),
-          ...usage.referencedByTests.slice(0, 3).map((r) => `${r.file}:${r.line} (test)`),
-        ]
-      : [];
-  const usageTotal = (usage?.referencedByTotal ?? 0) + (usage?.referencedByTestsTotal ?? 0);
+  // Phase 15 finding 9: usageRefText returns null when there is
+  // nothing to list, so this line never renders an empty "Used by:".
+  const usageText = usage && !usage.deadEnd ? usageRefText(usage, 3) : null;
   return (
     <div className={`finding sev-${s.severity}`} id={anchor}>
       <p className="finding-title"><span className={`pill ${s.severity}`}>{s.severity}</span>{usage?.deadEnd ? <span className="pill dead-end">Dead end</span> : null}<b>{s.title}</b> <span className="muted">· {s.confidence} confidence</span></p>
@@ -217,16 +257,20 @@ function SecretRow({ entry, owner, repo, branch }: { entry: Indexed<SecretFindin
           {usage.historyOnly ? " (Usage checked against the current files only.)" : ""}
         </p>
       ) : null}
-      {usage && !usage.deadEnd && usageTotal > 0 ? (
+      {usageText ? (
         <p className="small usage-line">
-          Used by: {usageRefs.join(", ")}
-          {usageTotal > usageRefs.length ? ` (+${usageTotal - usageRefs.length} more)` : ""}
-          {usage.historyOnly ? " — usage checked against the current files only." : ""}
+          {usageText}
+          {usage?.historyOnly ? " — usage checked against the current files only." : ""}
         </p>
       ) : null}
       <p className="small"><code className="inline">{s.file}:{s.line}</code> · commit <code className="inline">{s.commit ?? "HEAD"}</code> · fragment <code className="inline">{s.fragment}</code> (redacted — never the full secret)</p>
       <p className="small finding-actions">
-        <a className="github-link" href={blob} target="_blank" rel="noreferrer">View on GitHub — {s.file}, line {s.line}</a>
+        {/* Phase 15 finding 2: the link label is just "View on GitHub" —
+          the long path used to be part of the label and pushed a 360 px
+          report 66 px wide. The path is already shown in the line
+          directly above, so nothing is lost. The CSS also lets
+          .github-link wrap, as a backstop. */}
+        <a className="github-link" href={blob} target="_blank" rel="noreferrer">View on GitHub</a>
         <a href={`#${anchor}`}>Link to this finding</a>
         <CopyLinkButton anchor={anchor} label={`secret finding ${entry.idx + 1}`} />
       </p>
@@ -267,12 +311,15 @@ export function FileMap({ byFile, onSelectFile }: { byFile: { file: string; coun
       </p>
       <div className="map-wrap">
         <svg viewBox="0 0 400 300" role="group" aria-label="Map of files holding secrets">
-          <circle className="map-centre" cx={cx} cy={cy} r={34} />
-          <text className="map-centre-text" x={cx} y={cy + 4} textAnchor="middle" fontSize={10} fontWeight={700}>This repo</text>
+          {/* Phase 15 finding 4: the centre is painted after the spokes,
+            so no spoke can strike through the "This repo" label. */}
           {top.map((f, i) => {
             const { x, y } = nodePos(i, top.length);
             const r = 9 + Math.min(15, Math.sqrt(f.count) * 2.2);
-            const label = baseName(f.file).slice(0, 14);
+            // Phase 15 finding 4: middle-truncated basename with an
+            // ellipsis (never a silent mid-word clip) + a halo so the
+            // label stays readable where a spoke passes behind it.
+            const label = shortLabel(f.file);
             return (
               <g
                 key={f.file}
@@ -291,11 +338,13 @@ export function FileMap({ byFile, onSelectFile }: { byFile: { file: string; coun
                 <title>{`${f.file} — ${f.count} finding${f.count === 1 ? "" : "s"}`}</title>
                 <line x1={cx} y1={cy} x2={x} y2={y} stroke="#9ecdb2" strokeWidth={1.5} />
                 <circle cx={x} cy={y} r={r} />
-                <text x={x} y={y - r - 4} textAnchor="middle">{label}</text>
+                <text className="map-label" x={x} y={y - r - 4} textAnchor="middle">{label}</text>
                 <text x={x} y={y + r + 12} textAnchor="middle" fontWeight={700}>{f.count}</text>
               </g>
             );
           })}
+          <circle className="map-centre" cx={cx} cy={cy} r={34} />
+          <text className="map-centre-text" x={cx} y={cy + 4} textAnchor="middle" fontSize={10} fontWeight={700}>This repo</text>
         </svg>
       </div>
       <p>
@@ -334,7 +383,22 @@ const MAP_FINDINGS = 12;
  *  file node to filter the list to it. Dead-end findings are greyed,
  *  labelled "dead end", and have no outgoing edges. When no finding
  *  carries `usage` (older report), this falls back to the Phase 5
- *  file-count spider unchanged. */
+ *  file-count spider unchanged.
+ *
+ *  Phase 15 finding 4 — legibility at 12 findings / 8 files: the
+ *  rings are spread (finding 82 -> 100, file 138 -> 140, taller
+ *  viewBox), file labels are middle-truncated basenames with an
+ *  ellipsis (shortLabel, never a silent mid-word clip) placed
+ *  radially OUTWARD from their node so they can never collide with a
+ *  finding's "N uses" caption, file counts sit INSIDE their node
+ *  circles (no count ever sits on an edge again), finding nodes grow
+ *  with their reference count (like file nodes grow with finding
+ *  count), the centre is painted after the edges so no edge can
+ *  strike through "This repo", and every label outside a circle
+ *  carries the .map-label halo so a dashed edge passing behind it
+ *  cannot strike the text through. The "N uses" captions alternate
+ *  a sideways step so neighbours' captions stop stacking. Click,
+ *  keyboard, dark mode, and reduced-motion behaviour are unchanged. */
 export function UsageMap({
   findings,
   byFile,
@@ -353,7 +417,6 @@ export function UsageMap({
   const hasUsage = findings.some(({ item }) => getUsage(item) !== undefined);
   if (!hasUsage) return <FileMap byFile={byFile} onSelectFile={onSelectFile} />;
 
-  const baseName = (file: string) => file.split("/").pop() ?? file;
   // Most-used findings first so the tracks worth following are the
   // ones drawn; dead ends still appear (greyed) when there is room.
   const usageOf = (e: Indexed<SecretFinding>) => getUsage(e.item);
@@ -381,9 +444,9 @@ export function UsageMap({
   ].slice(0, MAP_NODES);
 
   const cx = 200;
-  const cy = 170;
-  const findingRadius = 82;
-  const fileRadius = 138;
+  const cy = 190;
+  const findingRadius = 100;
+  const fileRadius = 140;
   const nodePos = (i: number, n: number, radius: number) => {
     const angle = (2 * Math.PI * i) / Math.max(n, 1) - Math.PI / 2;
     return { x: cx + radius * Math.cos(angle), y: cy + radius * Math.sin(angle) };
@@ -421,6 +484,9 @@ export function UsageMap({
     }
   }
   const totalRefs = selectedUsage && !selectedUsage.deadEnd ? selectedUsage.referencedByTotal + selectedUsage.referencedByTestsTotal : 0;
+  // Phase 15 finding 9: segments only from lists that have entries —
+  // never an empty "Used by: ;". (trackDetailSegments, above.)
+  const trackSegments = selectedUsage && !selectedUsage.deadEnd ? trackDetailSegments(selectedUsage) : [];
 
   return (
     <div>
@@ -435,9 +501,7 @@ export function UsageMap({
         <span>Every node is keyboard reachable: Tab to it, Enter to select</span>
       </p>
       <div className="map-wrap">
-        <svg viewBox="0 0 400 340" role="group" aria-label="Usage map: secrets and the files that reference them">
-          <circle className="map-centre" cx={cx} cy={cy} r={30} />
-          <text className="map-centre-text" x={cx} y={cy + 4} textAnchor="middle" fontSize={10} fontWeight={700}>This repo</text>
+        <svg viewBox="0 0 400 380" role="group" aria-label="Usage map: secrets and the files that reference them">
           {edges.map((e) => (
             <line
               key={e.key}
@@ -448,10 +512,22 @@ export function UsageMap({
               className={`map-edge map-edge-${e.kind}${selected == null || e.findingIdx === selected ? " map-edge-track" : " map-edge-dim"}`}
             />
           ))}
+          {/* Phase 15 finding 4: the centre is painted after the edges,
+            so no edge can strike through the "This repo" label. */}
+          <circle className="map-centre" cx={cx} cy={cy} r={30} />
+          <text className="map-centre-text" x={cx} y={cy + 4} textAnchor="middle" fontSize={10} fontWeight={700}>This repo</text>
           {fileNodes.map((f, i) => {
             const { x, y } = nodePos(i, fileNodes.length, fileRadius);
             const r = 9 + Math.min(15, Math.sqrt(Math.max(f.count, 1)) * 2.2);
             const dimmed = selected != null && !trackFiles.has(f.file);
+            // Phase 15 finding 4: the label sits radially OUTWARD from
+            // its node (away from the finding ring), so it can never
+            // collide with a finding's "N uses" caption, which lives
+            // in the band between the rings. The x is clamped so a
+            // side node's label stays inside the viewBox.
+            const angle = Math.atan2(y - cy, x - cx);
+            const lx = Math.max(42, Math.min(358, x + Math.cos(angle) * (r + 14)));
+            const ly = y + Math.sin(angle) * (r + 14);
             return (
               <g
                 key={f.file}
@@ -470,12 +546,15 @@ export function UsageMap({
                 <title>{`${f.file} — ${f.count} finding${f.count === 1 ? "" : "s"}`}</title>
                 <circle className="map-hit" cx={x} cy={y} r={24} />
                 <circle cx={x} cy={y} r={r} />
-                <text x={x} y={y - r - 4} textAnchor="middle">{baseName(f.file).slice(0, 14)}</text>
-                <text x={x} y={y + r + 12} textAnchor="middle" fontWeight={700}>{f.count}</text>
+                {/* Phase 15 finding 4: the count lives INSIDE the node
+                  (on solid fill, no edge can cross it); the label is a
+                  middle-truncated basename with a halo. */}
+                <text x={x} y={y + 4} textAnchor="middle" fontWeight={700} fontSize={11}>{f.count}</text>
+                <text className="map-label" x={lx} y={ly} textAnchor="middle" dominantBaseline="central">{shortLabel(f.file)}</text>
               </g>
             );
           })}
-          {drawn.map((e) => {
+          {drawn.map((e, i) => {
             const { x, y } = findingPos.get(e.idx) ?? { x: cx, y: cy };
             const u = usageOf(e);
             const dead = u?.deadEnd === true;
@@ -483,6 +562,15 @@ export function UsageMap({
             const isSelected = selected === e.idx;
             const dimmed = selected != null && !isSelected;
             const label = `secret ${e.idx + 1}`;
+            // Phase 15 finding 4: the node grows with its reference
+            // count (like file nodes grow with finding count), so the
+            // most-used findings read biggest at a glance.
+            const fr = 11 + Math.min(7, Math.round(Math.sqrt(refs) * 1.2));
+            // The caption steps sideways, alternating per node, so
+            // neighbours' captions stop stacking on one another; the
+            // halo keeps it readable where an edge passes behind it.
+            const captionX = x + (i % 2 === 0 ? 14 : -14);
+            const captionY = y + fr + 12;
             return (
               <g
                 key={e.idx}
@@ -506,9 +594,9 @@ export function UsageMap({
               >
                 <title>{`${label} — ${e.item.file}:${e.item.line}${dead ? " — dead end" : u ? ` — ${refs} reference${refs === 1 ? "" : "s"}` : " — no usage data"}`}</title>
                 <circle className="map-hit" cx={x} cy={y} r={24} />
-                <circle cx={x} cy={y} r={11} />
-                <text x={x} y={y + 3} textAnchor="middle" fontWeight={700}>{`S${e.idx + 1}`}</text>
-                <text x={x} y={y + 23} textAnchor="middle">{dead ? "dead end" : u ? `${refs} use${refs === 1 ? "" : "s"}` : ""}</text>
+                <circle cx={x} cy={y} r={fr} />
+                <text x={x} y={y + 4} textAnchor="middle" fontWeight={700}>{`S${e.idx + 1}`}</text>
+                <text className="map-label" x={captionX} y={captionY} textAnchor="middle">{dead ? "dead end" : u ? `${refs} use${refs === 1 ? "" : "s"}` : ""}</text>
               </g>
             );
           })}
@@ -523,13 +611,14 @@ export function UsageMap({
                 <> · <span className="pill dead-end">Dead end</span> Nothing in this repo references this key — a true dead end{selectedUsage.historyOnly ? " (usage checked against the current files only)" : ""}.</>
               ) : totalRefs === 0 ? (
                 <> · No references recorded.</>
-              ) : (
+              ) : trackSegments.length > 0 ? (
                 <>
-                  {" "}· Used by: {selectedUsage.referencedBy.slice(0, 10).map((r) => `${r.file}:${r.line}`).join(", ")}
-                  {selectedUsage.referencedByTests.length > 0 ? `; in tests: ${selectedUsage.referencedByTests.slice(0, 10).map((r) => `${r.file}:${r.line}`).join(", ")}` : ""}
+                  {" "}· {trackSegments.join("; ")}
                   {totalRefs > 10 ? ` (+${totalRefs - 10} more)` : ""}
                   {selectedUsage.historyOnly ? " (usage checked against the current files only)" : ""}
                 </>
+              ) : (
+                <> · Used by: {totalRefs} reference{totalRefs === 1 ? "" : "s"} (file list not shown){selectedUsage.historyOnly ? " (usage checked against the current files only)" : ""}.</>
               )}
             </p>
             {onShowFinding ? (
@@ -776,7 +865,11 @@ export function FrameworksList({ frameworks }: { frameworks: Framework[] }) {
   const { visible, shown, showMore, showAll } = usePagedSimple(frameworks);
   return (
     <>
-      <ul>
+      {/* Phase 15 finding 2 (real-DT follow-up): report-list li wraps
+        anywhere — a framework name/version can be a 40-char SHA with no
+        break opportunity, and the live DT provisional report was 411 px
+        wide at a 360 px viewport because of it. */}
+      <ul className="report-list">
         {visible.map((f, i) => (
           <li key={`${f.name}-${f.sourceFile}-${i}`}>
             <b>{f.name}</b> — {f.version ?? "version could not be determined"} ({f.versionSource})
@@ -801,7 +894,7 @@ function usePagedSimple<T>(items: T[]) {
 
 // ---------------------------------------------------------- vulnerabilities
 
-function VulnRow({ entry }: { entry: Indexed<Vulnerability> }) {
+function VulnRow({ entry, reconciledFix }: { entry: Indexed<Vulnerability>; reconciledFix?: string | null }) {
   const v = entry.item;
   const anchor = findingAnchorId("vuln", entry.idx);
   return (
@@ -813,7 +906,7 @@ function VulnRow({ entry }: { entry: Indexed<Vulnerability> }) {
         <a href={`#${anchor}`}>Link to this finding</a>
         <CopyLinkButton anchor={anchor} label={`vulnerability ${entry.idx + 1}`} />
       </p>
-      <p className="fix"><b>Fix:</b> {v.upgrade}</p>
+      <p className="fix"><b>Fix:</b> {reconciledFix ?? v.upgrade}</p>
     </div>
   );
 }
@@ -846,6 +939,17 @@ export function VulnerabilitiesList({ vulnerabilities }: { vulnerabilities: Vuln
       .map(([key, items]) => ({ key, items }))
       .sort((a, b) => b.items.length - a.items.length || a.key.localeCompare(b.key));
   }, [filtered, groupBy]);
+  // Phase 15 finding 15: one recommended version per package, so four
+  // advisories for the same installed version never tell the user to
+  // upgrade to four different versions.
+  const reconciled = useMemo(() => recommendedFixVersions(vulnerabilities), [vulnerabilities]);
+  const fixFor = (v: Vulnerability): string | null => {
+    if (!v.fixedVersion) return null;
+    const rec = reconciled.get(`${v.packageName}@${v.installedVersion ?? ""}`);
+    if (!rec) return null;
+    return `Upgrade ${v.packageName} to ${rec.recommended} or later — this covers all ${rec.advisoryCount} advisories for this version.`;
+  };
+  const renderVuln = (entry: Indexed<Vulnerability>) => <VulnRow key={`${entry.item.id}-${entry.item.packageName}-${entry.idx}`} entry={entry} reconciledFix={fixFor(entry.item)} />;
   return (
     <div>
       <div className="filters">
@@ -867,7 +971,7 @@ export function VulnerabilitiesList({ vulnerabilities }: { vulnerabilities: Vuln
         Showing {filtered.length} of {vulnerabilities.length} vulnerabilities.
       </p>
       {groupBy === "none" ? (
-        <Paged items={filtered} renderItem={(entry) => <VulnRow key={`${entry.item.id}-${entry.item.packageName}-${entry.idx}`} entry={entry} />} />
+        <Paged items={filtered} renderItem={renderVuln} />
       ) : (
         groups.map((g) => (
           <details key={g.key} className="group" open={filtered.length <= GROUP_OPEN_BELOW}>
@@ -876,7 +980,7 @@ export function VulnerabilitiesList({ vulnerabilities }: { vulnerabilities: Vuln
               {g.key} <span className="count-badge">({g.items.length} finding{g.items.length === 1 ? "" : "s"})</span>
             </summary>
             <div className="group-body">
-              <Paged items={g.items} renderItem={(entry) => <VulnRow key={`${entry.item.id}-${entry.item.packageName}-${entry.idx}`} entry={entry} />} />
+              <Paged items={g.items} renderItem={renderVuln} />
             </div>
           </details>
         ))
@@ -932,7 +1036,10 @@ export function DependenciesList({ dependencies }: { dependencies: Dependency[] 
       <p className="small" aria-live="polite">
         Showing {filtered.length} of {dependencies.length} dependencies.
       </p>
-      <ul>
+      {/* Phase 15 finding 2 (real-DT follow-up): same as FrameworksList —
+        a dependency name/version can be a 40-char SHA with no break
+        opportunity. */}
+      <ul className="report-list">
         {visible.map(({ item: d, idx }) => (
           <li key={`${d.ecosystem}-${d.name}-${d.sourceFile}-${idx}`} id={findingAnchorId("dep", idx)}>
             <b>{d.name}</b> {d.version ?? "(no version)"} · {d.ecosystem} · {d.direct ? "direct" : "transitive"} · <code className="inline">{d.sourceFile}</code>{" "}

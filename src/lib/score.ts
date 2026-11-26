@@ -74,8 +74,12 @@ export function computeScore(args: { secrets: SecretFinding[]; vulnerabilities: 
  * summary names the split instead of presenting test keys as live leaks:
  * a report whose secrets are all test keys must not say "rotate and
  * remove these first". Without the breakdown it falls back to the old
- * wording (older callers / untriaged reports). */
-export function plainSummary(args: { secrets: number; vulnerabilities: number; postureIssues: number; frameworks: number; secretsByVerdict?: { genuine: number; uncertain: number; test: number } }): string {
+ * wording (older callers / untriaged reports).
+ * Phase 15 (finding 5): a provisional report must never claim the scan
+ * is complete — pass provisional: true and the summary starts "So far: "
+ * instead of "Scan complete. ". Finding 7: the zero-secrets part is
+ * capitalised ("No leaked secrets…"), it opens a sentence. */
+export function plainSummary(args: { secrets: number; vulnerabilities: number; postureIssues: number; frameworks: number; secretsByVerdict?: { genuine: number; uncertain: number; test: number }; provisional?: boolean }): string {
   const parts: string[] = [];
   const v = args.secretsByVerdict;
   if (args.secrets > 0 && v) {
@@ -89,11 +93,11 @@ export function plainSummary(args: { secrets: number; vulnerabilities: number; p
       parts.push(`${args.secrets} possible leaked secret${args.secrets === 1 ? "" : "s"} found — all look like test keys, so none count toward the score`);
     }
   } else if (args.secrets > 0) parts.push(`${args.secrets} possible leaked secret${args.secrets === 1 ? "" : "s"} found — rotate and remove these first`);
-  else parts.push("no leaked secrets were found in the files scanned");
+  else parts.push("No leaked secrets were found in the files scanned");
   if (args.vulnerabilities > 0) parts.push(`${args.vulnerabilities} known vulnerabilit${args.vulnerabilities === 1 ? "y" : "ies"} in dependencies`);
   if (args.postureIssues > 0) parts.push(`${args.postureIssues} security hygiene issue${args.postureIssues === 1 ? "" : "s"} to fix`);
   if (args.frameworks > 0) parts.push(`${args.frameworks} framework${args.frameworks === 1 ? "" : "s"} fingerprinted`);
-  return `Scan complete. ${parts.join("; ")}. The full detail is in this report — no sign-in needed.`;
+  return `${args.provisional ? "So far: " : "Scan complete. "}${parts.join("; ")}. The full detail is in this report — no sign-in needed.`;
 }
 
 /** One plain line under the score: what the number means, and what

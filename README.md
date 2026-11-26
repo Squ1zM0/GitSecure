@@ -172,13 +172,13 @@ how far it got; it does not fake completion.
 ## Use with your AI assistant (MCP)
 
 GitSecure speaks the Model Context Protocol, so an LLM can scan a repo
-for you. Canonical server URL: **`https://gitsecure.vercel.app/mcp`**
+for you. Canonical server URL: **`https://git-secure.com/mcp`**
 (`/api/mcp` works too). No sign-up, no API key. The home page has
 copyable config snippets for Claude, Cursor, VS Code, and Windsurf/Cline
 (the report page has a short version of the same section).
 
 ```json
-{ "mcpServers": { "gitsecure": { "url": "https://gitsecure.vercel.app/mcp" } } }
+{ "mcpServers": { "gitsecure": { "url": "https://git-secure.com/mcp" } } }
 ```
 
 Tools (all return the full report — see below):
@@ -278,10 +278,10 @@ there is no background job to keep alive.
   does it fall back to patches of the 5 most recent commits. The only
   remaining history bounds are physical ones: an emergency memory guard
   (500 MB of patches) and a walk safety valve (40 s / 700 MB heap) that
-  stop a giant walk cleanly with an honest note — and a size gate
-  (repos over 100 MB, e.g. DefinitelyTyped at 818 MB, skip the
-  clone-based paths entirely because the pack cannot fit in a
-  serverless function, and go through the API path instead). A history
+  stop a giant walk cleanly with an honest note — and a streaming byte
+  bound on the pack download (150 MB: isomorphic-git buffers the whole
+  pack in memory, so past that the clone aborts and history goes
+  through the API path instead, e.g. DefinitelyTyped at 818 MB). A history
   failure is never a failed scan: the report carries a note and the
   HEAD scan still completes in full.
 - **HEAD scan: unlimited.** Every file in the HEAD tree is scanned,
@@ -481,9 +481,11 @@ npm run test:scanner     # synthetic fixture with FAKE planted secrets only
                          # inside a cross-line span)
 npm run test:history     # full-history regression: a fake secret planted in
                          # an old commit of a throwaway local repo, removed
-                         # from HEAD — 56 checks, clone + API path (mock
+                         # from HEAD — 70 checks, clone + API path (mock
                          # GitHub API: pagination, per-commit attribution,
-                         # rate-limit behaviour) + the 100 MB size gate
+                         # rate-limit behaviour) + the pack-download byte
+                         # bound (a pack past 150 MB aborts the clone and
+                         # history falls through to the API path)
 npm run test:tier3       # Tier 3 infra detectors on fixtures (Docker,
                          # Kubernetes, Terraform, GitHub Actions, Vercel /
                          # Supabase) — 40 checks, no network
@@ -905,8 +907,9 @@ lose and the old dead-end is impossible.
   cursor + progress when still running; new tool `resume_scan`
   (`{ cursor }`) continues it. Plain API callers get partial +
   nextCursor on every call. No server-side job state anywhere.
-- **HEAD streaming for giant repos** (`src/lib/scan.ts`): repos over
-  1 GB stream the tarball (gunzip + incremental tar parse, files
+- **HEAD streaming for giant repos** (`src/lib/scan.ts`): a tarball
+  past the 100 MB compressed buffer switch streams instead of
+  buffering (gunzip + incremental tar parse, files
   secret-scanned as they arrive, only retainable files kept —
   peak memory is the largest single file, not the whole tree).
   Measured on torvalds/linux from disk (no network): gunzip 4.7 s,
@@ -919,10 +922,12 @@ lose and the old dead-end is impossible.
   the new scan against the old per-line scan, including values split
   across lines and matches hiding inside a cross-line span), and the
   tar parser uses 1 MB gunzip chunks plus a memcmp end-of-archive
-  check (was ~31 s of parse overhead, now ~2 s over gunzip). The
-  streaming path also skips the recursive-tree call (it costs ~4 s
+  check (was ~31 s of parse overhead, now ~2 s over gunzip). No path
+  fetches the recursive tree on the happy path any more (it costs ~4 s
   and comes back truncated at 71k of ~97k entries for Linux — the
-  tarball is the complete file list), and manifests/configs are
+  tarball is the complete file list); the tree is fetched only when a
+  tarball transport fails and the per-file fallback needs a file list.
+  Manifests/configs are
   always retained even when the 100 MB retained-bytes budget runs
   out (a flood of .ts/.js files must not crowd out the files the
   dependency step needs; the report still says when retention was
@@ -930,8 +935,8 @@ lose and the old dead-end is impossible.
   streaming path): HEAD completes in 25–33 s, 20,648 files scanned =
   20,648 total, 474 HEAD secrets, 1,714 deps.
 - **Honest bound on torvalds/linux-scale histories.** Linux is ~4 GB
-  with ~1M commits; the size gate (repos >100 MB skip clone paths)
-  still applies, so history goes through the API path, newest-first,
+  with ~1M commits; the pack-download byte bound (150 MB) still applies,
+  so history goes through the API path, newest-first,
   10 commits per chunk, and a full history walk will take a very long
   time even chunked. The fix is resumability, not pretending the
   whole history finishes in one visit: the scan makes steady
@@ -1330,8 +1335,11 @@ unpinned 4}`, secrets still 34 (32 test keys, 2 uncertain).
 
 Freddy: "I don't want our platform to try and help people secure their repositories without the repository itself being secure." The self-scan was 0/F (302 deductions) because the repo shipped deliberately vulnerable test fixtures. This phase makes the repo itself genuinely secure. Diagnosed first (test-results/phase14-self-scan-inventory.md): 73 vulns, all kept-vulnerable fixtures; posture 15, 13 fixture-driven, 2 real; secrets 34 (32 test keys, 2 uncertain); unpinned 4 points, both fixture-owned. The honest fix: vulnerable fixture manifests and risky infra configs are no longer committed as scannable files — tests generate them at test time in temp dirs from in-memory strings (scripts/fixture-gen.ts, byte-identical contents), so detection coverage is equal or better (new test:fixtures-phase14 42/42 proves the generated fixtures detect the exact same 73 advisory IDs) while the committed repo holds no vulnerable pinned version. Real gaps fixed for real: SECURITY.md (reports to motdhvacr@gmail.com) and .github/dependabot.yml (npm, weekly). Two real scanner bugs fixed in the same phase: history usage search ran against an empty corpus (git.TREE walk over the no-checkout clone visited 0 blobs, so no history finding could ever be in-use) and doc-prose mentions counted as production usage (the 2 uncertain api_key fixtures are settled to likely-test-key by the evidence, not by weakening triage — secrets deduction 8 → 0). No gaming: no exclusions, no special-casing Squ1zM0/GitSecure anywhere (grep-proved), no severity changes, no deleted tests. Local HEAD-only self-scan of the working copy: 0 vulnerabilities, 0 posture issues, 0 unpinned deps, 18 HEAD secrets all likely-test-key — projected full-scan score 100/A; the live numbers are measured after the push. Full suite green (scanner 73/73, tier3 40/40, history 66/66, public-full 56/56, cursor 181/181, triage 63/63, usage 91/91, score 36/36, deps 22/22, fixtures 42/42, UI 110/110, MCP 62/62, TechDirect 83/B). Live verification: self-scan 100/A — 37 secrets, all likely-test-key, 0 vulnerabilities, 0 posture issues, scoreDetail {secrets 0, vulns 0, posture 0, unpinned 0, excluded 37, wouldBeScore 0}, files 86, history 31 commits.
 
+## Phase 15 — user experience + zero REST calls (built 2026-11-26)
+
+Freddy: "Continue and develop the app. Improving user experience." Audit first (test-results/phase15-ux-audit.md, 16 findings with screenshots): the Linux dead-end is fixed at the root — a HEAD-chunk timeout now returns a partial cursor so the resume path engages, and every page-level error state has a "Retry this scan" button; DefinitelyTyped's report no longer overflows at 360 px; the chunk-error card names the failure reason and the progress reached, and the provisional banner says "paused" instead of the stale "still running" once the driver errors; provisional reports say "So far: …" instead of "Scan complete."; a branded 404 explains the owner/repo shape; the score-0 dial dot, the empty "Used by: ;", the "about 15 seconds" loading promise (now 15–30), sub-44 px buttons, the missing visible input label, the runner-up score deduction, and four disagreeing fix versions for one package are all fixed; the MCP section has a plain-English line and collapsed snippets on the canonical https://git-secure.com/mcp. Freddy added mid-phase: a "Roll all into report" button in the score hero that downloads the entire scan as one Markdown file (every finding, fragment-only secrets, provisional labelled). Freddy's live rate-limit dead end is fixed too: the 429 page has a "Try this scan again" button and honest reset wording from GitHub's headers ("resets in about N minutes", else "resets within the hour" — never an invented countdown). And the last REST call is gone: branch + HEAD now come from `git ls-remote`, the file list from the tarball, and both size gates are streaming bounds — a full happy-path scan makes 0 api.github.com requests (test:zero-rest 26/26, TechDirect still 83/B, 2,802 files, 62 history commits via git protocol). No token was added or needed for this: Freddy separately reversed his Phase 6 no-token ruling himself on 2026-11-26 (fine-grained PAT as GITHUB_TOKEN in Vercel, 5,000/hr) — the zero-REST work neither depends on it nor changes it. Full suite green (scanner 73/73, history 70/70, cursor 192/192, UI 155/155, report-markdown 30/30, resilience 45/45, zero-rest 26/26, MCP 62/62, TechDirect 83/B). Live verification: home 200 on git-secure.com, self-scan 100/A, TechDirect 83/B.
+
 ## Project notes
 
 Full spec and decisions: `GITSECURE.md`. Repo: https://github.com/Squ1zM0/GitSecure
-(public, main). Domain: git-secure.com (not purchased — do not buy without a
-separate explicit go-ahead; start on a Vercel subdomain).
+(public, main). Domain: git-secure.com — live since 2026-11-26 (Cloudflare Registrar, Vercel Valid Configuration, apex serves the site, www 307-redirects to apex).

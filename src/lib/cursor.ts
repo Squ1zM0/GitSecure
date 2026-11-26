@@ -44,8 +44,10 @@ export interface ScanCursorData {
   /** Pinned HEAD sha (40 hex) the scan started from. */
   headSha: string;
   stage: CursorStage;
-  /** "git" (git protocol, small repos) or "api" (GitHub API, repos too
-   *  large to clone — see history.ts HISTORY_CLONE_SIZE_LIMIT_KB). */
+  /** "git" (git protocol) or "api" (GitHub API, when the git path
+   *  fails — e.g. a history pack too large to clone; the pack
+   *  download is byte-bounded while it runs, see history.ts
+   *  PACK_MAX_BYTES). */
   historyMethod: "git" | "api";
   /** History commits scanned so far (this scan, newest-first). */
   histScanned: number;

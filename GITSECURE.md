@@ -312,7 +312,7 @@ No scanner logic, scores, or public/full split changed. TechDirect still
   and the dogfood score is 1/F — see "Phase 4 status" above.
 - **Human view:** `src/components/McpSection.tsx` — "Use with your AI
   assistant (MCP)". Full version on the home page: MCP server URL
-  (https://gitsecure.vercel.app/mcp) plus copyable config snippets for
+  (https://git-secure.com/mcp) plus copyable config snippets for
   Claude, Cursor, VS Code, and Windsurf/Cline (snippets in
   `src/lib/mcp-config.ts`, all valid JSON — the test parses each one),
   plus one plain line explaining the LLM gets the public score and
@@ -1633,6 +1633,147 @@ honestly, not by gaming the score.
   production server, scanning the live remote (dogfood assertions
   updated to the measured post-push numbers in the docs follow-up
   push).
+
+## Phase 15 status — user experience + zero REST calls on the happy path (built 2026-11-26)
+
+### UX audit + fixes (Freddy: "Continue and develop the app. Improving user experience.")
+
+Audit first (`test-results/phase15-ux-audit.md`, 16 findings, ranked, each with a screenshot or measurement; 29 screenshots in `test-results/phase15/`): home explains the tool in seconds, input validation correct, zero overflow on home/TechDirect/GitSecure at 1280 + 360 px light/dark, contrast AA everywhere sampled, keyboard/focus/skip link work, dial has role="img" + full aria-label, filter counts aria-live with true counts, copy-link verified in the real clipboard, verdict sections and map click-to-track work. The fixes, in audit priority order:
+
+- **Linux dead-end (finding 1, HIGH):** a fetch-level timeout inside the HEAD chunk threw instead of returning a partial cursor, so torvalds/linux ended on a terminal error page after minutes of a static screen and the Phase 9 resume path never engaged. `headChunkOrTimeoutPartial()` in `src/lib/chunks.ts` now returns a partial cursor on a HEAD timeout (with HEAD meta known), so `ScanProgress` mounts and resume engages. Adjacent bug found by testing: a mid-download body-stream error crashed the chunk with an unhandled `'error'` event on the `Readable.fromWeb` stream — one line (`input.on("error", …)` in `streamHeadFilesViaTarball`) converts it to the 504 the driver turns into a partial cursor. Every page-level error state now has a **"Retry this scan"** button (`src/components/RetryScanButton.tsx`) next to "Scan another repo".
+- **DT mobile overflow (finding 2, HIGH):** DefinitelyTyped overflowed 426 vs 360 px from long unbreakable paths. The GitHub link label is now just "View on GitHub" (the path is already shown above it), plus `overflow-wrap: anywhere` on `.github-link`, `code.inline`, `.finding`, and `.report-list li`. Verified on the real DT provisional report at 360 px: scrollWidth = 360, zero overflowing elements.
+- **DT never finishes (finding 3, HIGH, UX half):** the chunk-error card now classifies the failure (rate-limit vs network vs other) and shows progress reached ("So far: 61,814 of 61,814 files scanned · 403 possible leaked secrets found so far."); a 429 fails fast instead of burning three retries. When the driver errors, the provisional banner reads "paused — history and dependency checks stopped here" instead of the stale "still running". The "Retry from where it left off" button was proven live on a real chunked DT run: the retried chunk carried the saved cursor and history resumed at 10 commits.
+- **Usage map legibility (finding 4):** file labels are now basenames with head + "…" + tail, counts sit inside their node circles, labels sit radially outward and x-clamped, centre circle paints after the edges so no edge strikes through "This repo". Verified on the real self-scan map at 1280 px.
+- **Provisional wording (finding 5):** `plainSummary()` takes `provisional`, so provisional reports say "So far: …" instead of "Scan complete. ". Zero-secret reports now read "No leaked secrets were found…" (finding 7, capitalisation).
+- **Branded 404 (finding 6):** new `src/app/not-found.tsx` explains the `git-secure.com/owner/repo` shape with the Squ1zM0/GitSecure example and links home. Bare-owner URLs no longer land on the stock Next.js 404.
+- **Small copy fixes (findings 8, 9, 11, 12, 13, 14, 15):** score-0 dial no longer renders a stray red dot (butt cap at 0); track detail omits the empty "Used by:" segment; loading copy says "usually takes 15–30 seconds" (TechDirect measured 27.1 s); copy buttons and file chips raised to the project's own 44 px rule; the scan input has a visible "GitHub repo to scan" label; the score explanation appends the runner-up deduction ("Plus 4 known flaws in dependencies, which cost 8 points…"); per package, one reconciled fix version (max of the advisory fixed versions, `src/lib/versions.ts`) so four js-yaml findings no longer disagree.
+- **MCP onboarding (finding 10):** one plain-English line ("MCP lets an AI assistant like Claude call GitSecure for you — no account needed"), the four JSON snippets collapsed behind one `<details>`, canonical URL now `https://git-secure.com/mcp` (apex is canonical: www 307-redirects to apex, verified live 2026-11-26), mobile code blocks get a right-edge fade.
+- **"Roll all into report" (Freddy, added mid-phase):** a button in the score hero card, top-right next to the dial (full-width under 560 px), that downloads the ENTIRE scan as one Markdown file (`gitsecure-report-{owner}-{repo}-{short-sha}.md`) — score, grade, summary, explanation, every secret with triage verdict, every vulnerability (Fix line reconciled, same as the page), posture issue, dependency and framework, plus scan metadata. No truncation even for findings hidden behind collapsed groups/filters. Generated client-side from the `FullReport` already on the page (`src/lib/report-markdown.ts`, `src/components/RollAllButton.tsx`); no API route. Secrets fragment-only, exactly as on the page. Works on finished and provisional reports (provisional labelled in the file). Verified by a real browser download and `test:report-markdown` 30/30.
+- **Rate-limit recovery (Freddy, live friction):** the "GitHub's request limit was hit" page had only "Scan another repo". It now has a **"Try this scan again"** button re-running the same repo, and honest reset wording from GitHub's own headers (`src/lib/rate-limit.ts`: `retry-after` / `x-ratelimit-reset` → "resets in about N minutes", else "resets within the hour" — never an invented countdown). `resetAtMs` passes through the scan API error JSON (additive, backward compatible). A genuine live 429 render was not triggered (would burn the shared quota); the path is proven by mocked tests + the shared button mechanism verified live.
+- **Tests:** new `test:resilience-phase15` 45/45, `test:report-markdown` 30/30, `test:ui-phase15c` 32/32; UI suite 110 → 155; cursor 181 → 192; score 36 → 40. Full suite green at integration (see below).
+
+### Zero REST calls on the happy path (worker D)
+
+Trigger: Freddy thought rate limiting was rectified, but the 429s
+kept coming — Phase 8 had moved history off REST (a scan went from
+~65 REST calls to 1), and the remaining 429s came from that last call
+plus the shared-IP bucket. The answer is YES: the last REST call can
+go away entirely, with no token (Freddy's Phase 6 ruling stands —
+this phase adds no token, proposes none, and needs none).
+
+- **Branch + HEAD sha over the git protocol** (`resolveRemoteHead`
+  in `src/lib/history.ts`): one `getRemoteInfo` call to github.com —
+  NOT api.github.com — returns both the HEAD symref
+  (`refs/heads/main`) and every branch head's sha. It replaces the
+  REST repo-info fetch (default branch, size, private flag) AND the
+  commits-list call that fetched the HEAD sha. A missing or private
+  repo answers 401 on info/refs, which maps to the same plain-English
+  404 ("Repository not found (or it is private)"); anything else is
+  a 502, and a request that does not answer inside 12 s (the same
+  bound ghJson used to give the REST calls) is a 504 — the meta step
+  never guesses a branch and never hangs the scan.
+- **The file list comes from the tarball, not the tree**
+  (`src/lib/scan.ts`, `scanHead`): the tarball's entries ARE the
+  file list, complete by construction — the recursive-tree API call
+  is gone from the happy path and is fetched only when a tarball
+  transport fails and the per-file fallback needs a list. As a side
+  effect the count is now exact: the tree used to list symlinks the
+  tarball skips, so a complete scan could report "Fetched X of Y".
+- **Both size gates are streaming bounds now — no size is read at
+  all**, because the repo `size` only ever came from the REST
+  repo-info call. The HEAD transport is chosen by the download
+  itself: past `TARBALL_BUFFER_SWITCH_BYTES` (100 MB compressed —
+  ~300–500 MB decompressed for source-heavy repos, which fits a 1 GB
+  function; codeload sends no Content-Length, so the size can only
+  be measured while the bytes arrive) the whole-buffer path switches
+  to the streaming reader, which scans the same files with bounded
+  memory. The history gate is a byte bound on the pack download
+  (`boundedGitHttp` in `src/lib/history.ts`, `PACK_MAX_BYTES`
+  150 MB): isomorphic-git buffers the whole pack in memory
+  (`collect(response.packfile)`), so past the bound the underlying
+  request is aborted and the clone fails with `PackTooLargeError`,
+  and the orchestrator falls through to the API path with a
+  plain-English note saying why. The old REST-based gates (100 MB
+  repo size for history, 1 GB for streaming HEAD) are deleted, along
+  with `repoSizeKb` on `HeadPartial` and on `scanHistory`'s options.
+  The "git" method pin is now honoured as documented (git then API);
+  it used to fall through to the default order.
+- **A tarball stall is a timeout on both transports**: the
+  whole-buffer download converts an abort to ScanError 504 (the
+  streaming path already did), so the chunk driver returns a
+  resumable partial cursor instead of falling through to a per-file
+  crawl that would likely stall too. Only a genuinely unavailable
+  tarball (404/500/parse error) takes the per-file fallback.
+- **What stays REST (fallback only):** the recursive-tree fetch when
+  the tarball is unavailable; the API history path when cloning is
+  impossible; the 5-commit patch fallback; and `fetchHeadSha`, kept
+  for the chunked driver's resume re-validation (`chunks.ts:271`,
+  worker A's file — a git-protocol replacement for that one call is
+  a follow-up, not this phase). None of them runs on a happy-path
+  scan. There is deliberately NO REST fallback for the branch/HEAD
+  lookup: the git protocol is the same GitHub infra the tarball and
+  the clone already depend on, so if it is unreachable the scan
+  cannot proceed anyway — it fails plainly instead of burning the
+  quota it just escaped.
+- **Tradeoff, stated plainly:** a too-large pack is now discovered
+  by downloading up to 150 MB first (bounded, aborts cleanly, no
+  OOM — heap flat in the live DefinitelyTyped probe), whereas the old
+  REST gate skipped the attempt entirely. A giant repo's history step
+  therefore costs a ~1–2 min doomed download before the API fallback
+  runs; the chunked driver pays it once per scan (the cursor flips to
+  "api" on the first chunk) and the report says why.
+- **Test-only seam** (`setRemoteHeadResolverForTests` in
+  `src/lib/history.ts`): lets the chunked-scan tests point scanHead
+  at a mock git server or a scripted failure without threading an
+  option through the driver. Production code never sets it; tests
+  reset it in a finally block.
+- **Proof — `npm run test:zero-rest` 26/26** (`scripts/test-zero-rest.ts`):
+  bounded-client unit checks (PackTooLargeError + byte count + abort
+  + non-pack passthrough); fixture legs against a mock git server
+  (resolveRemoteHead branch + HEAD sha, git history 0 REST); a live
+  full `scanRepo("Squ1zM0", "TechDirect")` under a fetch-layer
+  counter — **0 api.github.com requests** (fetch hosts during the
+  scan: codeload.github.com=1, api.osv.dev=5), still 83/B, 2,802
+  files, 62 history commits over the git protocol, HEAD sha matching
+  resolveRemoteHead — plus a tree cross-check (test-side REST call,
+  outside the counting window) proving the tarball-derived file list
+  matches the tree count 2,802 = 2,802. Live DefinitelyTyped pack
+  probe (not a suite test): clone aborts at the bound,
+  packTooLarge=true, heap 15 MB → 13 MB, 0 REST calls.
+- **Legitimately changed assertions:** `test:history` 66 → 70 (the
+  3 Phase 8.1 size-gate checks are gone; 4 pack-bound + 3
+  orchestrator pack-fallback checks added). `test:cursor-phase9`
+  stays 192/192, with 2 assertions reworded for the new transport:
+  the HEAD-timeout partial keeps 0 files scanned (the whole-buffer
+  download aborts before any entry is parsed — the old test forced
+  the streaming transport with a fake 2 GB repo size), and the 429
+  checks are retargeted at the tree fallback (the repo-info call
+  they stubbed no longer exists). `test:ui-phase7` 152 → 155 is
+  worker B's concurrent Phase 15 finding-2 checks, not this phase.
+- **Verification (2026-11-26):** `npm run build` exit 0;
+  `test:scanner` 73/73, `test:history` 70/70, `test:cursor-phase9`
+  192/192, `test:public-full` 56/56, `test:tier3` 40/40,
+  `test:triage-phase10` 63/63, `test:score-phase12` 40/40,
+  `test:deps-phase13` 22/22, `test:usage-phase11` 91/91,
+  `test:fixtures-phase14` 42/42, `test:ui-phase7` 155/155,
+  `test:resilience-phase15` 45/45, `test:report-markdown` 30/30,
+  `test:ui-phase15c` 32/32, `test:zero-rest` 26/26 (new),
+  `test:techdirect` 83/B (2,802 files, 62 history commits),
+  `test:history-git` 62/62 (0 REST), `test:mcp` 62/62 against a
+  local production server. Live production server
+  (`npm run build` + `npm start`, this VM, GITHUB_TOKEN unset):
+  home 200, scan API `Squ1zM0/TechDirect` 200 in ~14 s, 83/B,
+  2,802 files, 62 history commits via the git protocol. No literal
+  secret-pattern values committed (grep-verified).
+- **Integration (2026-11-26):** full suite re-run green at integration — build exit 0; scanner 73/73, tier3 40/40, history 70/70, public-full 56/56, cursor-phase9 192/192, triage 63/63, usage 91/91, score 40/40, deps 22/22, fixtures 42/42, UI 155/155, report-markdown 30/30, resilience 45/45, ui-phase15c 32/32, zero-rest 26/26, MCP 62/62 (local production server), techdirect 83/B. One integration fix: the MCP canonical URL moved from www to the apex (www 307-redirects to apex, verified live) and worker C's 4 URL assertions were updated with the reason recorded.
+- **Note (2026-11-26, outside this task):** Freddy himself reversed
+  the Phase 6 no-token ruling at 11:17 AM MST and a fine-grained
+  PAT is now set as GITHUB_TOKEN in Vercel (5,000/hr authenticated
+  quota). This phase does not depend on it in either direction: the
+  happy path makes zero REST calls with or without a token, and the
+  code already sends the token on the fallback REST calls when one
+  is present. All proofs above ran from this VM with GITHUB_TOKEN
+  unset (unauthenticated), which is the harder case.
 
 ## Phase 2 status — built and pushed 2026-11-25, commit 870f889f, live at https://gitsecure.vercel.app/ (verified serving: home 200, live TechDirect scan 200, 83/B)
 - Next.js 16 / React 19 / TypeScript + Auth.js (NextAuth 5.0.0-beta.32,

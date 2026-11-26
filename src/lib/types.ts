@@ -148,9 +148,12 @@ export interface HeadPartial {
   dependencies: Dependency[];
   posture: PostureIssue[];
   unpinnedCount: number;
-  repoSizeKb: number;
-  /** Which history path the scan will use ("git" for repos small enough
-   *  to clone, "api" for repos above the clone size gate). */
+  /** Which history path the scan starts on: "git" (git protocol).
+   *  The chunked driver flips the cursor to "api" if the git path
+   *  fails (e.g. a history pack too large to clone). Phase 15
+   *  (worker D): no repo size is carried any more — the gates that
+   *  needed it are streaming bounds now, so the scan no longer reads
+   *  the REST repo-info call. */
   historyMethod: "git" | "api";
   /** Streaming HEAD mode only: true when some retainable config files
    *  could not be kept in memory (retained-bytes budget) — framework

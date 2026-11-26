@@ -11,8 +11,10 @@
 // and no server restart can lose it — there is no job to lose.
 import { FAST_PATH_WAIT_MS, runScanLoop } from "@/lib/chunks";
 import { buildProvisionalReport } from "@/lib/provisional";
+import { rateLimitBody } from "@/lib/rate-limit";
 import { ScanError } from "@/lib/scan";
 import ReportView from "@/components/ReportView";
+import RetryScanButton from "@/components/RetryScanButton";
 import ScanProgress from "@/components/ScanProgress";
 import type { FullReport } from "@/lib/types";
 
@@ -36,9 +38,16 @@ function errorCopy(err: unknown, owner: string, repo: string): { title: string; 
           body: "That repo is private, and GitSecure only scans public repos.",
         };
       case "rate-limit":
+        // Phase 15 (rate-limit recovery): the page Freddy hit live
+        // stranded him with no sense of the wait. When GitHub's
+        // response said when the limit resets, say so honestly ("in
+        // about N minutes"); when it did not, say "within the hour"
+        // — never an invented countdown. The retry button below reads
+        // "Try this scan again" for this case (same mechanism as the
+        // other error states, its own wording).
         return {
           title: "GitHub's request limit was hit",
-          body: "Too many requests went to GitHub at once, so this scan couldn't run right now. Please try again in a few minutes.",
+          body: rateLimitBody(err.resetAtMs ?? null),
         };
       case "timeout":
         return {
@@ -86,13 +95,17 @@ export default async function ReportPage({
     }
   } catch (err) {
     const { title, body } = errorCopy(err, owner, repo);
+    // The rate-limit case gets its own button wording ("Try this scan
+    // again") — same reload-the-same-scan mechanism as the other
+    // error states, which keep "Retry this scan".
+    const retryLabel = err instanceof ScanError && err.kind === "rate-limit" ? "Try this scan again" : "Retry this scan";
     return (
       <div>
         <p className="back-link"><a href="/">← Scan another repo</a></p>
         <h1>{title}</h1>
         <div className="card error-card" role="alert">
           <p>{body}</p>
-          <p><a className="button-link" href="/">Scan another repo</a></p>
+          <p><RetryScanButton label={retryLabel} />{" "}<a className="button-link" href="/">Scan another repo</a></p>
         </div>
       </div>
     );

@@ -17,11 +17,12 @@
 
 import { gradeBand, gradeWord } from "@/lib/score";
 import ScoreDial, { adjustedExplainScore, adjustedVerdict, ScoreExplanation, type ScoreDetail } from "@/components/ScoreDial";
+import RollAllButton from "@/components/RollAllButton";
 import McpSection from "@/components/McpSection";
 import { DependenciesList, FrameworksList, PostureList, SecretsList, VulnerabilitiesList } from "@/components/ReportLists";
 import type { FullReport } from "@/lib/types";
 
-function ScoreCard({ report }: { report: FullReport }) {
+function ScoreCard({ report, paused }: { report: FullReport; paused?: boolean }) {
   const band = gradeBand(report.grade);
   // Phase 12: the detail is required on a fresh report, but an older
   // cached report may not carry it — read it defensively so the hero
@@ -48,6 +49,10 @@ function ScoreCard({ report }: { report: FullReport }) {
           </p>
           <p className="score-explain">{report.summary}</p>
         </div>
+        {/* "Roll all into report" (Freddy, 2026-11-26): the empty
+          space at the top right of the hero card, next to the dial —
+          one button that downloads the whole scan as Markdown. */}
+        <RollAllButton report={report} paused={paused} />
       </div>
       <p className="score-explain">
         {adjustedExplainScore(report.score, report.grade, detail, counts)}
@@ -68,7 +73,7 @@ function ScoreCard({ report }: { report: FullReport }) {
   );
 }
 
-export default function ReportView({ report }: { report: FullReport }) {
+export default function ReportView({ report, paused }: { report: FullReport; paused?: boolean }) {
   return (
     <div className="report-hero">
       <p className="back-link"><a href="/">← Scan another repo</a></p>
@@ -76,14 +81,21 @@ export default function ReportView({ report }: { report: FullReport }) {
 
       {report.provisional ? (
         <div className="card" role="status" aria-live="polite">
-          <p>
-            <b>Provisional score — the current files are scanned, but history and dependency checks are still running.</b>{" "}
-            The score counts what the current files show so far; it will update when the rest of the scan finishes. Nothing below is half-reported — the lists show exactly what has been checked so far.
-          </p>
+          {paused ? (
+            <p>
+              <b>Provisional score — the current files are scanned, but history and dependency checks are paused — history and dependency checks stopped here.</b>{" "}
+              The score counts what the current files show so far; it will update when the scan resumes and the rest finishes. Nothing below is half-reported — the lists show exactly what has been checked so far.
+            </p>
+          ) : (
+            <p>
+              <b>Provisional score — the current files are scanned, but history and dependency checks are still running.</b>{" "}
+              The score counts what the current files show so far; it will update when the rest of the scan finishes. Nothing below is half-reported — the lists show exactly what has been checked so far.
+            </p>
+          )}
         </div>
       ) : null}
 
-      <ScoreCard report={report} />
+      <ScoreCard report={report} paused={paused} />
 
       <div className="card">
         <h2>Leaked secrets ({report.secrets.length})</h2>

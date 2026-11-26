@@ -48,7 +48,10 @@ export async function GET(
     );
   } catch (err) {
     if (err instanceof ScanError) {
-      return NextResponse.json({ error: err.message, kind: err.kind }, { status: err.status });
+      // Phase 15 (rate-limit recovery): the reset time travels with
+      // the error when GitHub said when the limit resets, so API
+      // callers can say honestly how long to wait.
+      return NextResponse.json({ error: err.message, kind: err.kind, ...(err.resetAtMs !== undefined ? { resetAtMs: err.resetAtMs } : {}) }, { status: err.status });
     }
     return NextResponse.json({ error: "Scan failed. Try again in a bit.", kind: "unknown" }, { status: 500 });
   }

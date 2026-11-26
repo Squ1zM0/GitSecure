@@ -98,6 +98,45 @@ export function adjustedVerdict(detail: ScoreDetail | undefined, counts: ScoreCo
   return `Biggest problem: ${core}.${note ? ` ${note}` : ""}`;
 }
 
+/** The runner-up deduction: the second-largest component, in plain
+ *  English with its point cost. Phase 15 finding 13 — the old
+ *  explanation named only the top driver (TechDirect's hero said the
+ *  points lost came from "3 small security-hygiene issues" and never
+ *  mentioned its 4 dependency vulnerabilities). Returns "" when no
+ *  other component deducts anything. Ties break in the same order as
+ *  driverKind (secrets, vulnerabilities, posture, unpinned). */
+function runnerUpPhrase(detail: ScoreDetail, counts: ScoreCounts): string {
+  const driver = driverKind(detail);
+  const ranked: { kind: DriverKind; points: number }[] = [
+    { kind: "secrets", points: detail.secretsDeduction },
+    { kind: "vulns", points: detail.vulnDeduction },
+    { kind: "posture", points: detail.postureDeduction },
+    { kind: "unpinned", points: detail.unpinnedDeduction },
+  ];
+  let best: { kind: DriverKind; points: number } | null = null;
+  for (const entry of ranked) {
+    if (entry.kind === driver || entry.points <= 0) continue;
+    if (best === null || entry.points > best.points) best = entry;
+  }
+  if (best === null) return "";
+  const points = `${best.points} ${best.points === 1 ? "point" : "points"}`;
+  switch (best.kind) {
+    case "secrets":
+      if (detail.secretsFullWeight > 0) {
+        return ` Plus ${detail.secretsFullWeight} genuine leaked ${plural(detail.secretsFullWeight, "secret", "secrets")}, which cost ${points} — rotating and removing those would raise the score further.`;
+      }
+      return ` Plus ${detail.secretsHalfWeight} uncertain ${plural(detail.secretsHalfWeight, "secret", "secrets")}, counted at half weight, which cost ${points} — checking ${plural(detail.secretsHalfWeight, "it", "them")} and rotating any real ${plural(detail.secretsHalfWeight, "one", "ones")} would raise the score further.`;
+    case "vulns":
+      return ` Plus ${counts.vulnerabilities} known ${plural(counts.vulnerabilities, "flaw", "flaws")} in dependencies, which cost ${points} — upgrading those would raise the score further.`;
+    case "posture":
+      return ` Plus ${counts.postureIssues} small security-hygiene ${plural(counts.postureIssues, "issue", "issues")}, which cost ${points} — fixing those would raise the score further.`;
+    case "unpinned":
+      return ` Plus unpinned dependency versions, which cost ${points} — pinning them to exact versions would raise the score further.`;
+    case "none":
+      return "";
+  }
+}
+
 /** The one-line explanation under the score, Phase 12-aware. Same
  *  driver logic as adjustedVerdict, in explainScore's phrasing. */
 export function adjustedExplainScore(score: number, grade: string, detail: ScoreDetail | undefined, counts: ScoreCounts): string {
@@ -125,7 +164,21 @@ export function adjustedExplainScore(score: number, grade: string, detail: Score
       break;
   }
   const note = testKeyNote(detail);
-  return `${score} out of 100 (grade ${grade}) is a ${gradeWord(grade)} score. ${driver}${note ? ` ${note}` : ""}`;
+  return `${score} out of 100 (grade ${grade}) is a ${gradeWord(grade)} score. ${driver}${runnerUpPhrase(detail, counts)}${note ? ` ${note}` : ""}`;
+}
+
+/** The score explanation as plain text (pure — no JSX), so the
+ *  on-page ScoreExplanation and the downloadable Markdown report
+ *  (src/lib/report-markdown.ts) say exactly the same thing. */
+export function scoreExplanationText(detail: ScoreDetail): string {
+  const total = detail.secretsExcluded + detail.secretsHalfWeight + detail.secretsFullWeight;
+  const wouldBe = detail.wouldBeScore === detail.score
+    ? `If every secret counted at full weight, the score would still be ${detail.score}.`
+    : `If every secret counted at full weight, the score would be ${detail.wouldBeScore} instead of ${detail.score}.`;
+  const split = total === 0
+    ? "No secrets were found in this scan, so there was no test-key adjustment. "
+    : `Of the ${total} possible leaked ${plural(total, "secret", "secrets")}, ${detail.secretsExcluded} ${plural(detail.secretsExcluded, "looks like a test key and is", "look like test keys and are")} excluded, ${detail.secretsHalfWeight} ${plural(detail.secretsHalfWeight, "is", "are")} uncertain and ${plural(detail.secretsHalfWeight, "counts", "count")} at half weight, and ${detail.secretsFullWeight} ${plural(detail.secretsFullWeight, "counts", "count")} at full weight. `;
+  return `How this score works: a secret that looks like an intentional test key does not count toward the score at all, an uncertain one counts at half weight, and a genuine leak counts in full. ${split}${wouldBe}`;
 }
 
 /** The score explanation, rendered next to the dial in the report
@@ -138,19 +191,7 @@ export function adjustedExplainScore(score: number, grade: string, detail: Score
  *  cached report) — the existing explainScore line is the fallback. */
 export function ScoreExplanation({ detail }: { detail: ScoreDetail | undefined }) {
   if (!detail) return null;
-  const total = detail.secretsExcluded + detail.secretsHalfWeight + detail.secretsFullWeight;
-  const wouldBe = detail.wouldBeScore === detail.score
-    ? `If every secret counted at full weight, the score would still be ${detail.score}.`
-    : `If every secret counted at full weight, the score would be ${detail.wouldBeScore} instead of ${detail.score}.`;
-  return (
-    <p className="score-explain">
-      How this score works: a secret that looks like an intentional test key does not count toward the score at all, an uncertain one counts at half weight, and a genuine leak counts in full.{" "}
-      {total === 0
-        ? "No secrets were found in this scan, so there was no test-key adjustment. "
-        : `Of the ${total} possible leaked ${plural(total, "secret", "secrets")}, ${detail.secretsExcluded} ${plural(detail.secretsExcluded, "looks like a test key and is", "look like test keys and are")} excluded, ${detail.secretsHalfWeight} ${plural(detail.secretsHalfWeight, "is", "are")} uncertain and ${plural(detail.secretsHalfWeight, "counts", "count")} at half weight, and ${detail.secretsFullWeight} ${plural(detail.secretsFullWeight, "counts", "count")} at full weight. `}
-      {wouldBe}
-    </p>
-  );
+  return <p className="score-explain">{scoreExplanationText(detail)}</p>;
 }
 
 export default function ScoreDial({ score, grade }: { score: number; grade: string }) {
@@ -171,7 +212,10 @@ export default function ScoreDial({ score, grade }: { score: number; grade: stri
           r={r}
           fill="none"
           strokeWidth={stroke}
-          strokeLinecap="round"
+          /* Phase 15 finding 8: a round cap on a zero-length dash draws
+           * a stray dot at 12 o'clock on a score-0 dial. Butt cap at 0
+           * (no arc to draw); round cap otherwise, as before. */
+          strokeLinecap={frac === 0 ? "butt" : "round"}
           strokeDasharray={`${(frac * c).toFixed(1)} ${c.toFixed(1)}`}
           transform={`rotate(-90 ${size / 2} ${size / 2})`}
         />

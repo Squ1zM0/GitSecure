@@ -22,6 +22,14 @@
 //      back gracefully (renders nothing, old wording kept) when the
 //      report carries no scoreDetail; MCP prose states the new rule.
 //
+//   7. (Phase 15) The UX-audit fixes: score-0 dial butt cap, the
+//      runner-up deduction in the score explanation, the short GitHub
+//      link label, the never-empty "Used by" line, middle-truncated
+//      map labels with counts inside their nodes, 44 px tap targets,
+//      one recommended version per package — plus the "Roll all into
+//      report" button in the score hero (the Markdown itself is
+//      covered by scripts/test-report-markdown.ts).
+//
 // Fragments below are redacted placeholders ("abcd…yz"), never a
 // real secret value or a real provider prefix.
 
@@ -31,9 +39,10 @@ import { renderToString } from "react-dom/server";
 import React from "react";
 import ScoreDial, { adjustedExplainScore, adjustedVerdict, ScoreExplanation, type ScoreDetail } from "../src/components/ScoreDial";
 import ReportView from "../src/components/ReportView";
-import { FileMap, SecretsList } from "../src/components/ReportLists";
+import { compareVersions, recommendedFixVersions } from "../src/lib/versions";
+import { FileMap, SecretsList, trackDetailSegments, usageRefText, shortLabel, UsageMap, VulnerabilitiesList, FrameworksList, getUsage, type SecretUsage } from "../src/components/ReportLists";
 import { biggestProblem, gradeBand } from "../src/lib/score";
-import type { FullReport, SecretFinding } from "../src/lib/types";
+import type { FullReport, SecretFinding, Vulnerability } from "../src/lib/types";
 
 let failures = 0;
 function check(name: string, ok: boolean, extra = "") {
@@ -174,7 +183,13 @@ check("CSS styles the stat grid", css.includes(".stat-grid"));
 check("CSS styles grade chips per band", css.includes(".grade-chip.good") && css.includes(".grade-chip.poor"));
 check("CSS styles the loading spinner", css.includes(".spinner"));
 check("CSS buttons use an on-accent text colour (dark-mode contrast)", css.includes("--on-accent: #052e1e") && /button[^{]*\{[^}]*color: var\(--on-accent\)/.test(css));
-check("CSS inline code wraps only when it must (no mid-word breaks)", !css.includes("word-break: break-all") && css.includes("overflow-wrap: break-word"));
+// Phase 15 finding 2 (real-DT follow-up): break-word does NOT break a
+// long path token when the line has other break points — the live DT
+// provisional report at 360 px kept the audit's exact path 454 px
+// wide. code.inline now uses anywhere, which still only breaks a token
+// when it would overflow, never gratuitously. The "no mid-word breaks"
+// intent is the ban on word-break: break-all, which still holds.
+check("CSS inline code wraps only when it must (no mid-word breaks)", !css.includes("word-break: break-all") && /code\.inline, \.finding code \{[^}]*overflow-wrap: anywhere/.test(css));
 check("triage: pills have their own styles", css.includes(".pill.triage-test") && css.includes(".pill.triage-genuine") && css.includes(".pill.triage-uncertain"));
 
 const home = src("src/app/page.tsx");
@@ -199,7 +214,6 @@ check("report view labels a provisional score as provisional", reportView.includ
 // finding). The type field is not in src/lib/types.ts yet — the engine
 // worker is adding it — so the fixtures are typed with the local
 // mirror from ReportLists and passed structurally.
-import { UsageMap, getUsage, type SecretUsage } from "../src/components/ReportLists";
 type SecretWithUsage = SecretFinding & { usage?: SecretUsage };
 const phase11Secrets: SecretWithUsage[] = [
   {
@@ -418,14 +432,192 @@ check("phase12: report view wires the explanation to scoreDetail", reportView.in
 const mcp = src("src/lib/mcp.ts");
 check("phase12: MCP prose states the new weights, not the old rule", mcp.includes("deducts nothing") && mcp.includes("half weight") && mcp.includes("full weight") && !/never changes the score/.test(mcp));
 
+// --- 7. Phase 15: UX audit fixes + "Roll all into report" ---------
+// Findings are numbered as in test-results/phase15-ux-audit.md, and
+// the reason for each behaviour change is recorded on the check.
+
+// Finding 8: a score-0 dial must not render a stray red dot — the arc
+// uses a butt cap at 0 (round cap otherwise).
+const dialZero = renderToString(React.createElement(ScoreDial, { score: 0, grade: "F" }));
+check("phase15 finding 8: score-0 dial uses a butt cap (no stray dot)", dialZero.includes('stroke-linecap="butt"'));
+const dialNormal = renderToString(React.createElement(ScoreDial, { score: 83, grade: "B" }));
+check("phase15 finding 8: a normal score keeps the round cap", dialNormal.includes('stroke-linecap="round"'));
+
+// Finding 13: the score explanation names the runner-up deduction,
+// not just the top driver. TechDirect's hero said the points lost
+// came from "3 small security-hygiene issues" and never mentioned
+// its 4 dependency vulnerabilities.
+const tdDetail: ScoreDetail = {
+  score: 83, grade: "B", secretsDeduction: 0, secretsFullWeight: 0,
+  secretsHalfWeight: 0, secretsExcluded: 0, wouldBeScore: 83,
+  vulnDeduction: 8, postureDeduction: 9, unpinnedDeduction: 0,
+};
+const tdCounts = { secrets: 0, vulnerabilities: 4, postureIssues: 3 };
+const tdExplain = adjustedExplainScore(83, "B", tdDetail, tdCounts);
+check("phase15 finding 13: TechDirect explanation still names the top driver", tdExplain.includes("3 small security-hygiene issues"));
+check("phase15 finding 13: TechDirect explanation appends the runner-up vulns with their points", tdExplain.includes("Plus 4 known flaws in dependencies, which cost 8 points"));
+const singleDriver = adjustedExplainScore(91, "B", { ...tdDetail, vulnDeduction: 0 }, { secrets: 0, vulnerabilities: 0, postureIssues: 3 });
+check("phase15 finding 13: no runner-up is appended when nothing else deducts", !singleDriver.includes("Plus"));
+const secretsRunnerUp = adjustedExplainScore(70, "C",
+  { score: 70, grade: "C", secretsDeduction: 25, secretsFullWeight: 1, secretsHalfWeight: 0, secretsExcluded: 0, wouldBeScore: 70, vulnDeduction: 30, postureDeduction: 0, unpinnedDeduction: 0 },
+  { secrets: 1, vulnerabilities: 3, postureIssues: 0 });
+check("phase15 finding 13: a secrets runner-up names the genuine leaks", secretsRunnerUp.includes("Plus 1 genuine leaked secret, which cost 25 points"));
+
+// Finding 2: the GitHub link label is short ("View on GitHub") — the
+// long path used to be part of the label and pushed a 360 px DT
+// report 66 px wide. The path is already shown in the line above.
+const longPathSecret: SecretFinding = {
+  id: "lp1", type: "hardcoded-password", title: "Hardcoded password",
+  severity: "medium", confidence: "high", file: "types/nginstack__datasource/lib/DataSourceDataType.d.ts", line: 1,
+  commit: "HEAD", fragment: "efgh…ij", fix: "Rotate it.",
+  plainEnglish: "A password is written in a file anyone can read.",
+};
+const longPathList = renderToString(
+  React.createElement(SecretsList, { secrets: [longPathSecret], owner: "DefinitelyTyped", repo: "DefinitelyTyped", branch: "master" }),
+).replace(/<!-- -->/g, "");
+check("phase15 finding 2: GitHub link label is short", longPathList.includes(">View on GitHub<"));
+check("phase15 finding 2: the long path is not in the link label", !longPathList.includes("View on GitHub — types/"));
+check("phase15 finding 2: the blob link still points at the exact file and line", longPathList.includes("https://github.com/DefinitelyTyped/DefinitelyTyped/blob/master/types/nginstack__datasource/lib/DataSourceDataType.d.ts#L1"));
+check("phase15 finding 2: the path is still shown in the row above the link", longPathList.includes("types/nginstack__datasource/lib/DataSourceDataType.d.ts:1"));
+
+// Finding 9: the "Used by" line and the track detail never print an
+// empty label when one reference list is empty.
+const testsOnlyUsage: SecretUsage = {
+  referencedBy: [], referencedByTotal: 0,
+  referencedByTests: [{ file: "tests/app.test.ts", line: 5 }], referencedByTestsTotal: 1,
+  deadEnd: false,
+};
+check("phase15 finding 9: tests-only usage renders without an empty Used by", usageRefText(testsOnlyUsage) === "Used by: tests/app.test.ts:5 (test)");
+check("phase15 finding 9: track detail omits the Used by segment when only tests exist", JSON.stringify(trackDetailSegments(testsOnlyUsage)) === JSON.stringify(["in tests: tests/app.test.ts:5"]));
+const bothUsage: SecretUsage = {
+  referencedBy: [{ file: "src/app.ts", line: 10 }], referencedByTotal: 1,
+  referencedByTests: [{ file: "tests/app.test.ts", line: 5 }], referencedByTestsTotal: 1,
+  deadEnd: false,
+};
+check("phase15 finding 9: both lists render as two segments", JSON.stringify(trackDetailSegments(bothUsage)) === JSON.stringify(["Used by: src/app.ts:10", "in tests: tests/app.test.ts:5"]));
+check("phase15 finding 9: no references renders null", usageRefText({ referencedBy: [], referencedByTotal: 0, referencedByTests: [], referencedByTestsTotal: 0, deadEnd: false }) === null);
+check("phase15 finding 9: totals without a list fall back to a count sentence", usageRefText({ referencedBy: [], referencedByTotal: 3, referencedByTests: [], referencedByTestsTotal: 0, deadEnd: false }) === "Used by: 3 references (file list not shown)");
+
+// Finding 4: file labels truncate middle-out with an ellipsis, never
+// a silent mid-word clip; the dense usage map stays legible.
+check("phase15 finding 4: long basenames truncate middle-out with an ellipsis", shortLabel("test-usage-phase11.ts") === "test-usa…11.ts");
+check("phase15 finding 4: test-history.ts keeps head and tail", shortLabel("test-history.ts") === "test-his…ry.ts");
+check("phase15 finding 4: short basenames render whole", shortLabel("README.md") === "README.md" && shortLabel("config.js") === "config.js");
+const denseFiles = [
+  "scripts/test-history.ts", "scripts/test-usage-phase11.ts", "scripts/test-scanner.ts",
+  "scripts/test-triage-phase10.ts", "scripts/test-public-full.ts", "scripts/test-fixtures-phase14.ts",
+  "README.md", "config.js",
+];
+const mkDense = (idx: number, file: string, refs: number, dead = false): SecretWithUsage => ({
+  id: `d${idx}`, type: "hardcoded-password", title: "Hardcoded password",
+  severity: "medium", confidence: "high", file, line: idx + 1,
+  commit: "HEAD", fragment: "abcd…yz", fix: "Rotate it.",
+  plainEnglish: "A password is written in a file anyone can read.",
+  usage: {
+    referencedBy: Array.from({ length: Math.min(refs, 10) }, (_, j) => ({ file: denseFiles[(idx + j) % denseFiles.length], line: 10 + j })),
+    referencedByTotal: refs,
+    referencedByTests: [], referencedByTestsTotal: 0,
+    deadEnd: dead,
+  },
+});
+const denseFindings: SecretWithUsage[] = [
+  mkDense(0, "scripts/test-history.ts", 35),
+  mkDense(1, "scripts/test-usage-phase11.ts", 35),
+  mkDense(2, "scripts/test-scanner.ts", 27),
+  mkDense(3, "scripts/test-triage-phase10.ts", 27),
+  mkDense(4, "scripts/test-public-full.ts", 27),
+  mkDense(5, "scripts/test-fixtures-phase14.ts", 15),
+  mkDense(6, "README.md", 15),
+  mkDense(7, "config.js", 0),
+  mkDense(8, "scripts/test-history.ts", 0),
+  mkDense(9, "scripts/test-usage-phase11.ts", 0),
+  mkDense(10, "scripts/test-scanner.ts", 0, true),
+  mkDense(11, "scripts/test-fixtures-phase14.ts", 0, true),
+];
+const denseByFile = [
+  { file: "scripts/test-history.ts", count: 2 },
+  { file: "scripts/test-usage-phase11.ts", count: 2 },
+  { file: "scripts/test-scanner.ts", count: 2 },
+  { file: "scripts/test-triage-phase10.ts", count: 1 },
+  { file: "scripts/test-public-full.ts", count: 1 },
+  { file: "scripts/test-fixtures-phase14.ts", count: 2 },
+  { file: "README.md", count: 1 },
+  { file: "config.js", count: 1 },
+];
+const denseMap = renderToString(
+  React.createElement(UsageMap, { findings: denseFindings.map((item, idx) => ({ item, idx })), byFile: denseByFile, onSelectFile: () => {} }),
+).replace(/<!-- -->/g, "");
+check("phase15 finding 4: dense map truncates file labels with an ellipsis, never a silent clip", denseMap.includes(">test-usa…11.ts<") && denseMap.includes(">test-his…ry.ts<") && !denseMap.includes(">test-usage-pha<") && !denseMap.includes(">test-history.t<"));
+check("phase15 finding 4: dense map shows the uses captions", denseMap.includes("35 uses") && denseMap.includes("27 uses") && denseMap.includes("15 uses"));
+check("phase15 finding 4: dense map labels carry the halo class", denseMap.includes('class="map-label"'));
+check("phase15 finding 4: dense map file counts sit inside their nodes", denseMap.includes('font-size="11"'));
+check("phase15 finding 4: dense map still draws the dead ends", denseMap.includes("map-finding-deadend") && denseMap.includes(">dead end<"));
+check("phase15 finding 4: dense map keeps keyboard-reachable nodes", denseMap.includes('role="button"') && denseMap.includes('tabindex="0"'));
+
+// Finding 12: the ≥44 px tap-target rule has no 36 px exceptions
+// left; inline text links stay as-is (ordinary inline text).
+check("phase15 finding 12: no 36 px tap-target exception remains in the CSS", !css.includes("min-height: 36px"));
+check("phase15 finding 12: copy-btn is 44 px", /button\.copy-btn \{[^}]*min-height: 44px/.test(css));
+check("phase15 finding 12: file-chip is 44 px", /button\.file-chip \{[^}]*min-height: 44px/.test(css));
+
+// Finding 2 (CSS half) + finding 4 (CSS half): wrap + halo rules.
+check("phase15 finding 2: .github-link wraps anywhere", /\.github-link \{[^}]*overflow-wrap: anywhere/.test(css));
+// Finding 2 (real-DT follow-up): break-word does NOT break a long
+// file-path token when the line has other break points — the live DT
+// provisional report at 360 px kept the audit's exact path
+// (types/nginstack__datasource/.../DataSourceDataType.d.ts:14) 454 px
+// wide. code.inline must use anywhere so the token itself breaks.
+check("phase15 finding 2: code.inline wraps anywhere (long file paths break)", /code\.inline, \.finding code \{[^}]*overflow-wrap: anywhere/.test(css));
+check("phase15 finding 2: no break-word left on code.inline", !/code\.inline, \.finding code \{[^}]*overflow-wrap: break-word/.test(css));
+// Finding 2 (real-DT follow-up, second contributor): the Frameworks list
+// on the live DT provisional report carried 40-char SHA versions as plain
+// text — no break opportunity — and the report measured 411 px wide at a
+// 360 px viewport even after the code.inline fix. The list items and the
+// finding rows wrap anywhere so a token that would overflow breaks.
+check("phase15 finding 2: report-list items wrap anywhere", /\.report-list li \{[^}]*overflow-wrap: anywhere/.test(css));
+check("phase15 finding 2: finding rows wrap anywhere", /\.finding \{[^}]*overflow-wrap: anywhere/.test(css));
+const longShaFrameworks = [
+  { name: "GitHub Action actions/cache", ecosystem: "actions", version: "55cc8345863c7cc4c66a329aec7e43d4f5a6b7c8", versionSource: "lockfile" as const, unpinned: false, sourceFile: ".github/workflows/test.yml" },
+];
+const frameworksHtml = renderToString(React.createElement(FrameworksList, { frameworks: longShaFrameworks }));
+check("phase15 finding 2: FrameworksList renders the wrapping report-list", frameworksHtml.includes('class="report-list"') && frameworksHtml.includes("55cc8345863c7cc4c66a329aec7e43d4f5a6b7c8"));
+check("phase15 finding 4: map labels carry a halo so edges cannot strike them through", /\.map-node text\.map-label \{[^}]*paint-order: stroke/.test(css));
+
+// Finding 15: one recommended version per package in the Fix line.
+const jsYamlVulns: Vulnerability[] = [
+  { id: "GHSA-a", packageName: "js-yaml", ecosystem: "npm", installedVersion: "4.1.1", fixedVersion: "4.3.2", severity: "low", summary: "a", plainEnglish: "js-yaml 4.1.1 has a flaw (GHSA-a). Upgrade to 4.3.2 or later to fix it.", upgrade: "Upgrade js-yaml to 4.3.2 or later." },
+  { id: "GHSA-b", packageName: "js-yaml", ecosystem: "npm", installedVersion: "4.1.1", fixedVersion: "3.15.0", severity: "low", summary: "b", plainEnglish: "js-yaml 4.1.1 has a flaw (GHSA-b). Upgrade to 3.15.0 or later to fix it.", upgrade: "Upgrade js-yaml to 3.15.0 or later." },
+  { id: "GHSA-c", packageName: "js-yaml", ecosystem: "npm", installedVersion: "4.1.1", fixedVersion: "4.3.1", severity: "low", summary: "c", plainEnglish: "js-yaml 4.1.1 has a flaw (GHSA-c). Upgrade to 4.3.1 or later to fix it.", upgrade: "Upgrade js-yaml to 4.3.1 or later." },
+  { id: "GHSA-d", packageName: "js-yaml", ecosystem: "npm", installedVersion: "4.1.1", fixedVersion: "4.2.0", severity: "low", summary: "d", plainEnglish: "js-yaml 4.1.1 has a flaw (GHSA-d). Upgrade to 4.2.0 or later to fix it.", upgrade: "Upgrade js-yaml to 4.2.0 or later." },
+  { id: "GHSA-lodash", packageName: "lodash", ecosystem: "npm", installedVersion: "4.17.20", fixedVersion: "4.17.21", severity: "low", summary: "l", plainEnglish: "lodash 4.17.20 has a flaw (GHSA-lodash). Upgrade to 4.17.21 or later to fix it.", upgrade: "Upgrade lodash to 4.17.21 or later." },
+];
+const vulnList = renderToString(React.createElement(VulnerabilitiesList, { vulnerabilities: jsYamlVulns })).replace(/<!-- -->/g, "");
+const vulnFixLines = vulnList.match(/<p class="fix">.*?<\/p>/g) ?? [];
+check("phase15 finding 15: every js-yaml Fix line names the single recommended version", vulnFixLines.filter((l) => l.includes("js-yaml")).length === 4 && vulnFixLines.filter((l) => l.includes("js-yaml")).every((l) => l.includes("Upgrade js-yaml to 4.3.2 or later — this covers all 4 advisories for this version.")));
+check("phase15 finding 15: no Fix line names a losing version", vulnFixLines.filter((l) => l.includes("3.15.0") || l.includes("4.3.1") || l.includes("4.2.0")).length === 0);
+check("phase15 finding 15: the single-version lodash Fix is unchanged", vulnList.includes("Fix:</b> Upgrade lodash to 4.17.21 or later."));
+check("phase15 finding 15: recommendedFixVersions picks the max (4.3.2 of 4.3.2/3.15.0/4.3.1/4.2.0)", recommendedFixVersions(jsYamlVulns).get("js-yaml@4.1.1")?.recommended === "4.3.2");
+check("phase15 finding 15: a single-version package has no reconciliation entry", !recommendedFixVersions(jsYamlVulns).has("lodash@4.17.20"));
+check("phase15 finding 15: compareVersions is semver-aware (4.3.2 > 3.15.0)", compareVersions("4.3.2", "3.15.0") > 0 && compareVersions("3.15.0", "4.3.2") < 0 && compareVersions("4.3.1", "4.3.2") < 0 && compareVersions("4.3.2", "4.3.2") === 0);
+check("phase15 finding 15: a pre-release sorts below its release", compareVersions("1.0.0-alpha", "1.0.0") < 0);
+
+// "Roll all into report" (Freddy, 2026-11-26): the button renders in
+// the score hero, next to the dial and above the stat grid, and says
+// what it downloads.
+const heroHtml = renderToString(React.createElement(ReportView, { report: fakeReport(adjustedDetail) }));
+check("roll-all: the button renders in the report hero", heroHtml.includes("Roll all into report"));
+check("roll-all: the button sits in the score hero, above the stat grid", heroHtml.indexOf("Roll all into report") > heroHtml.indexOf("score-hero") && heroHtml.indexOf("Roll all into report") < heroHtml.indexOf("stat-grid"));
+check("roll-all: the button explains what it downloads", heroHtml.includes("One Markdown file — score, summary, and every finding."));
+check("roll-all: the hero CSS puts the button top-right and full-width on phones", /\.roll-all \{[^}]*margin-left: auto/.test(css) && css.includes(".roll-all button { width: 100%; }"));
+
 // --- 6. No literal secret-pattern values in the UI files ------------
 const uiFiles = [
   "src/app/globals.css", "src/app/page.tsx", "src/app/layout.tsx",
   "src/app/[owner]/[repo]/page.tsx", "src/app/[owner]/[repo]/loading.tsx",
   "src/components/ScoreDial.tsx", "src/components/ReportLists.tsx",
-  "src/components/ReportView.tsx",
+  "src/components/ReportView.tsx", "src/components/RollAllButton.tsx",
   "src/components/McpSection.tsx", "src/components/ScanProgress.tsx",
-  "src/lib/score.ts",
+  "src/lib/score.ts", "src/lib/report-markdown.ts", "src/lib/versions.ts",
 ];
 const bad = uiFiles.filter((f) => /(AKIA[0-9A-Z]{16}|ghp_[A-Za-z0-9]{20,}|xox[baprs]-[A-Za-z0-9-]{10,}|sk-[A-Za-z0-9]{20,}|-----BEGIN [A-Z ]*PRIVATE KEY-----)/.test(src(f)));
 check("no literal secret-pattern values in UI files", bad.length === 0, bad.join(", "));

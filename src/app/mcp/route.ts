@@ -1,4 +1,4 @@
-// Canonical MCP endpoint: https://gitsecure.vercel.app/mcp
+// Canonical MCP endpoint: https://www.git-secure.com/mcp
 // Streamable HTTP transport, stateless (a fresh server + transport per
 // request — no session state, no git binary required). /api/mcp is an
 // alias serving the same handler. Full reports to anyone — the site

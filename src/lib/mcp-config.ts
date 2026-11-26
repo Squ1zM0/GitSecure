@@ -4,7 +4,7 @@
 // Every snippet is valid JSON; the test in scripts/test-mcp.ts parses
 // each one. Canonical server URL is /mcp; /api/mcp is an alias.
 
-export const MCP_URL = "https://gitsecure.vercel.app/mcp";
+export const MCP_URL = "https://git-secure.com/mcp";
 
 export interface McpSnippet {
   id: string;

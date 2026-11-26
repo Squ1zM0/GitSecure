@@ -1,0 +1,378 @@
+
+> gitsecure@0.1.0 start
+> next start
+
+▲ Next.js 16.4.6
+- Local:         http://localhost:3000
+- Network:       http://198.19.0.2:3000
+✓ Ready in 223ms
+✓ Running next.config.ts took 67ms
+Error: Route "/[owner]/[repo]": Next.js encountered the unstable value `Date.now()` while prerendering.
+
+This value can change between renders, so it must be either prerendered or computed later.
+
+Ways to fix this:
+  - [dynamic] Render at request time by adding a dynamic data access (e.g. `await connection()`) before this call
+  - [cache] Prerender and cache the value with `"use cache"`
+  - [client] Render the value on the client with `"use client"`
+  - [measure] If the value is for telemetry, use a timing API such as `performance.now()`
+
+Learn more: https://nextjs.org/docs/messages/blocking-prerender-current-time
+    at a9 (.next/server/chunks/ssr/_13n5joe3-kkpm._.js:44:151282)
+    at bc (.next/server/chunks/ssr/_13n5joe3-kkpm._.js:44:151958)
+Error: Route "/[owner]/[repo]": Next.js encountered the unstable value `Date.now()` while prerendering.
+
+This value can change between renders, so it must be either prerendered or computed later.
+
+Ways to fix this:
+  - [dynamic] Render at request time by adding a dynamic data access (e.g. `await connection()`) before this call
+  - [cache] Prerender and cache the value with `"use cache"`
+  - [client] Render the value on the client with `"use client"`
+  - [measure] If the value is for telemetry, use a timing API such as `performance.now()`
+
+Learn more: https://nextjs.org/docs/messages/blocking-prerender-current-time
+    at a9 (.next/server/chunks/ssr/_13n5joe3-kkpm._.js:44:151282)
+    at bc (.next/server/chunks/ssr/_13n5joe3-kkpm._.js:44:151958)
+Error: Route "/[owner]/[repo]": Next.js encountered the unstable value `Date.now()` while prerendering.
+
+This value can change between renders, so it must be either prerendered or computed later.
+
+Ways to fix this:
+  - [dynamic] Render at request time by adding a dynamic data access (e.g. `await connection()`) before this call
+  - [cache] Prerender and cache the value with `"use cache"`
+  - [client] Render the value on the client with `"use client"`
+  - [measure] If the value is for telemetry, use a timing API such as `performance.now()`
+
+Learn more: https://nextjs.org/docs/messages/blocking-prerender-current-time
+    at a9 (.next/server/chunks/ssr/_13n5joe3-kkpm._.js:44:151282)
+    at bc (.next/server/chunks/ssr/_13n5joe3-kkpm._.js:44:151958)
+Error: Route "/[owner]/[repo]": Next.js encountered the unstable value `Date.now()` while prerendering.
+
+This value can change between renders, so it must be either prerendered or computed later.
+
+Ways to fix this:
+  - [dynamic] Render at request time by adding a dynamic data access (e.g. `await connection()`) before this call
+  - [cache] Prerender and cache the value with `"use cache"`
+  - [client] Render the value on the client with `"use client"`
+  - [measure] If the value is for telemetry, use a timing API such as `performance.now()`
+
+Learn more: https://nextjs.org/docs/messages/blocking-prerender-current-time
+    at a9 (.next/server/chunks/ssr/_13n5joe3-kkpm._.js:44:151282)
+    at bc (.next/server/chunks/ssr/_13n5joe3-kkpm._.js:44:151958)
+(node:6049) [DEP0169] DeprecationWarning: `url.parse()` behavior is not standardized and prone to errors that have security implications. Use the WHATWG URL API instead. CVEs are not issued for `url.parse()` vulnerabilities.
+(Use `node --trace-deprecation ...` to show where the warning was created)
+Error: Route "/[owner]/[repo]": Next.js encountered the unstable value `Date.now()` while prerendering.
+
+This value can change between renders, so it must be either prerendered or computed later.
+
+Ways to fix this:
+  - [dynamic] Render at request time by adding a dynamic data access (e.g. `await connection()`) before this call
+  - [cache] Prerender and cache the value with `"use cache"`
+  - [client] Render the value on the client with `"use client"`
+  - [measure] If the value is for telemetry, use a timing API such as `performance.now()`
+
+Learn more: https://nextjs.org/docs/messages/blocking-prerender-current-time
+    at a9 (.next/server/chunks/ssr/_13n5joe3-kkpm._.js:44:151282)
+    at bc (.next/server/chunks/ssr/_13n5joe3-kkpm._.js:44:151958)
+Error: Route "/[owner]/[repo]": Next.js encountered the unstable value `Date.now()` while prerendering.
+
+This value can change between renders, so it must be either prerendered or computed later.
+
+Ways to fix this:
+  - [dynamic] Render at request time by adding a dynamic data access (e.g. `await connection()`) before this call
+  - [cache] Prerender and cache the value with `"use cache"`
+  - [client] Render the value on the client with `"use client"`
+  - [measure] If the value is for telemetry, use a timing API such as `performance.now()`
+
+Learn more: https://nextjs.org/docs/messages/blocking-prerender-current-time
+    at a9 (.next/server/chunks/ssr/_13n5joe3-kkpm._.js:44:151282)
+    at bc (.next/server/chunks/ssr/_13n5joe3-kkpm._.js:44:151958)
+Error: Route "/[owner]/[repo]": Next.js encountered the unstable value `Date.now()` while prerendering.
+
+This value can change between renders, so it must be either prerendered or computed later.
+
+Ways to fix this:
+  - [dynamic] Render at request time by adding a dynamic data access (e.g. `await connection()`) before this call
+  - [cache] Prerender and cache the value with `"use cache"`
+  - [client] Render the value on the client with `"use client"`
+  - [measure] If the value is for telemetry, use a timing API such as `performance.now()`
+
+Learn more: https://nextjs.org/docs/messages/blocking-prerender-current-time
+    at a9 (.next/server/chunks/ssr/_13n5joe3-kkpm._.js:44:151282)
+    at bc (.next/server/chunks/ssr/_13n5joe3-kkpm._.js:44:151958)
+Error: Route "/[owner]/[repo]": Next.js encountered the unstable value `Date.now()` while prerendering.
+
+This value can change between renders, so it must be either prerendered or computed later.
+
+Ways to fix this:
+  - [dynamic] Render at request time by adding a dynamic data access (e.g. `await connection()`) before this call
+  - [cache] Prerender and cache the value with `"use cache"`
+  - [client] Render the value on the client with `"use client"`
+  - [measure] If the value is for telemetry, use a timing API such as `performance.now()`
+
+Learn more: https://nextjs.org/docs/messages/blocking-prerender-current-time
+    at a9 (.next/server/chunks/ssr/_13n5joe3-kkpm._.js:44:151282)
+    at bc (.next/server/chunks/ssr/_13n5joe3-kkpm._.js:44:151958)
+Error [AbortError]: This operation was aborted
+    at aX (.next/server/chunks/ssr/_13n5joe3-kkpm._.js:44:116493)
+    at async aZ (.next/server/chunks/ssr/_13n5joe3-kkpm._.js:44:121001)
+    at async a7 (.next/server/chunks/ssr/_13n5joe3-kkpm._.js:44:146806)
+    at async a9 (.next/server/chunks/ssr/_13n5joe3-kkpm._.js:44:151381)
+    at async bc (.next/server/chunks/ssr/_13n5joe3-kkpm._.js:44:151952) {
+  code: 20,
+  INDEX_SIZE_ERR: 1,
+  DOMSTRING_SIZE_ERR: 2,
+  HIERARCHY_REQUEST_ERR: 3,
+  WRONG_DOCUMENT_ERR: 4,
+  INVALID_CHARACTER_ERR: 5,
+  NO_DATA_ALLOWED_ERR: 6,
+  NO_MODIFICATION_ALLOWED_ERR: 7,
+  NOT_FOUND_ERR: 8,
+  NOT_SUPPORTED_ERR: 9,
+  INUSE_ATTRIBUTE_ERR: 10,
+  INVALID_STATE_ERR: 11,
+  SYNTAX_ERR: 12,
+  INVALID_MODIFICATION_ERR: 13,
+  NAMESPACE_ERR: 14,
+  INVALID_ACCESS_ERR: 15,
+  VALIDATION_ERR: 16,
+  TYPE_MISMATCH_ERR: 17,
+  SECURITY_ERR: 18,
+  NETWORK_ERR: 19,
+  ABORT_ERR: 20,
+  URL_MISMATCH_ERR: 21,
+  QUOTA_EXCEEDED_ERR: 22,
+  TIMEOUT_ERR: 23,
+  INVALID_NODE_TYPE_ERR: 24,
+  DATA_CLONE_ERR: 25
+}
+⨯ uncaughtException:  Error [AbortError]: This operation was aborted
+    at aX (.next/server/chunks/ssr/_13n5joe3-kkpm._.js:44:116493)
+    at async aZ (.next/server/chunks/ssr/_13n5joe3-kkpm._.js:44:121001)
+    at async a7 (.next/server/chunks/ssr/_13n5joe3-kkpm._.js:44:146806)
+    at async a9 (.next/server/chunks/ssr/_13n5joe3-kkpm._.js:44:151381)
+    at async bc (.next/server/chunks/ssr/_13n5joe3-kkpm._.js:44:151952) {
+  code: 20,
+  INDEX_SIZE_ERR: 1,
+  DOMSTRING_SIZE_ERR: 2,
+  HIERARCHY_REQUEST_ERR: 3,
+  WRONG_DOCUMENT_ERR: 4,
+  INVALID_CHARACTER_ERR: 5,
+  NO_DATA_ALLOWED_ERR: 6,
+  NO_MODIFICATION_ALLOWED_ERR: 7,
+  NOT_FOUND_ERR: 8,
+  NOT_SUPPORTED_ERR: 9,
+  INUSE_ATTRIBUTE_ERR: 10,
+  INVALID_STATE_ERR: 11,
+  SYNTAX_ERR: 12,
+  INVALID_MODIFICATION_ERR: 13,
+  NAMESPACE_ERR: 14,
+  INVALID_ACCESS_ERR: 15,
+  VALIDATION_ERR: 16,
+  TYPE_MISMATCH_ERR: 17,
+  SECURITY_ERR: 18,
+  NETWORK_ERR: 19,
+  ABORT_ERR: 20,
+  URL_MISMATCH_ERR: 21,
+  QUOTA_EXCEEDED_ERR: 22,
+  TIMEOUT_ERR: 23,
+  INVALID_NODE_TYPE_ERR: 24,
+  DATA_CLONE_ERR: 25
+}
+Error [AbortError]: This operation was aborted
+    at aX (.next/server/chunks/ssr/_13n5joe3-kkpm._.js:44:116493)
+    at async aZ (.next/server/chunks/ssr/_13n5joe3-kkpm._.js:44:121001)
+    at async a7 (.next/server/chunks/ssr/_13n5joe3-kkpm._.js:44:146806)
+    at async a9 (.next/server/chunks/ssr/_13n5joe3-kkpm._.js:44:151381)
+    at async bc (.next/server/chunks/ssr/_13n5joe3-kkpm._.js:44:151952) {
+  code: 20,
+  INDEX_SIZE_ERR: 1,
+  DOMSTRING_SIZE_ERR: 2,
+  HIERARCHY_REQUEST_ERR: 3,
+  WRONG_DOCUMENT_ERR: 4,
+  INVALID_CHARACTER_ERR: 5,
+  NO_DATA_ALLOWED_ERR: 6,
+  NO_MODIFICATION_ALLOWED_ERR: 7,
+  NOT_FOUND_ERR: 8,
+  NOT_SUPPORTED_ERR: 9,
+  INUSE_ATTRIBUTE_ERR: 10,
+  INVALID_STATE_ERR: 11,
+  SYNTAX_ERR: 12,
+  INVALID_MODIFICATION_ERR: 13,
+  NAMESPACE_ERR: 14,
+  INVALID_ACCESS_ERR: 15,
+  VALIDATION_ERR: 16,
+  TYPE_MISMATCH_ERR: 17,
+  SECURITY_ERR: 18,
+  NETWORK_ERR: 19,
+  ABORT_ERR: 20,
+  URL_MISMATCH_ERR: 21,
+  QUOTA_EXCEEDED_ERR: 22,
+  TIMEOUT_ERR: 23,
+  INVALID_NODE_TYPE_ERR: 24,
+  DATA_CLONE_ERR: 25
+}
+⨯ uncaughtException:  Error [AbortError]: This operation was aborted
+    at aX (.next/server/chunks/ssr/_13n5joe3-kkpm._.js:44:116493)
+    at async aZ (.next/server/chunks/ssr/_13n5joe3-kkpm._.js:44:121001)
+    at async a7 (.next/server/chunks/ssr/_13n5joe3-kkpm._.js:44:146806)
+    at async a9 (.next/server/chunks/ssr/_13n5joe3-kkpm._.js:44:151381)
+    at async bc (.next/server/chunks/ssr/_13n5joe3-kkpm._.js:44:151952) {
+  code: 20,
+  INDEX_SIZE_ERR: 1,
+  DOMSTRING_SIZE_ERR: 2,
+  HIERARCHY_REQUEST_ERR: 3,
+  WRONG_DOCUMENT_ERR: 4,
+  INVALID_CHARACTER_ERR: 5,
+  NO_DATA_ALLOWED_ERR: 6,
+  NO_MODIFICATION_ALLOWED_ERR: 7,
+  NOT_FOUND_ERR: 8,
+  NOT_SUPPORTED_ERR: 9,
+  INUSE_ATTRIBUTE_ERR: 10,
+  INVALID_STATE_ERR: 11,
+  SYNTAX_ERR: 12,
+  INVALID_MODIFICATION_ERR: 13,
+  NAMESPACE_ERR: 14,
+  INVALID_ACCESS_ERR: 15,
+  VALIDATION_ERR: 16,
+  TYPE_MISMATCH_ERR: 17,
+  SECURITY_ERR: 18,
+  NETWORK_ERR: 19,
+  ABORT_ERR: 20,
+  URL_MISMATCH_ERR: 21,
+  QUOTA_EXCEEDED_ERR: 22,
+  TIMEOUT_ERR: 23,
+  INVALID_NODE_TYPE_ERR: 24,
+  DATA_CLONE_ERR: 25
+}
+Error: Route "/[owner]/[repo]": Next.js encountered the unstable value `Date.now()` while prerendering.
+
+This value can change between renders, so it must be either prerendered or computed later.
+
+Ways to fix this:
+  - [dynamic] Render at request time by adding a dynamic data access (e.g. `await connection()`) before this call
+  - [cache] Prerender and cache the value with `"use cache"`
+  - [client] Render the value on the client with `"use client"`
+  - [measure] If the value is for telemetry, use a timing API such as `performance.now()`
+
+Learn more: https://nextjs.org/docs/messages/blocking-prerender-current-time
+    at a9 (.next/server/chunks/ssr/_13n5joe3-kkpm._.js:44:151282)
+    at bc (.next/server/chunks/ssr/_13n5joe3-kkpm._.js:44:151958)
+Error: Route "/[owner]/[repo]": Next.js encountered the unstable value `Date.now()` while prerendering.
+
+This value can change between renders, so it must be either prerendered or computed later.
+
+Ways to fix this:
+  - [dynamic] Render at request time by adding a dynamic data access (e.g. `await connection()`) before this call
+  - [cache] Prerender and cache the value with `"use cache"`
+  - [client] Render the value on the client with `"use client"`
+  - [measure] If the value is for telemetry, use a timing API such as `performance.now()`
+
+Learn more: https://nextjs.org/docs/messages/blocking-prerender-current-time
+    at a9 (.next/server/chunks/ssr/_13n5joe3-kkpm._.js:44:151282)
+    at bc (.next/server/chunks/ssr/_13n5joe3-kkpm._.js:44:151958)
+Error: Route "/[owner]/[repo]": Next.js encountered the unstable value `Date.now()` while prerendering.
+
+This value can change between renders, so it must be either prerendered or computed later.
+
+Ways to fix this:
+  - [dynamic] Render at request time by adding a dynamic data access (e.g. `await connection()`) before this call
+  - [cache] Prerender and cache the value with `"use cache"`
+  - [client] Render the value on the client with `"use client"`
+  - [measure] If the value is for telemetry, use a timing API such as `performance.now()`
+
+Learn more: https://nextjs.org/docs/messages/blocking-prerender-current-time
+    at a9 (.next/server/chunks/ssr/_13n5joe3-kkpm._.js:44:151282)
+    at bc (.next/server/chunks/ssr/_13n5joe3-kkpm._.js:44:151958)
+Error [AbortError]: This operation was aborted
+    at aX (.next/server/chunks/ssr/_13n5joe3-kkpm._.js:44:116493)
+    at async aZ (.next/server/chunks/ssr/_13n5joe3-kkpm._.js:44:121001)
+    at async a7 (.next/server/chunks/ssr/_13n5joe3-kkpm._.js:44:146806)
+    at async a9 (.next/server/chunks/ssr/_13n5joe3-kkpm._.js:44:151381)
+    at async bc (.next/server/chunks/ssr/_13n5joe3-kkpm._.js:44:151952) {
+  code: 20,
+  INDEX_SIZE_ERR: 1,
+  DOMSTRING_SIZE_ERR: 2,
+  HIERARCHY_REQUEST_ERR: 3,
+  WRONG_DOCUMENT_ERR: 4,
+  INVALID_CHARACTER_ERR: 5,
+  NO_DATA_ALLOWED_ERR: 6,
+  NO_MODIFICATION_ALLOWED_ERR: 7,
+  NOT_FOUND_ERR: 8,
+  NOT_SUPPORTED_ERR: 9,
+  INUSE_ATTRIBUTE_ERR: 10,
+  INVALID_STATE_ERR: 11,
+  SYNTAX_ERR: 12,
+  INVALID_MODIFICATION_ERR: 13,
+  NAMESPACE_ERR: 14,
+  INVALID_ACCESS_ERR: 15,
+  VALIDATION_ERR: 16,
+  TYPE_MISMATCH_ERR: 17,
+  SECURITY_ERR: 18,
+  NETWORK_ERR: 19,
+  ABORT_ERR: 20,
+  URL_MISMATCH_ERR: 21,
+  QUOTA_EXCEEDED_ERR: 22,
+  TIMEOUT_ERR: 23,
+  INVALID_NODE_TYPE_ERR: 24,
+  DATA_CLONE_ERR: 25
+}
+⨯ uncaughtException:  Error [AbortError]: This operation was aborted
+    at aX (.next/server/chunks/ssr/_13n5joe3-kkpm._.js:44:116493)
+    at async aZ (.next/server/chunks/ssr/_13n5joe3-kkpm._.js:44:121001)
+    at async a7 (.next/server/chunks/ssr/_13n5joe3-kkpm._.js:44:146806)
+    at async a9 (.next/server/chunks/ssr/_13n5joe3-kkpm._.js:44:151381)
+    at async bc (.next/server/chunks/ssr/_13n5joe3-kkpm._.js:44:151952) {
+  code: 20,
+  INDEX_SIZE_ERR: 1,
+  DOMSTRING_SIZE_ERR: 2,
+  HIERARCHY_REQUEST_ERR: 3,
+  WRONG_DOCUMENT_ERR: 4,
+  INVALID_CHARACTER_ERR: 5,
+  NO_DATA_ALLOWED_ERR: 6,
+  NO_MODIFICATION_ALLOWED_ERR: 7,
+  NOT_FOUND_ERR: 8,
+  NOT_SUPPORTED_ERR: 9,
+  INUSE_ATTRIBUTE_ERR: 10,
+  INVALID_STATE_ERR: 11,
+  SYNTAX_ERR: 12,
+  INVALID_MODIFICATION_ERR: 13,
+  NAMESPACE_ERR: 14,
+  INVALID_ACCESS_ERR: 15,
+  VALIDATION_ERR: 16,
+  TYPE_MISMATCH_ERR: 17,
+  SECURITY_ERR: 18,
+  NETWORK_ERR: 19,
+  ABORT_ERR: 20,
+  URL_MISMATCH_ERR: 21,
+  QUOTA_EXCEEDED_ERR: 22,
+  TIMEOUT_ERR: 23,
+  INVALID_NODE_TYPE_ERR: 24,
+  DATA_CLONE_ERR: 25
+}
+Error: Route "/[owner]/[repo]": Next.js encountered the unstable value `Date.now()` while prerendering.
+
+This value can change between renders, so it must be either prerendered or computed later.
+
+Ways to fix this:
+  - [dynamic] Render at request time by adding a dynamic data access (e.g. `await connection()`) before this call
+  - [cache] Prerender and cache the value with `"use cache"`
+  - [client] Render the value on the client with `"use client"`
+  - [measure] If the value is for telemetry, use a timing API such as `performance.now()`
+
+Learn more: https://nextjs.org/docs/messages/blocking-prerender-current-time
+    at a9 (.next/server/chunks/ssr/_13n5joe3-kkpm._.js:44:151282)
+    at bc (.next/server/chunks/ssr/_13n5joe3-kkpm._.js:44:151958)
+Error: Route "/[owner]/[repo]": Next.js encountered the unstable value `Date.now()` while prerendering.
+
+This value can change between renders, so it must be either prerendered or computed later.
+
+Ways to fix this:
+  - [dynamic] Render at request time by adding a dynamic data access (e.g. `await connection()`) before this call
+  - [cache] Prerender and cache the value with `"use cache"`
+  - [client] Render the value on the client with `"use client"`
+  - [measure] If the value is for telemetry, use a timing API such as `performance.now()`
+
+Learn more: https://nextjs.org/docs/messages/blocking-prerender-current-time
+    at a9 (.next/server/chunks/ssr/_13n5joe3-kkpm._.js:44:151282)
+    at bc (.next/server/chunks/ssr/_13n5joe3-kkpm._.js:44:151958)

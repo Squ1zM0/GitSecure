@@ -15,8 +15,14 @@
 // Fixtures use `__SECRET_n__` placeholders and hand-built findings —
 // NO literal secret-pattern values anywhere in this file
 // (grep-verified; see the check at the end).
+//
+// Phase 15 (findings 5 + 7, 2026-11-26): plainSummary takes a
+// `provisional` flag — provisional reports say "So far: " instead of
+// "Scan complete. ", and the zero-secrets part is capitalised ("No
+// leaked secrets…"). Section 8b asserts the new wording; the scoring
+// assertions are unchanged (the summary wording never fed the score).
 
-import { computeScore } from "../src/lib/score";
+import { computeScore, plainSummary } from "../src/lib/score";
 import { computeUsageForFindings } from "../src/lib/usage";
 import { triageFinding } from "../src/lib/triage";
 import { buildProvisionalReport } from "../src/lib/provisional";
@@ -225,12 +231,39 @@ const head: HeadPartial = {
     triaged("high", "likely-genuine-leak", "github-token"),
   ],
   frameworks: [], dependencies: [], posture: [], unpinnedCount: 0,
-  repoSizeKb: 1, historyMethod: "git", retainedIncomplete: false,
+  historyMethod: "git", retainedIncomplete: false,
 };
 const provisional = buildProvisionalReport(head, [], 0, true);
 check("Provisional: carries scoreDetail", provisional.scoreDetail !== undefined, String(provisional.scoreDetail));
 check("Provisional: scoreDetail matches computeScore (15 deducted, 85/B)", provisional.scoreDetail?.secretsDeduction === 15 && provisional.score === 85 && provisional.grade === "B", `ded=${provisional.scoreDetail?.secretsDeduction} ${provisional.score}/${provisional.grade}`);
 check("Provisional: counts full=1 excluded=1", provisional.scoreDetail?.secretsFullWeight === 1 && provisional.scoreDetail?.secretsExcluded === 1, `full=${provisional.scoreDetail?.secretsFullWeight} excluded=${provisional.scoreDetail?.secretsExcluded}`);
+
+// --- 8b. Phase 15 (findings 5 + 7): summary wording. ---
+// A provisional report must never say "Scan complete." — it says
+// "So far: ". A finished report keeps "Scan complete. ". The
+// zero-secrets part is capitalised ("No leaked secrets…"), it opens
+// a sentence after the prefix.
+check(
+  "Provisional summary starts 'So far: ', never 'Scan complete.'",
+  provisional.summary.startsWith("So far: ") && !provisional.summary.includes("Scan complete"),
+  provisional.summary,
+);
+check(
+  "Finished summary starts 'Scan complete. '",
+  plainSummary({ secrets: 2, vulnerabilities: 0, postureIssues: 0, frameworks: 0 }).startsWith("Scan complete. "),
+  plainSummary({ secrets: 2, vulnerabilities: 0, postureIssues: 0, frameworks: 0 }),
+);
+check(
+  "Zero-secrets summary is capitalised ('No leaked secrets…')",
+  plainSummary({ secrets: 0, vulnerabilities: 0, postureIssues: 0, frameworks: 0 }).includes("No leaked secrets were found in the files scanned") &&
+    !plainSummary({ secrets: 0, vulnerabilities: 0, postureIssues: 0, frameworks: 0 }).includes("Scan complete. no leaked"),
+  plainSummary({ secrets: 0, vulnerabilities: 0, postureIssues: 0, frameworks: 0 }),
+);
+check(
+  "Provisional zero-secrets summary is 'So far: No leaked secrets…'",
+  plainSummary({ secrets: 0, vulnerabilities: 0, postureIssues: 0, frameworks: 0, provisional: true }).startsWith("So far: No leaked secrets were found"),
+  plainSummary({ secrets: 0, vulnerabilities: 0, postureIssues: 0, frameworks: 0, provisional: true }),
+);
 
 // --- 9. No literal secret-pattern values in this file ---
 import { readFileSync } from "node:fs";

@@ -10,9 +10,9 @@
 // answer 202 with a job ID and the client polls for live progress.
 // OSV detail has no time budget any more either (see osv.ts): every
 // advisory gets full detail inside the background job. The tarball
-// download guard is a STREAMING memory guard (the download aborts
-// mid-stream past the cap and the per-file fallback still scans every
-// file) — never a scan cap. History caps live in history.ts and are
+// download guard is a STREAMING buffer switch (the download aborts
+// mid-stream past the switch and the streaming reader takes over,
+// still scanning every file) — never a scan cap. History caps live in history.ts and are
 // owned by the history worker; this file states no history numbers
 // any more, and the report's history line carries only the method and
 // the exact count scanned. No secret values are stored or logged —
@@ -34,33 +34,53 @@
 // The report says which path was used and how many commits it scanned.
 // A secret deleted long ago in an old commit is now caught.
 //
+// PHASE 15 (2026-11-26, worker D): ZERO REST CALLS on the happy
+// path. The scan's last api.github.com call was the repo-info fetch
+// (default branch, size, private flag). All three values now come
+// from elsewhere: the default branch and HEAD sha come from one
+// git-protocol info/refs request (history.ts resolveRemoteHead —
+// github.com, not api.github.com); the repo size is no longer read
+// at all, because both gates that needed it are now streaming
+// bounds measured while the bytes arrive (the tarball buffer switch
+// below, and the history pack bound in history.ts). A missing or
+// private repo still fails plainly with the same 404 wording — the
+// git protocol answers 401 on info/refs for those, which maps to
+// not-found. The REST calls that remain are fallback-only: the
+// recursive tree when the tarball is unavailable (per-file fetch
+// needs a file list), the API history path when cloning is
+// impossible, and the 5-commit patch fallback. None of them runs on
+// a happy-path scan (proved by test:zero-rest).
+//
 // HEAD SCAN (Phase 4): UNLIMITED. The entire HEAD tree is scanned —
 // every file, manifests and configs first, then the rest. There is NO
 // file-count cap, NO per-file size cap, and NO total-size cap anywhere
 // in this code. The only files not
 // read are binary / generated / vendored paths (dist, node_modules,
 // .next, images, archives — see paths.ts): those are not source files
-// to scan, not a cap. The GitHub recursive-tree call returns the whole
-// tree in one response (up to 100k entries); if GitHub ever truncates
-// it, the report says so. Files are read from ONE tarball download
-// (codeload.github.com) instead of one HTTPS request per file —
-// measured: 2,802 separate raw fetches took ~120 s no matter the
-// concurrency (raw.githubusercontent.com answers ~25 requests/s from
-// one client), while the 1.7 MB TechDirect tarball downloads in ~1.4 s.
+// to scan, not a cap. The file list comes from the tarball itself
+// (its entries ARE the tree — complete by construction, unlike the
+// GitHub recursive-tree call, which truncates past ~71k entries);
+// the tree API is fetched only as a fallback when the tarball is
+// unavailable, so the per-file fallback has a file list. Files are
+// read from ONE tarball download (codeload.github.com) instead of
+// one HTTPS request per file — measured: 2,802 separate raw fetches
+// took ~120 s no matter the concurrency
+// (raw.githubusercontent.com answers ~25 requests/s from one
+// client), while the 1.7 MB TechDirect tarball downloads in ~1.4 s.
 // If the tarball is unavailable, the scan falls back to per-file fetches
 // and still scans everything, just slower. External boundaries still
 // exist and are reported honestly, never hidden: the GitHub API has
-// rate limits, and the tarball download has a streaming memory guard
-// (see TARBALL_MAX_BYTES) whose only effect is to switch to the
-// per-file fallback. No secret values are stored or logged — findings
-// carry redacted fragments only (see secrets.ts / redact.ts).
+// rate limits, and the tarball download has a streaming buffer switch
+// (see TARBALL_BUFFER_SWITCH_BYTES) whose only effect is to change
+// transport to the streaming reader. No secret values are stored or
+// logged — findings carry redacted fragments only (see secrets.ts / redact.ts).
 
 import { createGunzip } from "node:zlib";
 import { Readable } from "node:stream";
 import { gunzipSync } from "node:zlib";
 import { checkDependencies } from "./osv";
 import { emptyProgress, type ScanProgress } from "./progress";
-import { scanHistory, HISTORY_CLONE_SIZE_LIMIT_KB, type HistoryScanResult } from "./history";
+import { scanHistory, resolveRemoteHead, type HistoryScanResult } from "./history";
 import { detectInfraFrameworks, infraFindings, parseWorkflowActions } from "./infra";
 import { isSkippablePath } from "./paths";
 import { computeScore, plainSummary } from "./score";
@@ -68,6 +88,7 @@ import { envFileFinding, scanTextForSecrets, type ScannedFile } from "./secrets"
 import { fingerprintFrameworks, parseCargoLock, parseCargoToml, parseComposerJson, parseComposerLock, parseCsproj, parseGemfile, parseGemfileLock, parseGoMod, parseGradle, parsePackagesConfig, parsePackageJson, parsePackageLock, parsePomXml, parseRequirements, parseYamlLock, viteFindings } from "./frameworks";
 import { collectPublicKeyIdentities, ensureTriage, triageFindings } from "./triage";
 import { computeUsageForFindings } from "./usage";
+import { parseResetAtMs } from "./rate-limit";
 import type { Dependency, Framework, FullReport, HeadPartial, PostureIssue, SecretFinding, Vulnerability } from "./types";
 
 export const HISTORY_DEPTH = "Full history, newest first.";
@@ -90,10 +111,17 @@ export type ScanErrorKind = "not-found" | "private" | "rate-limit" | "timeout" |
 export class ScanError extends Error {
   readonly status: number;
   readonly kind: ScanErrorKind;
-  constructor(status: number, kind: ScanErrorKind, message: string) {
+  /** Phase 15 (rate-limit recovery): when GitHub's response said when
+   *  its request limit resets, the epoch-ms reset time — so the error
+   *  page can say honestly how long to wait instead of stranding the
+   *  user. Absent when GitHub did not say (copy falls back to
+   *  "resets within the hour"). */
+  readonly resetAtMs?: number;
+  constructor(status: number, kind: ScanErrorKind, message: string, opts?: { resetAtMs?: number }) {
     super(message);
     this.status = status;
     this.kind = kind;
+    if (opts?.resetAtMs !== undefined) this.resetAtMs = opts.resetAtMs;
   }
 }
 
@@ -134,7 +162,11 @@ async function ghJson<T>(url: string): Promise<T> {
     const res = await fetch(url, { headers: ghHeaders(), signal: controller.signal, cache: "no-store" });
     if (res.status === 404) throw new ScanError(404, "not-found", "Repository not found (or it is private). GitSecure scans public repos only.");
     if (res.status === 429 || (res.status === 403 && res.headers.get("x-ratelimit-remaining") === "0")) {
-      throw new ScanError(429, "rate-limit", "GitHub's request limit was hit, so this scan couldn't run right now. Please try again in a few minutes.");
+      // Phase 15 (rate-limit recovery): GitHub's response carries the
+      // reset time — keep it on the error so the page can say honestly
+      // how long to wait, instead of stranding the user with no sense
+      // of the wait. No token, per Freddy's standing ruling.
+      throw new ScanError(429, "rate-limit", "GitHub's request limit was hit, so this scan couldn't run right now. Please try again in a few minutes.", { resetAtMs: parseResetAtMs(res.headers) ?? undefined });
     }
     if (res.status === 403) throw new ScanError(502, "upstream", "GitHub refused the request (403). The repo may be blocked or temporarily unavailable — try again later.");
     if (!res.ok) throw new ScanError(502, "upstream", `GitHub answered with an unexpected error (${res.status}). Try again in a bit.`);
@@ -184,6 +216,13 @@ export interface ScanOptions {
   historyCommits?: number;
   /** Called with honest live progress as each phase lands. */
   onProgress?: (p: ScanProgress) => void;
+  /** Phase 15 (finding 1): called the moment the repo's branch, HEAD
+   *  sha, and history path are known — before any file is fetched —
+   *  so the chunk driver can still build a resume cursor if the
+   *  current-files download later times out. Nothing scanned yet
+   *  means nothing to resume from, so a timeout before this fires
+   *  still throws. */
+  onHeadMeta?: (meta: { branch: string; headSha: string; historyMethod: "git" | "api" }) => void;
   /** OSV budgets for this scan. Default (Phase 8): no budget — every
    *  pinned dep is queried and every advisory gets full detail. */
   osv?: { queryBudgetMs?: number | null; detailBudgetMs?: number | null };
@@ -192,23 +231,39 @@ export interface ScanOptions {
 /** Fetch the whole HEAD tree from ONE tarball download
  *  (codeload.github.com/{owner}/{repo}/tar.gz/refs/heads/{branch}).
  *  Returns a Map of repo-relative path -> text content for every
- *  non-skipped file. The tarball is a snapshot of the same HEAD the
- *  tree call listed, so the file set and contents match the per-file
- *  raw fetches — this only changes how the bytes arrive, not what is
- *  scanned. Entries are never written to disk, only held in memory
+ *  non-skipped file. The tarball is a snapshot of the branch HEAD,
+ *  so the file set and contents match the per-file raw fetches —
+ *  this only changes how the bytes arrive, not what is scanned. Entries are never written to disk, only held in memory
  *  for the scan. A path-traversal entry (../ or absolute) is ignored.
  *  Throws on any failure so the caller can fall back to per-file
  *  fetching — a failed tarball must never silently shrink the scan.
- *  Phase 8: the download guard is a STREAMING memory guard — the body
- *  is read chunk by chunk and the download is aborted mid-stream the
- *  moment it passes TARBALL_MAX_BYTES, instead of buffering the whole
- *  response first and then checking its size. The guard is still not
- *  a scan cap: tripping it only switches to the per-file fallback,
- *  which still scans every file. What remains a physical bound (not a
- *  cap) is memory for the decompressed tar itself — gunzip materialises
- *  it whole, so a repo whose decompressed tree cannot fit in memory
- *  fails the tarball path and falls back to per-file fetches too. */
-const TARBALL_MAX_BYTES = 500_000_000; // streaming memory guard on the download, NOT a scan cap: if a repo's tarball is bigger, the per-file fallback still scans every file.
+ *  Phase 8: the download is read chunk by chunk and aborted
+ *  mid-stream instead of buffering an unbounded response first.
+ *  Phase 15 (worker D): the abort point is a BUFFER SWITCH, not a
+ *  scan cap — past TARBALL_BUFFER_SWITCH_BYTES the download stops
+ *  and the caller runs the streaming reader instead, which scans the
+ *  same files with bounded memory. The switch replaces the old 1 GB
+ *  repo-size gate (which needed the REST repo-info call): codeload
+ *  sends no Content-Length, so the compressed size can only be
+ *  measured while the bytes arrive. 100 MB compressed is ~300–500 MB
+ *  decompressed for source-heavy repos (gzip runs ~3–5x), which
+ *  fits a 1 GB function with headroom for the rest of the scan.
+ *  What remains a physical bound (not a cap) is memory for the
+ *  decompressed tar itself — gunzip materialises it whole, so a
+ *  repo whose decompressed tree cannot fit in memory takes the
+ *  streaming path instead. */
+export class TarballTooLargeForBufferError extends Error {
+  readonly bytes: number;
+  constructor(bytes: number) {
+    super(`tarball download passed ${TARBALL_BUFFER_SWITCH_BYTES} bytes (${bytes} bytes read) — switching to the streaming reader`);
+    this.name = "TarballTooLargeForBufferError";
+    this.bytes = bytes;
+  }
+}
+/** Compressed tarball bytes at which the whole-buffer path gives up
+ *  and the streaming reader takes over. NOT a scan cap: the streaming
+ *  path scans every file, just with bounded memory. */
+export const TARBALL_BUFFER_SWITCH_BYTES = 100_000_000;
 async function fetchHeadFilesViaTarball(
   owner: string,
   repo: string,
@@ -223,7 +278,7 @@ async function fetchHeadFilesViaTarball(
     const res = await fetch(url, { signal: controller.signal, cache: "no-store" });
     if (!res.ok) throw new Error(`tarball fetch ${res.status}`);
     if (!res.body) throw new Error("tarball has no body");
-    // Stream the download: abort as soon as the guard trips, instead
+    // Stream the download: abort as soon as the switch trips, instead
     // of buffering an unbounded response and checking afterwards.
     const reader = res.body.getReader();
     const chunks: Uint8Array[] = [];
@@ -232,13 +287,26 @@ async function fetchHeadFilesViaTarball(
       const { done, value } = await reader.read();
       if (done) break;
       total += value.byteLength;
-      if (total > TARBALL_MAX_BYTES) {
+      if (total > TARBALL_BUFFER_SWITCH_BYTES) {
         controller.abort();
-        throw new Error("tarball too large for memory");
+        throw new TarballTooLargeForBufferError(total);
       }
       chunks.push(value);
     }
     gz = Buffer.concat(chunks.map((c) => Buffer.from(c)));
+  } catch (err) {
+    // Phase 15 (worker D): a download ABORT (stall / 30 s timer) is a
+    // timeout, not a missing tarball — it becomes the ScanError 504
+    // the chunk driver turns into a resumable partial cursor, exactly
+    // like the streaming path. Any other failure (404, 500, parse
+    // error) still falls through to the per-file fallback in the
+    // caller. The buffer-switch error above is not an abort: it is
+    // thrown by this code, not by the aborted stream, so it is
+    // unaffected (its name is TarballTooLargeForBufferError).
+    if (err instanceof Error && err.name === "AbortError") {
+      throw new ScanError(504, "timeout", "GitHub took too long to answer. Try again.");
+    }
+    throw err;
   } finally {
     clearTimeout(timer);
   }
@@ -391,7 +459,12 @@ export function buildLimits(input: BuildLimitsInput): string[] {
 
 
 /** Fetch the branch HEAD sha (one commits-list call, newest commit
- *  only). Throws ScanError 404 when the repo has no commits at all —
+ *  only). Phase 15 (worker D): the happy-path scan no longer calls
+ *  this — scanHead resolves the HEAD sha over the git protocol
+ *  instead (history.ts resolveRemoteHead). This stays for the
+ *  chunked driver's resume re-validation (chunks.ts), where the
+ *  branch is already known and the pinned HEAD sha is re-checked.
+ *  Throws ScanError 404 when the repo has no commits at all —
  *  an empty repo has no HEAD to scan. */
 export async function fetchHeadSha(owner: string, repo: string, branch: string): Promise<string> {
   const commits = await ghJson<{ sha: string }[]>(
@@ -418,9 +491,6 @@ export async function fetchHeadSha(owner: string, repo: string, branch: string):
 // HEAD step instead of dying in it.
 // ---------------------------------------------------------------------------
 
-/** Repos larger than this (GitHub repo `size`, KB) use the streaming
- *  HEAD path instead of the whole-buffer tarball path. */
-export const STREAMING_HEAD_SIZE_LIMIT_KB = 1024 * 1024; // 1 GB
 /** Retained manifest/config bytes cap in streaming mode — a bound on
  *  memory, not on coverage: files past it are still secret-scanned,
  *  just not kept for framework/infra reading (and the report says so). */
@@ -502,6 +572,14 @@ export async function streamHeadFilesViaTarball(
   // iterator + Buffer.concat overhead. 1 MB chunks cut that to ~1.7k
   // without holding more than one chunk at a time.
   const gunzip = createGunzip({ chunkSize: 1024 * 1024 });
+  // Phase 15 (finding 1): a body-stream error mid-download (a reset
+  // codeload connection, an abort) is an unhandled 'error' event on
+  // `input` unless someone listens — pipe() does not forward it, so
+  // the chunk crashes instead of failing cleanly. Forward it into
+  // gunzip, whose async iterator the try/catch below already watches:
+  // an AbortError there becomes the ScanError 504 timeout the chunk
+  // driver turns into a partial cursor.
+  input.on("error", (err) => gunzip.destroy(err));
   input.pipe(gunzip);
   let pending = Buffer.alloc(0);
   let longName: string | null = null;
@@ -676,22 +754,30 @@ export function buildPosture(files: Map<string, string>): PostureIssue[] {
 }
 
 /** HEAD chunk (Phase 9): everything the scan learns from the current
- *  files, in one invocation — repo info, the pinned HEAD sha, the
- *  file list (from the recursive tree, or from the tarball itself in
- *  streaming mode — the tree truncates past ~71k entries, so for a
- *  repo like torvalds/linux the tarball is the only complete list),
- *  HEAD secrets, frameworks, dependencies, and posture.
+ *  files, in one invocation — the pinned HEAD sha, the file list
+ *  (from the tarball itself — its entries ARE the tree, complete by
+ *  construction, unlike the recursive-tree API, which truncates
+ *  past ~71k entries, so for a repo like torvalds/linux the tarball
+ *  is the only complete list), HEAD secrets, frameworks,
+ *  dependencies, and posture.
  *  This is the first chunk of every scan and the only chunk that
- *  touches the tree: later chunks (history, assemble) never re-fetch
- *  it. The caller keeps the returned partial and passes it back at
- *  assemble time; the server never stores it.
+ *  touches the file list: later chunks (history, assemble) never
+ *  re-fetch it. The caller keeps the returned partial and passes it
+ *  back at assemble time; the server never stores it.
  *
- *  Two transports, chosen by repo size: repos up to 1 GB use the
- *  whole-buffer tarball path (as before — TechDirect and
- *  DefinitelyTyped both scan this way); larger repos stream the
- *  tarball (see streamHeadFilesViaTarball) so the HEAD step cannot
- *  OOM the function. Either way every non-skipped file is checked
- *  for secrets — the transport only changes how the bytes arrive. */
+ *  Phase 15 (worker D): ZERO api.github.com calls on the happy
+ *  path. The branch and HEAD sha come from one git-protocol
+ *  info/refs request (resolveRemoteHead), and the file list comes
+ *  from the tarball itself — the recursive-tree API is fetched only
+ *  when the tarball is unavailable and the per-file fallback needs
+ *  a file list. Two transports, chosen by the download itself: the
+ *  whole-buffer tarball path for tarballs up to
+ *  TARBALL_BUFFER_SWITCH_BYTES (TechDirect's 1.7 MB tarball scans
+ *  this way, with the full file set kept for the usage search);
+ *  past that the streaming reader takes over (see
+ *  streamHeadFilesViaTarball) so the HEAD step cannot OOM the
+ *  function. Either way every non-skipped file is checked for
+ *  secrets — the transport only changes how the bytes arrive. */
 export async function scanHead(
   owner: string,
   repo: string,
@@ -700,34 +786,38 @@ export async function scanHead(
   validateOwnerRepo(owner, repo);
   const progress: ScanProgress = emptyProgress();
   const emit = () => options.onProgress?.({ ...progress });
-  const repoInfo = await ghJson<{ default_branch: string; description: string | null; private: boolean; size: number }>(`${GH_API}/repos/${owner}/${repo}`);
-  if (repoInfo.private) throw new ScanError(404, "private", "This repository is private. GitSecure scans public repos only.");
-  const branch = repoInfo.default_branch || "main";
-  const headSha = await fetchHeadSha(owner, repo, branch);
-  const repoSizeKb = repoInfo.size ?? 0;
-  const streaming = repoSizeKb > STREAMING_HEAD_SIZE_LIMIT_KB;
-
-  // The file list: non-streaming mode takes it from GitHub's recursive
-  // tree (one call, whole tree). Streaming mode does NOT fetch the
-  // tree — for a repo like torvalds/linux the tree call costs ~4 s
-  // AND comes back truncated (71k of ~97k entries), understating the
-  // file count. The tarball is the complete, authoritative file list
-  // there, so the list is collected from its entries as they arrive
-  // (see streamedPaths below) and the tree is fetched only if the
-  // tarball fails and the per-file fallback needs it.
+  // Phase 15 (worker D): branch + HEAD sha over the git protocol —
+  // no REST repo-info call, no commits-list call. A missing or
+  // private repo answers 401 on info/refs, which resolveRemoteHead
+  // reports as not-found (same plain-English 404 as before); any
+  // other failure is an upstream 502. Nothing here guesses a branch.
+  const remoteHead = await resolveRemoteHead(owner, repo);
+  if (!remoteHead.ok) {
+    if (remoteHead.reason === "not-found") {
+      throw new ScanError(404, "not-found", "Repository not found (or it is private). GitSecure scans public repos only.");
+    }
+    if (remoteHead.reason === "timeout") {
+      throw new ScanError(504, "timeout", "GitHub took too long to answer. Try again.");
+    }
+    throw new ScanError(502, "upstream", "GitHub couldn't be reached. Try again in a bit.");
+  }
+  const branch = remoteHead.branch;
+  const headSha = remoteHead.headSha;
+  // Phase 15 (finding 1): the HEAD meta is known from here on, so a
+  // later fetch timeout can still return a resume cursor. The history
+  // method is optimistic "git": the git path is now bounded while it
+  // runs (history.ts PACK_MAX_BYTES), and the chunked driver flips
+  // the cursor to "api" if the git path fails — there is no size
+  // pre-check any more, because the size used to come from the REST
+  // repo-info call this scan no longer makes.
+  options.onHeadMeta?.({ branch, headSha, historyMethod: "git" });
+  // Whether the HEAD step is streaming the tarball (set below when
+  // the whole-buffer download trips its switch). The file list comes
+  // from the tarball either way; the tree API is fetched only if a
+  // tarball transport fails and the per-file fallback needs a list.
+  let streaming = false;
   let treeTruncated = false;
   let chosen: { path: string; size?: number }[] = [];
-  if (!streaming) {
-    const tree = await ghJson<{ tree: { path: string; type: string; size?: number }[]; truncated?: boolean }>(
-      `${GH_API}/repos/${owner}/${repo}/git/trees/${encodeURIComponent(branch)}?recursive=1`,
-    );
-    const allFiles = tree.tree.filter((t) => t.type === "blob" && !isSkippable(t.path));
-    treeTruncated = tree.truncated ?? false;
-    chosen = [...allFiles].sort((a, b) => priority(a.path) - priority(b.path) || a.path.localeCompare(b.path));
-    // UNLIMITED: the whole non-skipped tree, no slice, no count cap.
-    progress.filesTotal = chosen.length;
-    emit();
-  }
 
   // Every file is secret-scanned the moment its content arrives, and
   // only retainable files (manifests, configs, workflows, infra — see
@@ -798,37 +888,70 @@ export async function scanHead(
   // scanned file. Streaming mode never holds the full set, so it
   // stays null and usage searches the retained files instead.
   let headCorpus: Map<string, string> | null = null;
-  if (streaming) {
-    try {
-      await streamHeadFilesViaTarball(owner, repo, branch, onEntry, { onCount, budgetMs: 50_000 });
-    } catch (err) {
-      if (err instanceof ScanError && err.kind === "timeout") throw err;
-      tarballFallback = true;
-      // Per-file fallback needs a file list: fetch the tree now (it
-      // was skipped above), and skip the files the tarball already
-      // delivered so nothing is scanned twice.
-      const tree = await ghJson<{ tree: { path: string; type: string; size?: number }[]; truncated?: boolean }>(
-        `${GH_API}/repos/${owner}/${repo}/git/trees/${encodeURIComponent(branch)}?recursive=1`,
-      );
-      treeTruncated = tree.truncated ?? false;
-      const remaining = tree.tree
-        .filter((t) => t.type === "blob" && !isSkippable(t.path) && !scannedPaths.has(t.path))
-        .sort((a, b) => priority(a.path) - priority(b.path) || a.path.localeCompare(b.path));
-      await streamHeadFilesPerFile(owner, repo, branch, remaining, onEntry, { onCount, budgetMs: 50_000 });
-    }
-    // The tarball is the complete file list in streaming mode — the
-    // tree is never consulted, so it cannot truncate the count.
-    chosen = streamedPaths
+  // Phase 15 (worker D): tarball first — the file list comes from
+  // its entries, so the happy path makes no tree call at all. The
+  // recursive-tree API is a fallback only: it supplies the file list
+  // when a tarball transport fails and the per-file fallback needs
+  // one. (That is the one remaining REST call in the HEAD step, and
+  // it runs only on failure.)
+  const fetchTree = async () => {
+    const tree = await ghJson<{ tree: { path: string; type: string; size?: number }[]; truncated?: boolean }>(
+      `${GH_API}/repos/${owner}/${repo}/git/trees/${encodeURIComponent(branch)}?recursive=1`,
+    );
+    treeTruncated = tree.truncated ?? false;
+    return tree.tree;
+  };
+  try {
+    const full = await fetchHeadFilesViaTarball(owner, repo, branch, onCount);
+    headCorpus = full;
+    // The tarball is the complete file list — UNLIMITED, no slice,
+    // no count cap.
+    chosen = [...full.keys()]
       .map((path) => ({ path }))
       .sort((a, b) => priority(a.path) - priority(b.path) || a.path.localeCompare(b.path));
     progress.filesTotal = chosen.length;
-  } else {
-    try {
-      const full = await fetchHeadFilesViaTarball(owner, repo, branch, onCount);
-      headCorpus = full;
-      for (const [path, content] of full) onEntry(path, content);
-    } catch {
+    emit();
+    for (const [path, content] of full) onEntry(path, content);
+  } catch (err) {
+    // Phase 15 (worker D): a tarball TIMEOUT is not a missing
+    // tarball — it propagates as the ScanError 504 the chunk driver
+    // turns into a resumable partial cursor, exactly like the
+    // streaming path. Only a genuinely unavailable tarball falls
+    // through to the per-file fallback below.
+    if (err instanceof ScanError && err.kind === "timeout") throw err;
+    if (err instanceof TarballTooLargeForBufferError) {
+      // Past the buffer switch: stream the same tarball instead of
+      // buffering it — same files, bounded memory.
+      streaming = true;
+      try {
+        await streamHeadFilesViaTarball(owner, repo, branch, onEntry, { onCount, budgetMs: 50_000 });
+      } catch (streamErr) {
+        if (streamErr instanceof ScanError && streamErr.kind === "timeout") throw streamErr;
+        tarballFallback = true;
+        // Per-file fallback needs a file list: fetch the tree now,
+        // and skip the files the tarball already delivered so
+        // nothing is scanned twice.
+        const remaining = (await fetchTree())
+          .filter((t) => t.type === "blob" && !isSkippable(t.path) && !scannedPaths.has(t.path))
+          .sort((a, b) => priority(a.path) - priority(b.path) || a.path.localeCompare(b.path));
+        await streamHeadFilesPerFile(owner, repo, branch, remaining, onEntry, { onCount, budgetMs: 50_000 });
+      }
+      // The tarball is the complete file list in streaming mode — the
+      // tree is never consulted, so it cannot truncate the count.
+      chosen = streamedPaths
+        .map((path) => ({ path }))
+        .sort((a, b) => priority(a.path) - priority(b.path) || a.path.localeCompare(b.path));
+      progress.filesTotal = chosen.length;
+    } else {
+      // Tarball unavailable: the tree API (REST fallback) supplies
+      // the file list and files are fetched one by one — same files,
+      // just slower.
       tarballFallback = true;
+      const allFiles = (await fetchTree()).filter((t) => t.type === "blob" && !isSkippable(t.path));
+      chosen = [...allFiles].sort((a, b) => priority(a.path) - priority(b.path) || a.path.localeCompare(b.path));
+      // UNLIMITED: the whole non-skipped tree, no slice, no count cap.
+      progress.filesTotal = chosen.length;
+      emit();
       const full = await fetchHeadFiles(owner, repo, branch, chosen, onCount);
       headCorpus = full;
       for (const [path, content] of full) onEntry(path, content);
@@ -933,8 +1056,12 @@ export async function scanHead(
     dependencies: dedupedDeps,
     posture: buildPosture(files),
     unpinnedCount,
-    repoSizeKb,
-    historyMethod: repoSizeKb > HISTORY_CLONE_SIZE_LIMIT_KB ? "api" : "git",
+    // Phase 15 (worker D): optimistic "git" — the git history path
+    // is bounded while it runs, and the chunked driver flips the
+    // cursor to "api" if it fails. No repo size is carried any more:
+    // nothing in the scan reads it, because both gates that needed
+    // it are streaming bounds now.
+    historyMethod: "git",
     retainedIncomplete,
   };
 }
@@ -1133,7 +1260,6 @@ export async function scanRepo(owner: string, repo: string, options: ScanOptions
   try {
     history = await scanHistory({
       owner, repo, branch: head.branch,
-      repoSizeKb: head.repoSizeKb,
       onProgress: (n) => {
         progress.commitsScanned = n;
         emit();

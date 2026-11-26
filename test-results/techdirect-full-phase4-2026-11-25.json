@@ -28,8 +28,8 @@
     "filesScanned": 2802,
     "historyCommitsScanned": 62
   },
-  "summary": "Scan complete. no leaked secrets were found in the files scanned; 4 known vulnerabilities in dependencies; 3 security hygiene issues to fix. The full detail is in this report — no sign-in needed.",
-  "scannedAt": "2026-11-26T16:42:31.457Z",
+  "summary": "Scan complete. No leaked secrets were found in the files scanned; 4 known vulnerabilities in dependencies; 3 security hygiene issues to fix. The full detail is in this report — no sign-in needed.",
+  "scannedAt": "2026-11-26T18:48:08.372Z",
   "historyDepth": "Full history, newest first.",
   "limits": [
     "Scanned all 2802 files in the tree (binary, dist, node_modules and .next skipped — generated/vendored paths, not source files).",

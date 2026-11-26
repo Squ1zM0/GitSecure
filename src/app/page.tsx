@@ -67,14 +67,17 @@ export default function Home() {
         </div>
 
         <form className="scan-form" onSubmit={go}>
-          <input type="text" value={value} onChange={(e) => { setValue(e.target.value); setScanning(false); }} aria-label="owner/repo" placeholder="owner/repo" disabled={scanning} />
+          <div className="scan-field">
+            <label htmlFor="scan-input">GitHub repo to scan</label>
+            <input id="scan-input" type="text" value={value} onChange={(e) => { setValue(e.target.value); setScanning(false); }} aria-label="owner/repo" placeholder="owner/repo" disabled={scanning} />
+          </div>
           <button type="submit" disabled={scanning}>{scanning ? "Scanning…" : "Scan repo"}</button>
         </form>
         {error && <p className="form-error" role="alert">{error}</p>}
         {scanning && !error && (
           <p className="scan-status" role="status">
             <span className="spinner" aria-hidden="true" />
-            <span>Scanning… checking the files, then the full history, then dependencies. This usually takes about 15 seconds.</span>
+            <span>Scanning… checking the files, then the full history, then dependencies. This usually takes 15–30 seconds.</span>
           </p>
         )}
       </section>

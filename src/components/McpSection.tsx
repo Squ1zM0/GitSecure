@@ -75,6 +75,9 @@ export default function McpSection({ compact = false }: { compact?: boolean }) {
     <div className="card" id="mcp">
       <h2>Use with your AI assistant (MCP)</h2>
       <p>
+        MCP lets an AI assistant like Claude call GitSecure for you — no account needed.
+      </p>
+      <p>
         Point your AI assistant at GitSecure and it can scan a repo for you. Server URL:
       </p>
       <div className="copy-row">
@@ -88,9 +91,14 @@ export default function McpSection({ compact = false }: { compact?: boolean }) {
         <code className="inline">get_report</code> (read or refresh a report), and{" "}
         <code className="inline">list_checks</code> (what a scan covers).
       </p>
-      {MCP_SNIPPETS.map((s) => (
-        <Snippet key={s.id} snippet={s} />
-      ))}
+      <details className="group">
+        <summary><span className="chevron" aria-hidden="true">▸</span>Setup snippets for Claude, Cursor, VS Code, and Windsurf/Cline</summary>
+        <div className="group-body">
+          {MCP_SNIPPETS.map((s) => (
+            <Snippet key={s.id} snippet={s} />
+          ))}
+        </div>
+      </details>
     </div>
   );
 }
