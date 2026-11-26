@@ -455,9 +455,10 @@ findings.
 - **Verification (2026-11-25):** `npm run build` exit 0;
   `test:scanner` 68/68, `test:history` 9/9, `test:public-full` 56/56,
   `test:techdirect` 83/B with filesScanned = 2,802, `test:mcp` 51/51
-  against a local production server. Live checks (after push) in
-  GITSECURE.md — DefinitelyTyped secrets count above 100, TechDirect
-  still 83/B.
+  against a local production server. Live (after push, commit
+  7ed620e0): DefinitelyTyped API 200, 0/F, **403 secrets listed**,
+  61,814 files, 9,401 dependencies; TechDirect API still 83/B.
+  Full live numbers in GITSECURE.md.
 
 ## Project notes
 

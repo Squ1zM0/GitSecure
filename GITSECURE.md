@@ -463,11 +463,30 @@ No scanner logic, scores, or public/full split changed. TechDirect still
   and all 202 pinned deps are now OSV-checked (Tier 2 fixtures carry
   many real advisories). Test assertions updated with the measured
   values and the reason; see `scripts/test-mcp.ts` header.
-- **Pushed 2026-11-25, commit [SHA — filled after push].**
-- **Live verification (2026-11-25, after push):** [filled after push —
-  home 200, TechDirect API 83/B, DefinitelyTyped API secrets count /
-  filesScanned / 0/F with full list, DT report page navigation, live
-  MCP initialize].
+- **Pushed 2026-11-25, commit 7ed620e0e9a3def9f2b4aa1c7618b75e2779dc61**
+  (59 files, remote head + remote tree verified by read-back: exact
+  match with local).
+- **Live verification (2026-11-25, after 7ed620e0):** home 200;
+  live scan API `Squ1zM0/TechDirect` 200, 83/B, filesScanned 2,802
+  (2.8 s); live scan API `DefinitelyTyped/DefinitelyTyped` 200, 0/F,
+  kind full, **403 secrets listed (counts.secrets 403 — the old "100"
+  was the cap, not the count)**, filesScanned 61,814, dependencies
+  9,401 listed, vulnerabilities 92 listed, frameworks 4, posture 1,
+  history 5 commits (Vercel no-git fallback, known caveat), 28–36 s.
+  Lists equal their counts (secrets 403/403, deps 9,401/9,401, vulns
+  92/92); longest fragment 7 chars (redacted); no truncation line in
+  limits. Secret types: hardcoded-password 301, private-key 41,
+  generic-high-entropy 24, database-url 20, jwt-token 9, aws-access-key
+  5, slack-token 2, github-token 1 — across 225 files, all HEAD.
+  Live DT report page 200: Group by / type / severity / file-name
+  filters, List/Map toggle, "Showing 403 of 403 secrets",
+  "Showing 9401 of 9401 dependencies", anchors secret-0…secret-99
+  rendered with "Show more (100 of 303 remaining)" / "Show all 403"
+  (progressive rendering confirmed), Copy link buttons, 100 distinct
+  GitHub blob links on the first page; the first link
+  (`.../blob/master/.github/workflows/CI.yml#L132`) resolves 200 to
+  the real file. Live MCP initialize 200 (protocol 2025-03-26,
+  gitsecure 0.1.0).
 
 ## Phase 2 status — built and pushed 2026-11-25, commit 870f889f, live at https://gitsecure.vercel.app/ (verified serving: home 200, live TechDirect scan 200, 83/B)
 - Next.js 16 / React 19 / TypeScript + Auth.js (NextAuth 5.0.0-beta.32,
