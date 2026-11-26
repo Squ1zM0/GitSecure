@@ -14,7 +14,7 @@
 //   4. tools/call scan_repo Squ1zM0/TechDirect returns the known FULL
 //      result (83/B, 0 secrets, 4 vulns) — with the full detail present
 //      (vulnerability IDs, js-yaml, fixed versions)
-//   5. tools/call scan_repo Squ1zM0/GitSecure returns 0/F with 34 secrets
+//   5. tools/call scan_repo Squ1zM0/GitSecure returns 100/A with 37 secrets
 //      counted — and the response DOES carry the full detail (file names,
 //      line numbers, redacted fragments) while containing NO full fake
 //      secret anywhere (redaction rule, proved on a repo WITH findings).
@@ -241,26 +241,35 @@ async function main() {
   // actually reads the HEAD files) means their history copies are no
   // longer false dead ends either — they carry test-only references.
   // Score stays 0/F on vulns 206 + posture 84 + unpinned 4 alone.
-  check("scan_repo GitSecure score 0 / grade F (Phase 14: 34 secrets, secrets deduction 0, vulns 206 — see header note)", gsReport?.score === 0 && gsReport?.grade === "F", `got ${gsReport?.score}/${gsReport?.grade}`);
-  check("scan_repo GitSecure counts 34 secrets", gsReport?.counts?.secrets === 34, `got ${gsReport?.counts?.secrets}`);
-  check("scan_repo GitSecure counts 73 vulnerabilities (Phase 13: was 197)", gsReport?.counts?.vulnerabilities === 73, `got ${gsReport?.counts?.vulnerabilities}`);
-  // Phase 14 dogfood: all 34 known-fake fixture secrets triage
+  // Phase 14, post-push (measured live 2026-11-26, remote head
+  // b156ece6): the fixture migration + SECURITY.md + Dependabot
+  // cleared the rest for real — 0 vulnerabilities, 0 posture issues,
+  // 0 unpinned deps, so the live self-scan is 100/A with
+  // scoreDetail {secrets 0, vulns 0, posture 0, unpinned 0,
+  // excluded 37, wouldBeScore 0}. Secrets are 37, not 34: history
+  // grew to 31 commits (the Phase 14 push itself + the new Phase 14
+  // test lines, found at HEAD and in their introducing commits — the
+  // same pattern as every earlier +N). All 37 triage likely-test-key.
+  check("scan_repo GitSecure score 100 / grade A (Phase 14 post-push: 37 secrets, all test keys, 0 vulns, 0 posture — see header note)", gsReport?.score === 100 && gsReport?.grade === "A", `got ${gsReport?.score}/${gsReport?.grade}`);
+  check("scan_repo GitSecure counts 37 secrets", gsReport?.counts?.secrets === 37, `got ${gsReport?.counts?.secrets}`);
+  check("scan_repo GitSecure counts 0 vulnerabilities (Phase 14: was 73)", gsReport?.counts?.vulnerabilities === 0, `got ${gsReport?.counts?.vulnerabilities}`);
+  // Phase 14 dogfood: all 37 known-fake fixture secrets triage
   // likely-test-key; the 2 formerly uncertain `api_key` fixtures
   // (test-scanner.ts:104, test-usage-phase11.ts:333) are test keys
   // now that docs/prose mentions no longer count as usage — and the
   // honest split must say so.
-  const gsFull = gsReport as { secrets?: { triage?: { verdict?: string }; usage?: { deadEnd?: boolean } }[]; scoreDetail?: { secretsDeduction?: number; wouldBeScore?: number; secretsExcluded?: number; secretsHalfWeight?: number } } | null;
+  const gsFull = gsReport as { secrets?: { triage?: { verdict?: string }; usage?: { deadEnd?: boolean } }[]; scoreDetail?: { secretsDeduction?: number; wouldBeScore?: number; secretsExcluded?: number; secretsHalfWeight?: number; vulnDeduction?: number; postureDeduction?: number; unpinnedDeduction?: number } } | null;
   const gsTestKeys = gsFull?.secrets?.filter((s) => s.triage?.verdict === "likely-test-key").length ?? -1;
   const gsUncertain = gsFull?.secrets?.filter((s) => s.triage?.verdict === "uncertain").length ?? -1;
-  check("scan_repo GitSecure: all 34 secrets triage likely-test-key, 0 uncertain (Phase 14)", gsFull?.secrets?.length === 34 && gsTestKeys === 34 && gsUncertain === 0, `test keys ${gsTestKeys}, uncertain ${gsUncertain} of ${gsFull?.secrets?.length ?? "?"}`);
-  check("scan_repo GitSecure: counts.testKeySecrets is 34", gsReport?.counts?.testKeySecrets === 34, `got ${gsReport?.counts?.testKeySecrets}`);
-  check("scan_repo GitSecure: scoreDetail carries the Phase 12 breakdown (secrets 0, wouldBe 0, excluded 34, half 0) and Phase 13 vulns (206)", gsFull?.scoreDetail?.secretsDeduction === 0 && gsFull?.scoreDetail?.wouldBeScore === 0 && gsFull?.scoreDetail?.secretsExcluded === 34 && gsFull?.scoreDetail?.secretsHalfWeight === 0 && gsFull?.scoreDetail?.vulnDeduction === 206, JSON.stringify(gsFull?.scoreDetail));
+  check("scan_repo GitSecure: all 37 secrets triage likely-test-key, 0 uncertain (Phase 14)", gsFull?.secrets?.length === 37 && gsTestKeys === 37 && gsUncertain === 0, `test keys ${gsTestKeys}, uncertain ${gsUncertain} of ${gsFull?.secrets?.length ?? "?"}`);
+  check("scan_repo GitSecure: counts.testKeySecrets is 37", gsReport?.counts?.testKeySecrets === 37, `got ${gsReport?.counts?.testKeySecrets}`);
+  check("scan_repo GitSecure: scoreDetail carries the Phase 14 breakdown (secrets 0, vulns 0, posture 0, unpinned 0, wouldBe 0, excluded 37, half 0)", gsFull?.scoreDetail?.secretsDeduction === 0 && gsFull?.scoreDetail?.wouldBeScore === 0 && gsFull?.scoreDetail?.secretsExcluded === 37 && gsFull?.scoreDetail?.secretsHalfWeight === 0 && gsFull?.scoreDetail?.vulnDeduction === 0 && gsFull?.scoreDetail?.postureDeduction === 0 && gsFull?.scoreDetail?.unpinnedDeduction === 0, JSON.stringify(gsFull?.scoreDetail));
   // Phase 11 dogfood: every secret finding in the MCP response
   // carries usage alongside triage (HEAD findings from scanHead,
   // history findings from the git-path HEAD corpus).
   check(
     "scan_repo GitSecure: every secret carries a usage annotation",
-    (gsFull?.secrets?.length ?? 0) === 34 && (gsFull?.secrets ?? []).every((s) => s.usage !== undefined && typeof s.usage.deadEnd === "boolean"),
+    (gsFull?.secrets?.length ?? 0) === 37 && (gsFull?.secrets ?? []).every((s) => s.usage !== undefined && typeof s.usage.deadEnd === "boolean"),
     `usage on ${(gsFull?.secrets ?? []).filter((s) => s.usage !== undefined).length} of ${gsFull?.secrets?.length ?? "?"} secrets`,
   );
   check("scan_repo GitSecure kind is full", gsReport?.kind === "full");

@@ -1620,10 +1620,19 @@ honestly, not by gaming the score.
   scanning the live remote), techdirect 83/B. `test:mcp` dogfood
   assertions describe the pre-Phase-14 remote and are updated in the
   docs follow-up push with the measured live numbers.
-- **Live verification (2026-11-26, after the push).** [To be filled
-  by the coordinator after the push: home 200, live self-scan score
-  / grade / scoreDetail, secret count and verdicts, files, history
-  commits, TechDirect 83/B, MCP 62/62.]
+- **Live verification (2026-11-26, after the push).** Home 200;
+  live GitSecure self-scan **100/A**: 37 secrets, all
+  likely-test-key (0 uncertain, 0 genuine), **0 vulnerabilities, 0
+  posture issues**, scoreDetail `{secretsDeduction 0, vulnDeduction
+  0, postureDeduction 0, unpinnedDeduction 0, secretsExcluded 37,
+  wouldBeScore 0}`, files 86, history 31 commits — the projected
+  100/A, exactly. Secrets are 37, not 34: history grew to 31 commits
+  (the Phase 14 push itself plus the new Phase 14 test lines, found
+  at HEAD and in their introducing commits). Live TechDirect still
+  83/B, 2,802 files, 62/62 history. MCP 62/62 against the local
+  production server, scanning the live remote (dogfood assertions
+  updated to the measured post-push numbers in the docs follow-up
+  push).
 
 ## Phase 2 status — built and pushed 2026-11-25, commit 870f889f, live at https://gitsecure.vercel.app/ (verified serving: home 200, live TechDirect scan 200, 83/B)
 - Next.js 16 / React 19 / TypeScript + Auth.js (NextAuth 5.0.0-beta.32,
