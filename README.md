@@ -574,7 +574,10 @@ changed is how the report looks and reads.
   dark and at 360px, plus the GitSecure dogfood report (0/F) with the
   secrets list and spider map — click a map node filters the list live
   (2 of 8 secrets, 1 file). Screenshots in
-  `test-results/phase7/`. Three defects found by looking and fixed the
+  `test-results/phase7/`. Pushed as 146ffb85 (81 files, remote head +
+  tree verified by read-back); live: home 200, TechDirect report 200
+  83/B with the new UI, DefinitelyTyped report 200 0/F with 403 of 403
+  secrets listed. Three defects found by looking and fixed the
   same run: the mobile scan input was 220px tall (column flex-basis),
   inline code broke mid-word, and the dark-mode button was white text
   on light green.

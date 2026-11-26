@@ -672,6 +672,20 @@ helpers added: `gradeBand`, `gradeWord`, `biggestProblem` in
   files, 13 history commits — the file count moved 68 → 62 because
   the Phase 6 push changed the repo's contents; the 8 secret findings
   are the same known-fake fixtures.
+- **Code pushed 2026-11-25, commit 146ffb855cba973d8bffcefaa39c42dde5dc78db**
+  (81 files, remote head + remote tree verified by read-back: exact
+  match with local). This spec/README live-verification note followed
+  as a docs-only commit.
+- **Live verification (2026-11-25, after 146ffb85):** home 200 with
+  the new hero + "What it checks" cards, no "Honest limits" / sign-in
+  copy; live TechDirect report 200, 83/B, new dial + stat grid +
+  verdict in served HTML, filesScanned 2,802, history 56 commits via
+  the API path (the known unauthenticated-quota limit — Freddy's
+  ruling stands, no GITHUB_TOKEN); live DefinitelyTyped report 200,
+  0/F, "Showing 403 of 403 secrets", 61,814 files, dial aria-label
+  "Security score 0 out of 100, grade F, needs urgent attention".
+  Deployment state checked by live serving (Vercel MCP still 403 on
+  the team scope, so the dashboard could not be checked).
 
 ## Phase 2 status — built and pushed 2026-11-25, commit 870f889f, live at https://gitsecure.vercel.app/ (verified serving: home 200, live TechDirect scan 200, 83/B)
 - Next.js 16 / React 19 / TypeScript + Auth.js (NextAuth 5.0.0-beta.32,
