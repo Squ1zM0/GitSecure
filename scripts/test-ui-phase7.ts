@@ -16,6 +16,12 @@
 //      sign-in copy.
 //   5. No literal secret-pattern values in the UI files.
 //
+//   6. (Phase 12) The triage-weighted score explanation renders with
+//      the three counts and both scores; an all-test-key report never
+//      presents secrets as the biggest problem; the explanation falls
+//      back gracefully (renders nothing, old wording kept) when the
+//      report carries no scoreDetail; MCP prose states the new rule.
+//
 // Fragments below are redacted placeholders ("abcd…yz"), never a
 // real secret value or a real provider prefix.
 
@@ -23,10 +29,11 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { renderToString } from "react-dom/server";
 import React from "react";
-import ScoreDial from "../src/components/ScoreDial";
+import ScoreDial, { adjustedExplainScore, adjustedVerdict, ScoreExplanation, type ScoreDetail } from "../src/components/ScoreDial";
+import ReportView from "../src/components/ReportView";
 import { FileMap, SecretsList } from "../src/components/ReportLists";
 import { biggestProblem, gradeBand } from "../src/lib/score";
-import type { SecretFinding } from "../src/lib/types";
+import type { FullReport, SecretFinding } from "../src/lib/types";
 
 let failures = 0;
 function check(name: string, ok: boolean, extra = "") {
@@ -184,7 +191,7 @@ check("home error is styled and role=alert", home.includes('className="form-erro
 check("home scanning state is role=status with a spinner", home.includes('role="status"') && home.includes("spinner"));
 check("report page renders the score dial", reportView.includes("ScoreDial"));
 check("report page renders the stat grid", reportView.includes("stat-grid"));
-check("report page renders the verdict", reportView.includes("biggestProblem"));
+check("report page renders the verdict", reportView.includes("adjustedVerdict"));
 check("report view labels a provisional score as provisional", reportView.includes("Provisional score"));
 
 // --- 2c. Phase 11: verdict sections + usage map --------------------
@@ -329,7 +336,88 @@ const noUsageMap = renderToString(
 check("phase11 map: degrades gracefully with no usage data (file-count spider)", noUsageMap.includes("Map of files holding secrets") && !noUsageMap.includes("map-edge"));
 check("phase11 CSS: verdict sections, dead-end pill, map edges and track detail styled", css.includes(".verdict-test") && css.includes(".pill.dead-end") && css.includes(".map-edge-test") && css.includes(".map-edge-own") && css.includes(".map-finding-deadend") && css.includes(".map-track-detail"));
 
-// --- 5. No literal secret-pattern values in the UI files ------------
+// --- 5. Phase 12: triage-weighted score explanation ----------------
+// Self-scan detail, measured (test-results/phase12-score-breakdown.md):
+// 34 secrets (32 test keys excluded, 2 uncertain at half weight, 0
+// genuine), secrets deduction 384 -> 8, vulns 547, posture 84,
+// unpinned 6 — score still 0/F, would-be score also 0/F.
+const selfScanDetail: ScoreDetail = {
+  score: 0, grade: "F", secretsDeduction: 8, secretsFullWeight: 0,
+  secretsHalfWeight: 2, secretsExcluded: 32, wouldBeScore: 0,
+  vulnDeduction: 547, postureDeduction: 84, unpinnedDeduction: 6,
+};
+const selfScanCounts = { secrets: 34, vulnerabilities: 197, postureIssues: 15 };
+// A case where the adjustment changes the score: 4 test keys, no
+// genuine secrets, vulns 10 + posture 7 -> 83/B; at full weight the 4
+// critical test keys (4 x 25) would floor it to 0.
+const adjustedDetail: ScoreDetail = {
+  score: 83, grade: "B", secretsDeduction: 0, secretsFullWeight: 0,
+  secretsHalfWeight: 0, secretsExcluded: 4, wouldBeScore: 0,
+  vulnDeduction: 10, postureDeduction: 7, unpinnedDeduction: 0,
+};
+const adjustedCounts = { secrets: 4, vulnerabilities: 1, postureIssues: 1 };
+// A genuine-leak case: secrets are still the driver.
+const genuineDetail: ScoreDetail = {
+  score: 40, grade: "D", secretsDeduction: 50, secretsFullWeight: 2,
+  secretsHalfWeight: 0, secretsExcluded: 1, wouldBeScore: 15,
+  vulnDeduction: 10, postureDeduction: 0, unpinnedDeduction: 0,
+};
+const genuineCounts = { secrets: 3, vulnerabilities: 1, postureIssues: 0 };
+
+const stripTags = (html: string) => html.replace(/<[^>]+>/g, "").replace(/&amp;/g, "&").replace(/<!-- -->/g, "");
+
+const selfExplain = stripTags(renderToString(React.createElement(ScoreExplanation, { detail: selfScanDetail })));
+check("phase12: explanation names the excluded test keys", selfExplain.includes("32 look like test keys and are excluded"));
+check("phase12: explanation names the half-weight count", selfExplain.includes("2 are uncertain and count at half weight"));
+check("phase12: explanation names the full-weight count", selfExplain.includes("0 count at full weight"));
+check("phase12: explanation shows both scores (self-scan: would-be equals score)", selfExplain.includes("the score would still be 0"));
+const adjExplain = stripTags(renderToString(React.createElement(ScoreExplanation, { detail: adjustedDetail })));
+check("phase12: explanation shows the would-be score when it differs", adjExplain.includes("the score would be 0 instead of 83"));
+check("phase12: explanation states the rule in plain English", adjExplain.includes("does not count toward the score at all") && adjExplain.includes("counts at half weight") && adjExplain.includes("counts in full"));
+check("phase12: explanation renders nothing with no scoreDetail", renderToString(React.createElement(ScoreExplanation, { detail: undefined })) === "");
+const zeroDetail: ScoreDetail = { ...adjustedDetail, secretsExcluded: 0, wouldBeScore: 83 };
+const zeroExplain = stripTags(renderToString(React.createElement(ScoreExplanation, { detail: zeroDetail })));
+check("phase12: explanation handles zero secrets", zeroExplain.includes("No secrets were found") && zeroExplain.includes("no test-key adjustment"));
+
+const selfVerdict = adjustedVerdict(selfScanDetail, selfScanCounts);
+check("phase12: all-test-key verdict does not present secrets as the biggest problem", !selfVerdict.includes("possible leaked secrets — rotate") && !selfVerdict.startsWith("Biggest problem: 34"));
+check("phase12: all-test-key verdict names the real driver (vulnerabilities)", selfVerdict.includes("Biggest problem: 197 known flaws in dependencies"));
+check("phase12: all-test-key verdict says the test keys are excluded", selfVerdict.includes("The 32 look like test keys and do not count toward the score; the 2 uncertain ones count at half weight"));
+check("phase12: all-excluded verdict (no uncertain) says all are excluded", adjustedVerdict(adjustedDetail, adjustedCounts).includes("The 4 possible leaked secrets all look like test keys, so they do not count toward the score"));
+check("phase12: verdict falls back to the old wording with no scoreDetail", adjustedVerdict(undefined, { secrets: 2, vulnerabilities: 4, postureIssues: 1 }) === biggestProblem({ secrets: 2, vulnerabilities: 4, postureIssues: 1 }));
+const genuineVerdict = adjustedVerdict(genuineDetail, genuineCounts);
+check("phase12: genuine-leak verdict still names the secrets", genuineVerdict.includes("Biggest problem: 2 genuine leaked secrets"));
+
+const selfExplainScore = adjustedExplainScore(0, "F", selfScanDetail, selfScanCounts);
+check("phase12: explainScore names the real driver, not the test keys", selfExplainScore.includes("197 known flaws") && !selfExplainScore.includes("possible leaked secrets — rotating"));
+check("phase12: explainScore says the test keys are excluded", selfExplainScore.includes("do not count toward the score"));
+check("phase12: genuine-leak explainScore still names the secrets", adjustedExplainScore(40, "D", genuineDetail, genuineCounts).includes("2 genuine leaked secrets"));
+check("phase12: explainScore falls back with no scoreDetail", adjustedExplainScore(83, "B", undefined, { secrets: 2, vulnerabilities: 4, postureIssues: 1 }).includes("2 possible leaked secrets"));
+
+// Report hero wiring: the explanation renders in the real ReportView,
+// and an older report without scoreDetail renders the old wording.
+const fakeReport = (detail: ScoreDetail | undefined): FullReport =>
+  ({
+    kind: "full", repo: "TechDirect", owner: "Squ1zM0", branch: "main", commit: "abc1234",
+    score: detail ? detail.score : 83, grade: detail ? detail.grade : "B",
+    ...(detail ? { scoreDetail: detail } : {}),
+    counts: { secrets: 4, testKeySecrets: 4, vulnerabilities: 1, frameworks: 2, dependencies: 5, postureIssues: 1, filesScanned: 10, historyCommitsScanned: 3 },
+    summary: "Scan complete. 4 possible leaked secrets found — rotate and remove these first; 1 known vulnerability in dependencies; 1 security hygiene issue to fix; 2 frameworks fingerprinted. The full detail is in this report — no sign-in needed.",
+    scannedAt: "2026-11-26T00:00:00.000Z", historyDepth: "Full history, newest first.",
+    limits: ["Scanned all 10 files in the tree."], secrets: [], frameworks: [], dependencies: [], vulnerabilities: [], posture: [],
+  }) as unknown as FullReport;
+const reportWithDetail = stripTags(renderToString(React.createElement(ReportView, { report: fakeReport(adjustedDetail) })));
+check("phase12: report hero renders the explanation with both scores", reportWithDetail.includes("the score would be 0 instead of 83"));
+check("phase12: report hero verdict names the real driver, not test keys", reportWithDetail.includes("Biggest problem: 1 known flaw in dependencies") && !reportWithDetail.includes("Biggest problem: 4 possible leaked secrets"));
+const reportNoDetail = stripTags(renderToString(React.createElement(ReportView, { report: fakeReport(undefined) })));
+check("phase12: report hero falls back gracefully with no scoreDetail", reportNoDetail.includes("Biggest problem: 4 possible leaked secrets") && !reportNoDetail.includes("How this score works"));
+check("phase12: report view wires the explanation to scoreDetail", reportView.includes("ScoreExplanation") && reportView.includes("scoreDetail") && reportView.includes("adjustedVerdict") && reportView.includes("adjustedExplainScore"));
+
+// MCP prose states the new rule.
+const mcp = src("src/lib/mcp.ts");
+check("phase12: MCP prose states the new weights, not the old rule", mcp.includes("deducts nothing") && mcp.includes("half weight") && mcp.includes("full weight") && !/never changes the score/.test(mcp));
+
+// --- 6. No literal secret-pattern values in the UI files ------------
 const uiFiles = [
   "src/app/globals.css", "src/app/page.tsx", "src/app/layout.tsx",
   "src/app/[owner]/[repo]/page.tsx", "src/app/[owner]/[repo]/loading.tsx",

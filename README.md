@@ -19,9 +19,12 @@ github.com/Squ1zM0/GitSecure  →  git-secure.com/Squ1zM0/GitSecure
   `uncertain`, from three layers — the file's path and contents, the key
   itself (type, size, fingerprint against published test keys, whether its
   public half is committed in the same repo), and the detector's own result.
-  A likely-test finding is still listed and still counted, with a test-key
-  fix instead of "rotate it" — and it still deducts its detector severity
-  from the score, so relabelling one can never inflate the score.
+  A likely-test finding is still listed and still counted in the secrets
+  total, with a test-key fix instead of "rotate it" — but it deducts
+  nothing from the score (Phase 12): test keys ×0, uncertain ×0.5,
+  genuine leaks ×1. The report shows the breakdown and what the score
+  would be if every secret counted in full, so the adjustment is always
+  checkable.
 - **Frameworks (Tiers 1–2)** — JS/TS (Next.js, React, Vue, Angular, Svelte, Vite,
   Express, Nest, Nuxt, Astro), Python (Django, Flask, FastAPI), Rust (Cargo /
   RustSec via OSV), Go (Gin, Echo, Fiber), Ruby (Rails, Sinatra), PHP (Laravel,
@@ -1032,18 +1035,24 @@ production filename −2, production usage −2, production-grade key
 signals at all → `likely-genuine-leak`; anything else → `uncertain`
 (keeps detector severity, says a human should check).
 
-**Never deletion, never score inflation.** A likely-test finding is NOT
+**Never deletion, never score inflation (Phase 10 rule — changed in
+Phase 12, see below).** A likely-test finding is NOT
 removed from the report and NOT removed from the counts — it is shown
 with its triage label, a plain-English explanation naming the signals
 ("This looks like an intentional test key: it lives in
 tools/testing/selftests/, its fingerprint matches a published test
 key…"), and a different Fix ("Confirm this key is only used by tests
 and never signs real artifacts; if it does, rotate it"). A genuine
-leak keeps CRITICAL and its existing Fix. **Scoring rule: triage never
-changes the score.** A likely-test finding still deducts its detector
-severity, because a test key that turns out to be a real key is still
-a leak, and the score must not reward relabelling. The honest split is
-shown separately: `counts.testKeySecrets` — "of which N look like test
+leak keeps CRITICAL and its existing Fix. **Scoring rule as built in
+Phase 10: triage never changes the score.** A likely-test finding still
+deducted its detector severity, because a test key that turns out to be
+a real key is still a leak, and the score must not reward relabelling.
+**That rule was overturned in Phase 12** (Freddy, 2026-11-26: an F for
+34 test fixtures is a false alarm, and false alarms train people to
+ignore real ones): a likely-test-key now deducts nothing, an uncertain
+finding deducts at half weight, and a genuine leak (or an untriaged
+finding) deducts in full. The honest split is still shown separately:
+`counts.testKeySecrets` — "of which N look like test
 keys" — in the stat grid and the secrets list. The report page filters
 by triage verdict (a "Likely test keys" filter); MCP carries the same
 annotation in every secret finding.
@@ -1146,7 +1155,9 @@ explanation says plainly "Nothing in this repo references this key —
 a true dead end." A decisive fingerprint match is NOT overridden by a
 docs/examples-only reference (stays likely-test-key, reference
 recorded); production-path usage still upgrades it. Usage never
-changes the score — triage never changes the score.
+changes the score on its own — it feeds the triage verdict, and Phase
+12 weights the score by that verdict (test keys ×0, uncertain ×0.5,
+genuine ×1).
 
 **Separated likely-test section.** The report page now partitions the
 secrets list into three verdict sections, in order: **Likely genuine
@@ -1211,6 +1222,73 @@ or a regex literal full of quotes traps it across lines and the next
 block comment never opens — found by testing against the real file.
 MCP dogfood counts updated 22 → 32 (history grew to 25 commits;
 Phase 11 added fixtures — same pattern as Phases 5/10).
+
+## Phase 12 — triage-weighted scoring: the score must reflect real risk (built 2026-11-26)
+
+Trigger: Freddy — "But that live proof with an F scored inaccurate
+because every single one is a test, so we need to make sure that the
+scoring system is accurate if finding tests." The live GitSecure
+self-scan scored 0/F, but all 34 of its secrets were likely-test-keys
+(32 likely-test-key, 2 uncertain, 0 genuine). Phase 10's rule
+("triage never changes the score") is **overturned** by this phase:
+a score that calls 34 test fixtures an F is a false alarm, and false
+alarms train people to ignore real ones.
+
+**The new rule (scoring core, Worker A).** `computeScore` returns a
+`ScoreDetail` — score, grade, per-component deductions, per-verdict
+finding counts, and the would-be score — carried on the report as
+`scoreDetail`, so the API, report page, and MCP can never show a
+score that disagrees with the sections. Weights: likely-test-key ×0,
+uncertain ×0.5 (per-finding deduction rounded at the total), genuine
+leak ×1, no triage annotation ×1 (a test key is never assumed without
+evidence). `wouldBeScore` is the score the old full-weight rule would
+have given the same input. Findings are still never removed and still
+counted in the secrets total — only their weight changes.
+
+**The explanation in the UI (Worker B).** Next to the dial, the report
+hero states the rule in plain English with the actual numbers from
+`scoreDetail`: how many secrets were excluded as test keys, how many
+counted at half weight, how many at full weight — and BOTH scores, the
+adjusted score and the would-be score, so the reader can see the
+test-key adjustment and verify it. The verdict and the one-line
+explanation pick the real driver by deduction size: a repo with zero
+genuine secrets is never told its biggest problem is "N leaked
+secrets — rotate and remove these first"; it is told the test keys
+are excluded and named the real driver instead (vulnerabilities,
+posture, or genuine secrets, whichever deducts most). An older cached
+report without `scoreDetail` renders the Phase 7 wording unchanged —
+the explanation renders nothing and the verdict falls back, never
+crashing.
+
+**MCP prose.** `list_checks` in `src/lib/mcp.ts` states the new rule
+with the weights instead of the old "never changes the score" line.
+No MCP tool behaviour changed — prose only.
+
+**Measured self-scan breakdown (Worker A,
+`test-results/phase12-score-breakdown.md`, real local scan of
+Squ1zM0/GitSecure, 2026-11-26).** 34 secrets, 197 vulnerabilities,
+15 posture issues, 3 unpinned frameworks, 79 files, 27 history
+commits. Secrets deduction falls 384 → 8 (32 test keys at ×0, 2
+uncertain at half weight: 2 × 8 × 0.5 = 8); vulnerabilities 547,
+posture 84, unpinned 6; total 645, so the new self-scan score is
+still **0/F** — and the would-be score is 0/F too. Phase 12 fixes
+the false-alarm secrets component; it does not and cannot lift the
+self-scan grade while the other components stand. The 197
+vulnerabilities are real OSV advisories on deliberately old
+dependency versions in the Tier 2 test fixtures, and the posture
+items are fixture-driven configs — both are scored as real, unchanged
+by Phase 12; any future change to how fixture-driven vulns/posture
+score is a separate decision.
+
+**Verification (2026-11-26, local):** `npm run build` exit 0;
+`test:ui-phase7` 110/110 (was 87 — 23 new Phase 12 checks:
+explanation with the three counts and both scores, all-test-key
+verdict naming the real driver, would-be score shown, graceful
+fallback with no `scoreDetail`, full `ReportView` render with and
+without the detail, MCP prose). No literal secret-pattern values
+committed (grep-verified; fixtures still use `__SECRET_n__`
+placeholders, test-assembled fakes only). NOT pushed — the
+coordinator integrates and pushes.
 
 ## Project notes
 

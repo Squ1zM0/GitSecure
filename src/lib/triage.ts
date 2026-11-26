@@ -11,9 +11,12 @@
 // the signals that produced it, and an adjusted severity/confidence,
 // and the report shows the triage label, a plain-English explanation,
 // and a different Fix for likely-test findings. A likely-test finding
-// still counts in counts.secrets and still deducts its detector
-// severity from the score (see the scoring rule in GITSECURE.md) —
-// relabelling a finding must never inflate the score.
+// still counts in counts.secrets; Phase 12: it deducts nothing from
+// the score (uncertain deducts half, genuine / untriaged deduct full)
+// — the Phase 10 rule that triage never changes the score was
+// overturned by Freddy, 2026-11-26, because an F for 34 test fixtures
+// is a false alarm. Nothing is ever removed, so relabelling a finding
+// cannot hide it — only the weight changes.
 //
 // The three layers (Freddy's direction, 2026-11-25):
 //   1. Static context — path, filename, and content signals.
@@ -48,7 +51,8 @@
 // path and the detector is a credential type); a decisive
 // fingerprint match is NOT overridden by a docs/examples reference.
 // A finding nothing references gets the `usage-dead-end` signal
-// (+2 points toward likely-test-key). Usage never changes the score.
+// (+2 points toward likely-test-key). Usage feeds the verdict (Phase 11);
+// the verdict feeds the score (Phase 12).
 
 import { createHash } from "node:crypto";
 import { DETECTORS } from "./secrets";
@@ -704,8 +708,8 @@ export function triageFinding(finding: SecretFinding, ctx: TriageContext = {}): 
   // A decisive fingerprint / example-value match is NOT overridden
   // by a single non-test reference in docs/examples — only
   // production-path usage upgrades it; a docs reference leaves it
-  // likely-test-key but records the reference. Usage never changes
-  // the score — triage never changes the score, usage included.
+  // likely-test-key but records the reference. Usage feeds the verdict,
+  // and the verdict feeds the score (Phase 12).
   const usageNotes: string[] = [];
   if (ctx.usage?.deadEnd) {
     usageNotes.push("Nothing in this repo references this key — a true dead end.");

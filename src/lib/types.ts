@@ -18,9 +18,11 @@ export interface SecretTriage {
   /** Plain-English explanation of the verdict, naming the signals. */
   explanation: string;
   /** The severity/confidence the triage assesses — the finding's own
-   *  `severity`/`confidence` (the detector's) never change, and the
-   *  score is always computed from the detector severity (see
-   *  GITSECURE.md: triage must never inflate the score). */
+   *  `severity`/`confidence` (the detector's) never change. Phase 12:
+   *  the score IS computed from the triage verdict (test keys deduct
+   *  nothing, uncertain deduct half, genuine / untriaged deduct full)
+   *  — the Phase 10 rule that triage never changes the score was
+   *  overturned by Freddy, 2026-11-26. */
   adjustedSeverity: Severity;
   adjustedConfidence: "high" | "medium" | "low";
   /** The Fix to show for this finding: the test-key Fix for a
@@ -113,9 +115,10 @@ export interface PostureIssue {
 export interface ReportCounts {
   secrets: number;
   /** Phase 10: of counts.secrets, how many triaged as likely-test-key.
-   *  They are still counted in `secrets` and still deduct their
-   *  detector severity from the score — this is the honest split, not
-   *  a discount. */
+   *  They are still counted in `secrets`; Phase 12: they deduct
+   *  nothing from the score (see ScoreDetail), uncertain findings
+   *  deduct at half weight, genuine / untriaged findings at full
+   *  weight. This number is the honest split, not a discount. */
   testKeySecrets: number;
   vulnerabilities: number;
   frameworks: number;
@@ -164,6 +167,12 @@ export interface FullReport {
   commit: string;
   score: number;
   grade: string;
+  /** Phase 12: the full scoring breakdown — per-component deductions,
+   *  per-verdict finding counts, and the would-be score under the old
+   *  full-weight rule. Carried on every report (finished and
+   *  provisional) so the API, report page, and MCP can never show a
+   *  score that disagrees with the sections. */
+  scoreDetail: import("./score").ScoreDetail;
   counts: ReportCounts;
   summary: string;
   scannedAt: string;

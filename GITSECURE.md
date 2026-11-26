@@ -79,6 +79,15 @@ No install, no config — swap the URL, get a security report.
   inspection, and automated secret-scanning." Trigger: his screenshot
   of the live torvalds/linux report flagging the Linux SGX self-test
   signing key as CRITICAL. See "Phase 10 status" below.
+- PHASE 12 (built 2026-11-26, two workers: scoring core + score
+  explanation UI/docs): triage-weighted scoring — Freddy's direction:
+  "But that live proof with an F scored inaccurate because every
+  single one is a test, so we need to make sure that the scoring
+  system is accurate if finding tests." Phase 10's rule "triage never
+  changes the score" is OVERTURNED: likely-test-key ×0, uncertain
+  ×0.5, genuine leak ×1, and the report hero explains the adjustment
+  with the actual numbers and both scores. See "Phase 12 status"
+  below. NOT pushed — the coordinator integrates and pushes.
 - DEPLOYED 2026-11-25 by Freddy: live at https://gitsecure.vercel.app/,
   verified live by Cobalt (home page + live TechDirect scan 83/B, matching
   the local test). Vercel MCP still returns 403 on team scope
@@ -1074,7 +1083,8 @@ finding above it (`drivers/of/unittest-data/tests-phandle.dtsi`, line
   `likely-genuine-leak`; a high-confidence detector match with no test
   signals at all → `likely-genuine-leak`; anything else → `uncertain`
   (keeps detector severity, says a human should check).
-- **Never deletion, never score inflation (the scoring rule).** A
+- **Never deletion, never score inflation (the scoring rule — as
+  built in Phase 10, CHANGED in Phase 12, see "Phase 12 status").** A
   likely-test finding is NOT removed from the report and NOT removed
   from the counts — it is shown with its triage label, a plain-English
   explanation naming the signals ("This looks like an intentional test
@@ -1082,9 +1092,13 @@ finding above it (`drivers/of/unittest-data/tests-phandle.dtsi`, line
   published test key…"), and a different Fix ("Confirm this key is only
   used by tests and never signs real artifacts; if it does, rotate
   it"). A genuine leak keeps CRITICAL and its existing Fix. **Triage
-  never changes the score**: a likely-test finding still deducts its
-  detector severity, because a test key that turns out to be a real key
-  is still a leak, and the score must not reward relabelling. The
+  never changes the score (Phase 10 rule, overturned in Phase 12)**:
+  a likely-test finding still deducts its detector severity, because a
+  test key that turns out to be a real key is still a leak, and the
+  score must not reward relabelling. Phase 12 overturned this
+  (Freddy, 2026-11-26: an F for 34 test fixtures is a false alarm):
+  test keys now deduct nothing, uncertain findings half, genuine leaks
+  in full. The
   honest split is shown separately: `counts.testKeySecrets` — "of which
   N look like test keys" — in the stat grid (`ReportView.tsx`) and the
   secrets list (`ReportLists.tsx`), which also gains a triage-verdict
@@ -1163,6 +1177,9 @@ finding above it (`drivers/of/unittest-data/tests-phandle.dtsi`, line
   case is the GitSecure self-scan itself: the score stays 0/F because
   triage never changes the score — the 22 test-key findings still count
   in full, shown separately as "of which 22 look like test keys".
+  (Phase 10 rule; overturned in Phase 12 — under the new rule the test
+  keys deduct nothing, and the self-scan stays 0/F on vulnerabilities
+  alone. See "Phase 12 status".)
 
 ## Phase 11 status — secret usage: in use vs true dead end + the track through the spider web (built 2026-11-26, solo)
 
@@ -1215,7 +1232,9 @@ spider web.
   decisive fingerprint match is not overridden by a docs/examples-only
   reference (stays `likely-test-key`, reference recorded);
   production-path usage still upgrades it. Usage never changes the
-  score.
+  score on its own — it feeds the triage verdict, and Phase 12 weights
+  the score by that verdict (test keys ×0, uncertain ×0.5, genuine
+  ×1).
 - **Separated likely-test section (`ReportLists.tsx`).** The secrets
   list partitions into three `<details>` verdict sections, in order:
   Likely genuine leaks (open by default), Uncertain — needs a human
@@ -1302,6 +1321,99 @@ spider web.
   clickable and separate, dead-end findings labelled, in-use findings
   show their track in the map; MCP initialize 200, tools/list shows
   `scan_repo`, `get_report`, `resume_scan`, `list_checks`.
+
+## Phase 12 status — triage-weighted scoring: the score must reflect real risk (built 2026-11-26, two workers)
+
+Trigger: Freddy — "But that live proof with an F scored inaccurate
+because every single one is a test, so we need to make sure that the
+scoring system is accurate if finding tests." The live GitSecure
+self-scan scored 0/F, but all 34 of its secrets were likely-test-keys
+(32 likely-test-key, 2 uncertain, 0 genuine). **Phase 10's rule
+("triage never changes the score") is OVERTURNED by this phase**: a
+score that calls 34 test fixtures an F is a false alarm, and false
+alarms train people to ignore real ones.
+
+- **The new rule (scoring core, Worker A — `src/lib/score.ts`,
+  `src/lib/types.ts`).** `computeScore` returns a `ScoreDetail`:
+  score, grade, per-component deductions (`secretsDeduction`,
+  `vulnDeduction`, `postureDeduction`, `unpinnedDeduction`),
+  per-verdict finding counts (`secretsFullWeight`,
+  `secretsHalfWeight`, `secretsExcluded` — counts of FINDINGS, not
+  points), and `wouldBeScore`. Weights: likely-test-key ×0, uncertain
+  ×0.5 (the per-finding deduction is rounded at the total via
+  `Math.round`), likely-genuine-leak ×1, no triage annotation ×1 (a
+  test key is never assumed without evidence). `wouldBeScore` is the
+  score the old (Phase 10) full-weight rule would have given the same
+  input — every secret at full weight, same other components — clamped
+  0–100. The report carries it as `FullReport.scoreDetail`, on finished
+  AND provisional reports (both `assembleReport` in `src/lib/scan.ts`
+  and `buildProvisionalReport` in `src/lib/provisional.ts` build it
+  from the same `computeScore`), so the API, the report page, and MCP
+  can never show a score that disagrees with the sections. Findings
+  are still never removed and still counted in `counts.secrets` — only
+  their weight changes.
+- **The explanation in the UI (Worker B — `src/components/
+  ScoreDial.tsx`, `src/components/ReportView.tsx`).** Next to the dial,
+  in the report hero, a `ScoreExplanation` paragraph states the rule in
+  plain English with the actual numbers from `scoreDetail`: how many
+  secrets were excluded as test keys, how many counted at half weight,
+  how many at full weight — and BOTH scores, the adjusted score and
+  the would-be score, so the reader can see the test-key adjustment
+  and verify it ("If every secret counted at full weight, the score
+  would be 0 instead of 83." — or "would still be 0" when the
+  adjustment changes nothing; "No secrets were found…" when there are
+  none). The verdict (`adjustedVerdict`) and the one-line explanation
+  (`adjustedExplainScore`, both in `ScoreDial.tsx`) pick the real
+  driver by deduction size — secrets, vulnerabilities, posture,
+  unpinned, ties broken in that order. A repo with zero genuine
+  secrets is never told its biggest problem is "N leaked secrets —
+  rotate and remove these first": it is told the test keys are
+  excluded and named the real driver instead. The Phase 7 helpers
+  (`biggestProblem`, `explainScore` in `src/lib/score.ts`) are
+  untouched — the adjusted helpers fall back to them when the detail
+  is absent, and `ScoreExplanation` renders nothing, so an older
+  cached report without `scoreDetail` renders exactly as before, never
+  crashes. No new stylesheet rules: the explanation reuses the
+  existing `.score-explain` class, so dark mode, 360 px mobile, tap
+  targets ≥44 px, and reduced-motion are unchanged (Phase 7 intact).
+- **MCP prose (Worker B — `src/lib/mcp.ts`, prose only).** The
+  `list_checks` text states the new rule with the weights ("a
+  likely-test-key deducts nothing, an uncertain finding deducts at
+  half weight, and a likely-genuine-leak — or a finding with no triage
+  annotation — deducts at full weight") and notes the report shows the
+  breakdown and the would-be score so the adjustment is always
+  checkable. No MCP tool behaviour or plumbing changed.
+- **Measured self-scan breakdown (Worker A,
+  `test-results/phase12-score-breakdown.md`, real local scan of
+  Squ1zM0/GitSecure, 2026-11-26).** 34 secrets, 197 vulnerabilities,
+  15 posture issues, 3 unpinned frameworks, 79 files, 27 history
+  commits. Old-rule score 0/F. Secrets: 384 points (16 high × 15 =
+  240, 18 medium × 8 = 144) — 32 test keys 368 points, 2 uncertain 16
+  points, 0 genuine. Vulnerabilities: 547 points (51 medium × 5 =
+  255, 146 low × 2 = 292). Posture: 84 points (5 high, 6 medium, 2
+  low, 2 info). Unpinned: 6 points. Under the Phase 12 rule the
+  secrets deduction falls 384 → 8 (2 × 8 × 0.5), but the new total is
+  still 8 + 547 + 84 + 6 = 645, so the new self-scan score is still
+  **0/F** (wouldBeScore 0/F). Phase 12 fixes the false-alarm secrets
+  component; it does not and cannot lift the self-scan grade while the
+  other components stand. The 197 vulnerabilities are real OSV
+  advisories on deliberately old dependency versions in the Tier 2
+  test fixtures (Django 4.2.0, Laravel, Echo, Fiber, …) — the flaws in
+  them are real flaws in real pinned versions, so relabelling them
+  harmless would be wrong; they stay at full weight per the Phase 12
+  scope (secrets only). Same for posture (Tier 3 fixture configs plus
+  the committed `.env` fixture, missing SECURITY.md / Dependabot, Vite
+  dev-server items). Any future change to how fixture-driven
+  vulns/posture score is a separate decision, not part of this phase.
+- **Verification (2026-11-26, local):** `npm run build` exit 0;
+  `test:ui-phase7` 110/110 (was 87 — 23 new Phase 12 checks:
+  explanation with the three counts and both scores, all-test-key
+  verdict naming the real driver, would-be score shown, graceful
+  fallback with no `scoreDetail`, full `ReportView` render with and
+  without the detail, MCP prose). No literal secret-pattern values
+  committed (grep-verified; fixtures still use `__SECRET_n__`
+  placeholders, test-assembled fakes only). NOT pushed — the
+  coordinator integrates and pushes.
 
 ## Phase 2 status — built and pushed 2026-11-25, commit 870f889f, live at https://gitsecure.vercel.app/ (verified serving: home 200, live TechDirect scan 200, 83/B)
 - Next.js 16 / React 19 / TypeScript + Auth.js (NextAuth 5.0.0-beta.32,

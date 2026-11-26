@@ -998,7 +998,8 @@ export async function assembleReport(
     posture.push({ id: "osv-unavailable", title: "Dependency check unavailable", severity: "info", detail: "The public flaw database (OSV.dev) could not be reached, so dependency vulnerabilities could not be checked in this scan.", fix: "Re-run the scan later." });
   }
 
-  const { score, grade } = computeScore({ secrets: dedupedSecrets, vulnerabilities, posture, unpinnedCount: head.unpinnedCount });
+  const scoreDetail = computeScore({ secrets: dedupedSecrets, vulnerabilities, posture, unpinnedCount: head.unpinnedCount });
+  const { score, grade } = scoreDetail;
   const limits = buildLimits({
     filesScanned: head.filesScanned,
     filesTotal: head.filesTotal,
@@ -1038,12 +1039,13 @@ export async function assembleReport(
     commit: head.headSha,
     score,
     grade,
+    scoreDetail,
     counts: {
       secrets: dedupedSecrets.length,
       // Phase 10: the honest split — likely-test findings are still
-      // counted in `secrets` and still deduct their detector severity
-      // from the score; this number only says how many of them look
-      // like test keys.
+      // counted in `secrets`; Phase 12: they deduct nothing from the
+      // score (uncertain deduct half, genuine / untriaged deduct full)
+      // — see scoreDetail for the exact breakdown.
       testKeySecrets: dedupedSecrets.filter((s) => s.triage?.verdict === "likely-test-key").length,
       vulnerabilities: vulnerabilities.length,
       frameworks: head.frameworks.length,
@@ -1052,7 +1054,7 @@ export async function assembleReport(
       filesScanned: head.filesScanned,
       historyCommitsScanned: history.commitsScanned,
     },
-    summary: plainSummary({ secrets: dedupedSecrets.length, vulnerabilities: vulnerabilities.length, postureIssues: posture.length, frameworks: head.frameworks.length }),
+    summary: plainSummary({ secrets: dedupedSecrets.length, vulnerabilities: vulnerabilities.length, postureIssues: posture.length, frameworks: head.frameworks.length, secretsByVerdict: { genuine: dedupedSecrets.filter((s) => s.triage?.verdict === "likely-genuine-leak" || !s.triage).length, uncertain: dedupedSecrets.filter((s) => s.triage?.verdict === "uncertain").length, test: dedupedSecrets.filter((s) => s.triage?.verdict === "likely-test-key").length } }),
     scannedAt: new Date().toISOString(),
     historyDepth: HISTORY_DEPTH,
     limits,

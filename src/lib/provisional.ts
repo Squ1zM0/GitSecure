@@ -35,12 +35,13 @@ export function buildProvisionalReport(
   // triage module here: this file must stay client-safe. The
   // finished report fills in any annotation missing from an older
   // client/cursor in assembleReport.
-  const { score, grade } = computeScore({
+  const scoreDetail = computeScore({
     secrets,
     vulnerabilities: [],
     posture: head.posture,
     unpinnedCount: head.unpinnedCount,
   });
+  const { score, grade } = scoreDetail;
   const limits: string[] = [
     head.filesScanned >= head.filesTotal
       ? `Scanned all ${head.filesTotal} files in the tree (binary, dist, node_modules and .next skipped — generated/vendored paths, not source files).`
@@ -72,6 +73,7 @@ export function buildProvisionalReport(
     commit: head.headSha,
     score,
     grade,
+    scoreDetail,
     counts: {
       secrets: secrets.length,
       testKeySecrets: secrets.filter((s) => s.triage?.verdict === "likely-test-key").length,
@@ -87,6 +89,7 @@ export function buildProvisionalReport(
       vulnerabilities: 0,
       postureIssues: head.posture.length,
       frameworks: head.frameworks.length,
+      secretsByVerdict: { genuine: secrets.filter((s) => s.triage?.verdict === "likely-genuine-leak" || !s.triage).length, uncertain: secrets.filter((s) => s.triage?.verdict === "uncertain").length, test: secrets.filter((s) => s.triage?.verdict === "likely-test-key").length },
     }),
     scannedAt: new Date().toISOString(),
     historyDepth: "Full history, newest first.",

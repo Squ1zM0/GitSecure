@@ -6,6 +6,18 @@
   "commit": "fd35814ad7d9553723bdb21e82b4e714f200e0d5",
   "score": 83,
   "grade": "B",
+  "scoreDetail": {
+    "score": 83,
+    "grade": "B",
+    "secretsDeduction": 0,
+    "secretsFullWeight": 0,
+    "secretsHalfWeight": 0,
+    "secretsExcluded": 0,
+    "wouldBeScore": 83,
+    "vulnDeduction": 8,
+    "postureDeduction": 9,
+    "unpinnedDeduction": 0
+  },
   "counts": {
     "secrets": 0,
     "testKeySecrets": 0,
@@ -17,7 +29,7 @@
     "historyCommitsScanned": 62
   },
   "summary": "Scan complete. no leaked secrets were found in the files scanned; 4 known vulnerabilities in dependencies; 3 security hygiene issues to fix. The full detail is in this report — no sign-in needed.",
-  "scannedAt": "2026-11-26T14:33:43.241Z",
+  "scannedAt": "2026-11-26T15:08:56.049Z",
   "historyDepth": "Full history, newest first.",
   "limits": [
     "Scanned all 2802 files in the tree (binary, dist, node_modules and .next skipped — generated/vendored paths, not source files).",

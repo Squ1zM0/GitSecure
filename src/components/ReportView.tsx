@@ -15,14 +15,23 @@
 // presented as finished.
 "use client";
 
-import { biggestProblem, explainScore, gradeBand, gradeWord } from "@/lib/score";
+import { gradeBand, gradeWord } from "@/lib/score";
+import ScoreDial, { adjustedExplainScore, adjustedVerdict, ScoreExplanation, type ScoreDetail } from "@/components/ScoreDial";
 import McpSection from "@/components/McpSection";
-import ScoreDial from "@/components/ScoreDial";
 import { DependenciesList, FrameworksList, PostureList, SecretsList, VulnerabilitiesList } from "@/components/ReportLists";
 import type { FullReport } from "@/lib/types";
 
 function ScoreCard({ report }: { report: FullReport }) {
   const band = gradeBand(report.grade);
+  // Phase 12: the detail is required on a fresh report, but an older
+  // cached report may not carry it — read it defensively so the hero
+  // falls back to the Phase 7 wording instead of crashing.
+  const detail: ScoreDetail | undefined = (report as { scoreDetail?: ScoreDetail }).scoreDetail;
+  const counts = {
+    secrets: report.counts.secrets,
+    vulnerabilities: report.counts.vulnerabilities,
+    postureIssues: report.counts.postureIssues,
+  };
   return (
     <div className="card">
       <div className="score-hero">
@@ -35,24 +44,15 @@ function ScoreCard({ report }: { report: FullReport }) {
             {report.owner}/{report.repo} · branch {report.branch} · commit <code className="inline">{String(report.commit).slice(0, 7)}</code>
           </p>
           <p className="verdict">
-            {biggestProblem({
-              secrets: report.counts.secrets,
-              vulnerabilities: report.counts.vulnerabilities,
-              postureIssues: report.counts.postureIssues,
-            })}
+            {adjustedVerdict(detail, counts)}
           </p>
           <p className="score-explain">{report.summary}</p>
         </div>
       </div>
       <p className="score-explain">
-        {explainScore({
-          score: report.score,
-          grade: report.grade,
-          secrets: report.counts.secrets,
-          vulnerabilities: report.counts.vulnerabilities,
-          postureIssues: report.counts.postureIssues,
-        })}
+        {adjustedExplainScore(report.score, report.grade, detail, counts)}
       </p>
+      <ScoreExplanation detail={detail} />
       <div className="stat-grid" role="list" aria-label="Scan counts">
         <div className={report.counts.secrets > 0 ? "stat stat-alert" : "stat"} role="listitem"><b>{report.counts.secrets}</b><span>possible leaked secrets{report.counts.testKeySecrets > 0 ? ` — of which ${report.counts.testKeySecrets} look${report.counts.testKeySecrets === 1 ? "s" : ""} like test keys` : ""}</span></div>
         <div className="stat" role="listitem"><b>{report.counts.vulnerabilities}</b><span>dependency vulnerabilities</span></div>

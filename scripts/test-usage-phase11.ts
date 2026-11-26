@@ -399,7 +399,15 @@ check("(generic) generic name: usage present but deadEnd false (undetermined)", 
 const genericTriage = triageFinding(genericFinding, { usage: genericFinding.usage });
 check("(generic) generic name: no usage-dead-end signal without an identifier", !genericTriage.triage.signals.includes("usage-dead-end"), genericTriage.triage.signals.join(","));
 
-// --- Regression: usage never drops a finding; score never changes with usage ---
+// --- Regression: usage never drops a finding; score DOES change with usage (Phase 12) ---
+// Phase 11 said "score never changes with usage" — that was the Phase 10
+// rule, OVERTURNED in Phase 12 (Freddy, 2026-11-26): the score must
+// reflect real risk. Before triage all 5 criticals deduct full (125,
+// 0/F). After usage-aware triage the 3 fixture findings deduct nothing
+// (likely-test-key), the src/ github-token deducts full 25
+// (likely-genuine-leak), and the src/ private-key deducts half 12.5
+// (uncertain) — weighted 38, score 62/C. wouldBeScore stays 0/F.
+// Usage still never drops a finding and never changes detector severity.
 // Fresh findings (the cases above keep their own usage; this section
 // must not recompute it).
 const regFindings: SecretFinding[] = [
@@ -417,7 +425,9 @@ const scoreBefore = computeScore({ secrets: mixed, vulnerabilities: [], posture:
 const triagedMixed = mixed.map((f) => ({ ...f }));
 for (const f of triagedMixed) f.triage = triageFinding(f, { usage: f.usage }).triage;
 const scoreAfter = computeScore({ secrets: triagedMixed, vulnerabilities: [], posture: [], unpinnedCount: 0 });
-check("Scoring rule: score identical before and after usage-aware triage", scoreBefore.score === scoreAfter.score && scoreBefore.grade === scoreAfter.grade, `${scoreBefore.score}/${scoreBefore.grade} vs ${scoreAfter.score}/${scoreAfter.grade}`);
+check("Scoring rule (Phase 12): usage-aware triage changes the score — test keys drop out (62/C, was 0/F untriaged)", scoreAfter.score === 62 && scoreAfter.grade === "C" && scoreBefore.score === 0, `${scoreBefore.score}/${scoreBefore.grade} vs ${scoreAfter.score}/${scoreAfter.grade}`);
+check("Scoring rule (Phase 12): deduction 38 = genuine 25 + uncertain 12.5, 3 test keys at 0", scoreAfter.secretsDeduction === 38 && scoreAfter.secretsFullWeight === 1 && scoreAfter.secretsHalfWeight === 1 && scoreAfter.secretsExcluded === 3, `ded=${scoreAfter.secretsDeduction} full=${scoreAfter.secretsFullWeight} half=${scoreAfter.secretsHalfWeight} excluded=${scoreAfter.secretsExcluded}`);
+check("Scoring rule (Phase 12): wouldBeScore is the old-rule score (0/F)", scoreAfter.wouldBeScore === 0 && scoreAfter.wouldBeScore === scoreBefore.score, `wouldBe=${scoreAfter.wouldBeScore}`);
 check("Scoring rule: detector severity untouched by usage", triagedMixed.every((f, i) => f.severity === mixed[i].severity));
 
 // --- Report plumbing: limits line + provisional carry-through ---

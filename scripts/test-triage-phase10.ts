@@ -280,7 +280,16 @@ check("Regression: ensureTriage fills a missing annotation, keeps an existing on
   return !!bare.triage && kept.triage?.fix === "kept fix";
 })());
 
-// --- Scoring rule: triage never changes the score ---
+// --- Scoring rule (Phase 12): triage DOES change the score ---
+// Phase 10 said "triage never changes the score". That rule is
+// OVERTURNED in Phase 12 (Freddy, 2026-11-26): an F for 34 test
+// fixtures is a false alarm, so the score must reflect real risk.
+// Likely-test-key findings deduct nothing, uncertain deduct half,
+// likely-genuine-leak / untriaged deduct full weight.
+// Here: sgx critical test (25 -> 0) + prod critical genuine (25) +
+// dtsi medium test (8 -> 0). Before triage (no annotations, full
+// weight): 58 deducted, 42/D — and wouldBeScore stays 42 after
+// triage. After triage: 25 deducted, 75/B.
 const before = computeScore({
   secrets: [sgxFinding, prodFinding, dtsiFinding],
   vulnerabilities: [],
@@ -295,7 +304,11 @@ const after = computeScore({
   posture: [],
   unpinnedCount: 0,
 });
-check("Scoring rule: score is identical before and after triage", before.score === after.score && before.grade === after.grade, `${before.score}/${before.grade} vs ${after.score}/${after.grade}`);
+check("Scoring rule (Phase 12): untriaged findings score at full weight (42/D)", before.score === 42 && before.grade === "D", `${before.score}/${before.grade}`);
+check("Scoring rule (Phase 12): after triage the test keys deduct nothing (75/B)", after.score === 75 && after.grade === "B", `${after.score}/${after.grade}`);
+check("Scoring rule (Phase 12): secrets deduction is 25 (only the genuine key)", after.secretsDeduction === 25, `${after.secretsDeduction}`);
+check("Scoring rule (Phase 12): counts are full=1, excluded=2", after.secretsFullWeight === 1 && after.secretsExcluded === 2 && after.secretsHalfWeight === 0, `full=${after.secretsFullWeight} half=${after.secretsHalfWeight} excluded=${after.secretsExcluded}`);
+check("Scoring rule (Phase 12): wouldBeScore is the old-rule score (42)", after.wouldBeScore === 42 && after.wouldBeScore === before.score, `wouldBe=${after.wouldBeScore} before=${before.score}`);
 check("Scoring rule: detector severity untouched by triage", triagedForScore.every((f, i) => f.severity === [sgxFinding, prodFinding, dtsiFinding][i].severity));
 
 // --- Counts plumbing: likely-test findings still counted, shown separately ---
