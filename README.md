@@ -520,7 +520,7 @@ npm run test:mcp         # MCP end-to-end: needs a running production server
                          # (npm run build && npm start) — real SDK-client
                          # handshake, tools/list, live scan_repo calls for
                          # TechDirect (83/B, full detail) and GitSecure
-                         # (0/F, 20 secrets — all 20 triage likely-test-key,
+                         # (0/F, 22 secrets — all 22 triage likely-test-key,
                          # full detail, no full fake secret), error cases,
                          # snippet JSON validity, resume_scan with a bogus
                          # cursor — 58 checks. Set MCP_BASE_URL to test
@@ -1061,8 +1061,19 @@ filesScanned = 2,802 ("Scanned all 2802 files in the tree"), history
 secret-pattern values committed (grep-verified; the AWS example key
 appears only as a SHA-256 hash constant plus a runtime-assembled
 string in the test, as before).
-**Live verification: pending — see the docs-only follow-up after the
-push (the dogfood count moved, see below).**
+**Live verification (2026-11-26, after 9be330d4):** home 200; live
+GitSecure self-scan 0/F, **22 secrets, all 22 likely-test-key**
+(`counts.testKeySecrets` 22, history 22, files 77) — the count moved
+20 → 22 because the Phase 10 commit itself added the triage test
+fixture line, found at HEAD and in its introducing commit, same
+pattern as before; live TechDirect 83/B, 0 secrets, 4 vulns, 2,802
+files, 62/62 history; live torvalds/linux HEAD chunk 96,985/96,985
+files, all 20 HEAD secrets likely-test-key — `sign_key.pem`
+likely-test-key (signals `test-path:testing`, `known-test-key`; test-key
+Fix) and `tests-phandle.dtsi` likely-test-key on its own signals
+(`test-path:unittest-data`, `filename-test:tests`,
+`content-test:testcase`); MCP initialize 200, tools/list shows
+`scan_repo`, `get_report`, `resume_scan`, `list_checks`.
 
 **Dogfood note (Phase 10, measured 2026-11-25):** the MCP dogfood
 scan of Squ1zM0/GitSecure now counts **20 secrets, not 8** — all 20
@@ -1074,7 +1085,10 @@ commits (e.g. the test-scanner.ts fake passwords at HEAD and at
 return the same 20 (see GITSECURE.md) — triage annotates, it never
 adds findings — so the `test:mcp` "counts 8 secrets" assertion was
 updated to 20 with this reason, and a new check asserts all 20 are
-test keys.
+test keys. Live, the count is now **22** (see the live-verification
+note above): the two Phase 10 pushes added the triage test fixture
+line, found at HEAD and in its introducing commit b4ca165 — the
+`test:mcp` assertions now say 22, all 22 test keys.
 
 ## Project notes
 

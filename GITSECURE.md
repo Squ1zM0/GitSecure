@@ -1141,12 +1141,28 @@ finding above it (`drivers/of/unittest-data/tests-phandle.dtsi`, line
   locally) returns the same 20 secrets for the same repo — triage
   annotates, it never adds findings. The `test:mcp` "counts 8 secrets"
   assertion was updated to 20 with this reason, plus a new check that
-  all 20 are test keys.
-- **Live verification: pending — docs-only follow-up after the push.**
-  To prove live: torvalds/linux HEAD chunk (sign_key.pem triaged
-  likely-test-key with the test-key Fix; tests-phandle.dtsi triaged on
-  its own signals), a live control showing a genuine leak still scores
-  CRITICAL, and TechDirect live still 83/B, 62/62.
+  all 20 are test keys. Live, the count is now **22** (see the
+  live-verification note below): the two Phase 10 pushes added the
+  triage test fixture line, found at HEAD and in b4ca165 — the
+  `test:mcp` assertions now say 22, all 22 test keys.
+- **Live verification (2026-11-26, after 9be330d4):** home 200; live
+  GitSecure self-scan 0/F, 22 secrets, all 22 likely-test-key
+  (`counts.testKeySecrets` 22, history 22, files 77) — the count moved
+  20 → 22 because the Phase 10 commit itself added the triage test
+  fixture line, found at HEAD and in its introducing commit; live
+  TechDirect 83/B, 0 secrets, 4 vulns, 2,802 files, 62/62 history;
+  live torvalds/linux HEAD chunk 96,985/96,985 files, all 20 HEAD
+  secrets likely-test-key — `tools/testing/selftests/sgx/sign_key.pem`
+  likely-test-key (signals `test-path:testing`, `known-test-key`;
+  test-key Fix "Confirm this key is only used by tests and never signs
+  real artifacts; if it does, rotate it.") and
+  `drivers/of/unittest-data/tests-phandle.dtsi:9` likely-test-key on its
+  own signals (`test-path:unittest-data`, `filename-test:tests`,
+  `content-test:testcase`); MCP initialize 200, tools/list shows
+  `scan_repo`, `get_report`, `resume_scan`, `list_checks`. The control
+  case is the GitSecure self-scan itself: the score stays 0/F because
+  triage never changes the score — the 22 test-key findings still count
+  in full, shown separately as "of which 22 look like test keys".
 
 ## Phase 2 status — built and pushed 2026-11-25, commit 870f889f, live at https://gitsecure.vercel.app/ (verified serving: home 200, live TechDirect scan 200, 83/B)
 - Next.js 16 / React 19 / TypeScript + Auth.js (NextAuth 5.0.0-beta.32,
