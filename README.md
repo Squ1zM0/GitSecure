@@ -5,7 +5,7 @@ repo, swap `github.com` for `git-secure.com`, and get a plain-English security
 report — no install, no sign-up.
 
 ```
-github.com/Squ1zM0/TechDirect  →  git-secure.com/Squ1zM0/TechDirect
+github.com/Squ1zM0/GitSecure  →  git-secure.com/Squ1zM0/GitSecure
 ```
 
 ## What it checks (MVP)
@@ -139,7 +139,7 @@ the assemble call). A cursor is safe to put in a URL or share.
 
 ```bash
 # Start: a small repo answers 200 with the full report.
-curl https://gitsecure.vercel.app/api/scan/Squ1zM0/TechDirect
+curl https://gitsecure.vercel.app/api/scan/Squ1zM0/GitSecure
 
 # A huge repo answers 202 with a cursor + partial results.
 # Resume it — as many times as it takes, on any instance:

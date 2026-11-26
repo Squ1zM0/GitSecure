@@ -11,7 +11,7 @@ const NAME_RE = /^[A-Za-z0-9_.-]+$/;
  *  trailing path such as /tree/main, a trailing slash, or a .git suffix. */
 function parseInput(raw: string): { owner: string; repo: string } | { error: string } {
   const value = raw.trim();
-  if (!value) return { error: "Enter a repo to scan, like Squ1zM0/TechDirect." };
+  if (!value) return { error: "Enter a repo to scan, like Squ1zM0/GitSecure." };
   let path = value;
   const lower = value.toLowerCase();
   const gh = lower.indexOf("github.com/");
@@ -24,7 +24,7 @@ function parseInput(raw: string): { owner: string; repo: string } | { error: str
   // A pasted URL may carry a trailing path (/tree/main, /issues, …) — take
   // the first two segments. A bare owner/repo with extra segments is a
   // typo, so say so instead of guessing.
-  if (fromUrl ? parts.length < 2 : parts.length !== 2) return { error: "Enter owner/repo — for example Squ1zM0/TechDirect." };
+  if (fromUrl ? parts.length < 2 : parts.length !== 2) return { error: "Enter owner/repo — for example Squ1zM0/GitSecure." };
   const [owner, repo] = parts;
   for (const [label, name] of [["owner", owner], ["repo", repo]] as const) {
     if (name === "." || name === ".." || !NAME_RE.test(name)) {
@@ -36,7 +36,7 @@ function parseInput(raw: string): { owner: string; repo: string } | { error: str
 
 export default function Home() {
   const router = useRouter();
-  const [value, setValue] = useState("Squ1zM0/TechDirect");
+  const [value, setValue] = useState("Squ1zM0/GitSecure");
   const [error, setError] = useState("");
   const [scanning, setScanning] = useState(false);
 
@@ -62,8 +62,8 @@ export default function Home() {
           and get a plain-English security report — no install, no sign-up.
         </p>
         <div className="url-example" aria-label="Example: swap github.com for git-secure.com">
-          <s>github.com/Squ1zM0/TechDirect</s> <span className="url-arrow" aria-hidden="true">→</span>{" "}
-          <span className="url-new">git-secure.com/Squ1zM0/TechDirect</span>
+          <s>github.com/Squ1zM0/GitSecure</s> <span className="url-arrow" aria-hidden="true">→</span>{" "}
+          <span className="url-new">git-secure.com/Squ1zM0/GitSecure</span>
         </div>
 
         <form className="scan-form" onSubmit={go}>
@@ -118,7 +118,7 @@ export default function Home() {
       <McpSection />
 
       <p>
-        Try it: <a href="/Squ1zM0/TechDirect">scan Squ1zM0/TechDirect</a>
+        Try it: <a href="/Squ1zM0/GitSecure">scan Squ1zM0/GitSecure</a>
       </p>
     </div>
   );

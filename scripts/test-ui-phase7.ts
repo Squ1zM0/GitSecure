@@ -179,7 +179,7 @@ const reportView = src("src/components/ReportView.tsx");
 check("home has no 'Honest limits' copy", !/Honest limits/i.test(home));
 check("home has no sign-in copy", !/sign in/i.test(home));
 check("report page has no sign-in copy", !/sign in/i.test(reportPage));
-check("home keeps the designed URL example", home.includes("url-example") && home.includes("git-secure.com/Squ1zM0/TechDirect"));
+check("home keeps the designed URL example", home.includes("url-example") && home.includes("git-secure.com/Squ1zM0/GitSecure"));
 check("home error is styled and role=alert", home.includes('className="form-error"') && home.includes('role="alert"'));
 check("home scanning state is role=status with a spinner", home.includes('role="status"') && home.includes("spinner"));
 check("report page renders the score dial", reportView.includes("ScoreDial"));
