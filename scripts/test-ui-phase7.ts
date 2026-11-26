@@ -143,7 +143,8 @@ const uiFiles = [
   "src/app/globals.css", "src/app/page.tsx", "src/app/layout.tsx",
   "src/app/[owner]/[repo]/page.tsx", "src/app/[owner]/[repo]/loading.tsx",
   "src/components/ScoreDial.tsx", "src/components/ReportLists.tsx",
-  "src/components/McpSection.tsx", "src/lib/score.ts",
+  "src/components/McpSection.tsx", "src/components/ScanProgress.tsx",
+  "src/lib/score.ts",
 ];
 const bad = uiFiles.filter((f) => /(AKIA[0-9A-Z]{16}|ghp_[A-Za-z0-9]{20,}|xox[baprs]-[A-Za-z0-9-]{10,}|sk-[A-Za-z0-9]{20,}|-----BEGIN [A-Z ]*PRIVATE KEY-----)/.test(src(f)));
 check("no literal secret-pattern values in UI files", bad.length === 0, bad.join(", "));

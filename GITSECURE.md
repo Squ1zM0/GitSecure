@@ -53,6 +53,25 @@ No install, no config — swap the URL, get a security report.
   behaviour, caps, scoring, redaction, or API/MCP contracts changed.
   First phase visually verified in a real headless Chromium (earlier
   phases could not render the UI). See "Phase 7 status" below.
+- PHASE 8 (built 2026-11-25, solo, NOT pushed): git-protocol history
+  + per-commit cache — replaces the REST-API history path (which stopped
+  at 56/62 TechDirect commits on the 60 req/hour unauthenticated quota)
+  with isomorphic-git over the git protocol (0 REST calls, 62/62 live),
+  caches findings per commit SHA, and removes the 1000-commit / 50 MB /
+  45 s history caps (only an emergency memory guard remains). No
+  GITHUB_TOKEN — Freddy's ruling. See "Phase 8 status" below.
+- PHASE 8 (built 2026-11-25, solo): async scan jobs + the remaining
+  caps removed, from Freddy's screenshot of the live TechDirect
+  report's "Scan limits" section — "Fix all of the scan limits as
+  much as you can so you don't have limit limits." The 55 s scan
+  timeout is gone (jobs run to completion in the background), the OSV
+  query/detail time budgets are gone (every dep queried, every
+  advisory detailed), the tarball guard is a streaming memory guard
+  (not a cap), and "Scan limits" is rewritten as "About this scan".
+  History internals (git-protocol path + per-commit cache) belong to
+  the history worker; this phase only calls its exported interface
+  and states no history numbers. See "Phase 8 status" below. NOT
+  pushed, NOT deployed — another worker owns the push.
 - DEPLOYED 2026-11-25 by Freddy: live at https://gitsecure.vercel.app/,
   verified live by Cobalt (home page + live TechDirect scan 83/B, matching
   the local test). Vercel MCP still returns 403 on team scope
@@ -330,7 +349,8 @@ No scanner logic, scores, or public/full split changed. TechDirect still
 - **"Honest limits" section removed** from the home page and everywhere
   in the UI (Freddy: "No need for it."). Not moved to a footer or modal.
   Scan limits live in code comments and developer docs only now (README
-  "Scan limits" section, `src/lib/scan.ts` header).
+  "How scans run" section — called "Scan limits" until Phase 8 renamed
+  it — `src/lib/scan.ts` header).
 - **Unlimited HEAD scan.** Removed `MAX_FILES = 250`, `MAX_FILE_BYTES =
   200_000`, `MAX_TOTAL_BYTES = 3_000_000` and the `slice(0, MAX_FILES)` —
   the scan now reads the whole non-skipped tree, manifests and configs
@@ -343,7 +363,9 @@ No scanner logic, scores, or public/full split changed. TechDirect still
   The 55 s scan timeout inside the 60 s route limit still exists — on
   timeout the report says how many files had been fetched (live progress
   tracker in `scan.ts`), never pretending it finished. History caps
-  unchanged (1,000 commits / 50 MB / 45 s).
+  unchanged (1,000 commits / 50 MB / 45 s). [Phase 4 record — both
+  superseded in Phase 8: the timeout is gone (async jobs) and the
+  history caps are gone (git-protocol history, no caps).]
 - **Tarball read (needed to make unlimited actually complete).** The
   first unlimited build fetched each file separately from
   raw.githubusercontent.com — 2,802 fetches took ~120 s at 10-way AND
@@ -687,6 +709,182 @@ helpers added: `gradeBand`, `gradeWord`, `biggestProblem` in
   Deployment state checked by live serving (Vercel MCP still 403 on
   the team scope, so the dashboard could not be checked).
 
+## Phase 8 status — async scan jobs + remaining caps removed (built 2026-11-25, solo, NOT pushed)
+
+Trigger: Freddy's screenshot of the live TechDirect report's "Scan
+limits" section — "Fix all of the scan limits as much as you can so
+you don't have limit limits."
+
+- **Async scan jobs** (`src/lib/jobs.ts`, `src/app/api/scan/jobs/[jobId]/route.ts`,
+  `src/components/ScanProgress.tsx`, `src/lib/progress.ts`).
+  A scan now runs as a job: the API (`GET /api/scan/[owner]/[repo]`),
+  the report page, and MCP all start (or join) one and wait up to
+  ~50 s for it — the fast path, so TechDirect still answers 200 in a
+  single request (~12 s direct, ~19 s over the live API). If the job
+  is still running, the API answers **202 with a jobId and live
+  progress**; the client polls `GET /api/scan/jobs/{jobId}` until the
+  job is done (200, report included) or errors. The report page shows
+  honest live progress while a job runs — current step, files scanned
+  so far ("1,200 of 2,802 files scanned"), commits checked so far,
+  dependencies checked — then reloads the finished report. MCP tools
+  poll the job server-side for ~50 s; a still-running large repo comes
+  back as plain English with live progress and the job ID, and
+  `get_report` picks up the SAME job (jobs dedupe by owner/repo)
+  instead of starting over.
+- **Job store: in-memory only, documented.** No durable store, no paid
+  service, no database. A job does NOT survive a cold start, a redeploy,
+  or a poll that lands on a different serverless instance — an unknown
+  ID answers 404 `job-not-found` telling the client to start the scan
+  again. Finished jobs are kept 10 minutes (so the report page can
+  reload without re-scanning), then dropped. That is the only sense in
+  which GitSecure "stores" a report: in memory, for minutes, never on
+  disk. Job IDs are `crypto.randomUUID()` — random, and carrying no
+  owner, repo, or secret fragment. The job is kept alive past the 202
+  response with Next.js `after()` (route + page). Progress flows from
+  `scanRepo`'s `onProgress` callback; the progress types live in
+  `src/lib/progress.ts`, which imports nothing, so the browser bundle
+  never pulls in `node:child_process` — the first build failed on
+  exactly that (ScanProgress imported `stepLabel` from scan.ts), and
+  the split fixed it.
+- **55 s timeout: gone.** `scanRepoWithTimeout` and `SCAN_TIMEOUT_MS`
+  are deleted; `scanRepo` runs to completion in the background job.
+  Individual GitHub fetches still have short abort timeouts (12 s in
+  ghJson, 10 s per raw file, 30 s tarball) — a hung upstream fails
+  that fetch, not the scan.
+- **OSV budgets: gone** (`src/lib/osv.ts`). `checkDependencies` takes
+  no budget by default: every pinned dep is queried in batches of
+  1,000 and every advisory gets full detail in batches of 8, with
+  progress reported per batch. An explicit budget can still be passed;
+  the report only mentions uncovered deps/advisories when one ran out.
+  Proved by the new test with stubbed slow OSV (700 ms per detail
+  fetch, 160 advisories ≈ 14 s — past the old 12 s budget): all 160
+  detailed, detailCapped 0.
+- **Tarball guard: streaming, not a cap** (`src/lib/scan.ts`).
+  The download is read chunk by chunk via `getReader()` and aborted
+  mid-stream past 500 MB (before: the whole response was buffered
+  with `arrayBuffer()` and then checked). Tripping it only switches to
+  the per-file fallback, which still scans every file. The decompressed
+  tar is still materialised whole in memory — a physical bound, stated
+  in the code comment, not a cap.
+- **"Scan limits" rewritten as "About this scan"** (`buildLimits` in
+  `src/lib/scan.ts`, pure and tested; heading changed in
+  `src/app/[owner]/[repo]/page.tsx`). A complete scan says so once
+  with the exact counts — files, history commits, dependencies
+  checked, advisories with full detail — and nothing else. A partial
+  scan states exactly what it could not cover, one line per fact.
+  The standing facts stay (public repos only; secrets never
+  stored/logged/shown in full). The old cap lines are gone from the
+  UI, README.md, and this spec's live-truth sections (the historical
+  Phase 2–7 sections keep their records of what was built then).
+- **History: wired to the git-protocol orchestrator (integration).**
+  `scan.ts` now calls `scanHistory()` from `history.ts` — git protocol
+  first (no REST quota, cached on repeats), then the git-binary clone,
+  then the GitHub API as a last resort; only when every path fails does
+  it fall back to API patches of the 5 most recent commits. The progress
+  callback the jobs phase asked for exists: `onProgress?: (commitsScanned:
+  number) => void` on `scanHistory` / `scanHistoryViaGit`, called per
+  commit walked on the git path (and on a full cache hit), so live
+  progress shows commits scanned so far *during* the history step. The
+  clone and API paths report their count on return, which is honest
+  about what is known when. `HistoryScanResult.method` is
+  `"clone" | "api" | "git"` and carries `cachedCommits` /
+  `commitsFetched` / `restCalls` / `gitRequests`; the report's history
+  line carries only the method and the exact count scanned.
+- **Phase 7 UI untouched.** Dial, verdict, stat grid, collapsible
+  groups, filters, spider map, GitHub links, copy-link anchors, dark
+  mode, 360 px mobile, ≥44 px tap targets, reduced-motion — all still
+  green (`test:ui-phase7` 52/52, unchanged). `loading.tsx` copy updated
+  to say a very large repo keeps running in the background with live
+  progress instead of timing out.
+- **New test** (`scripts/test-jobs-phase8.ts`, `npm run test:jobs-phase8`,
+  44 checks): a slow fake runner completes via the job/poll path past
+  a short fast-path wait, dedupe by owner/repo, UUID job IDs, unknown
+  IDs, TTL eviction, error jobs, `buildLimits` copy (complete + partial),
+  `ScanProgress` render text, the OSV no-budget proof, and source
+  checks (no 55 s race, streaming tarball guard, no OSV budget
+  constants, no "Scan limits" heading, 202 + `after()` in the API).
+- **Verification (2026-11-25):** `npm run build` exit 0;
+  `test:scanner` 68/68, `test:tier3` 40/40, `test:history` 23/23,
+  `test:public-full` 56/56, `test:ui-phase7` 52/52,
+  `test:jobs-phase8` 44/44 (new), `test:techdirect` 83/B with
+  filesScanned = 2,802, history 62 commits, limits now exactly three
+  lines ("Scanned all 2802 files in the tree…", "History checked: 62
+  commits, newest first (git protocol — no git binary, no REST
+  quota).", "Public repos only…"),
+  `test:mcp` 51/51 against a local production server. Live against
+  that local server (NOT pushed, NOT deployed): scan API 200 in ~19 s,
+  report page 200 with the dial and "About this scan", bogus job ID
+  404 `job-not-found`. No literal secret-pattern values committed
+  (grep-verified; fixtures still use `__SECRET_n__` placeholders).
+- **NOT verified live:** a real 202/poll round-trip on a repo that
+  takes over 50 s. No available public repo reliably exceeds the
+  fast path from this machine (DefinitelyTyped fits in ~30 s), so the
+  job/poll path is proved by the fake-slow-runner test, not by a live
+  202. The push worker should re-verify on Vercel, where a cold
+  start / multi-instance poll can also be observed (an unknown-ID 404
+  there is expected behaviour, not a bug).
+
+## Phase 8 status — git-protocol history + per-commit cache (built 2026-11-25, solo, NOT pushed)
+
+Fixes the Phase 6 live caveat (history stopped at 56 of 62 TechDirect
+commits because the unauthenticated REST quota is 60 req/hour and one
+API history needs ~65 requests) WITHOUT a GITHUB_TOKEN (Freddy's
+ruling stands — no token, do not raise it).
+
+- **Git-protocol history** (`scanHistoryViaGit` in `src/lib/history.ts`,
+  `isomorphic-git` **1.44.19** exact pin + `diff` **8.0.2** exact pin —
+  pure JS, no git binary, no REST API). Clones over the git smart-HTTP
+  protocol (github.com, not api.github.com), walks `git.log` newest-first
+  with `includeChanges`, diffs each commit against its first parent
+  with jsdiff and scans ADDED lines only, with the same detectors,
+  skippable-path rules, and redacted fragments as the clone path.
+  Merge commits get no diff (matching `git log -p`); the root commit is
+  diffed against the empty tree. One shared isomorphic-git object cache
+  across log + readBlob — without it the TechDirect walk took ~40 s,
+  with it ~4 s. Measured live: clone ~4.6 s, log 62 commits ~2.2 s.
+- **Per-commit cache** (in-memory only — no durable store exists in
+  this project and none was added): findings keyed by commit SHA
+  (redacted fragments only, never a secret value), plus the cached HEAD
+  tip per `owner/repo@branch`. A re-scan resolves the remote HEAD over
+  the git protocol (one info/refs request, zero REST quota) and, when
+  the tip is unchanged, returns the cached findings without fetching a
+  single commit. When the tip moved, only commits newer than the cached
+  tip are walked. `scanHistory({owner, repo, branch, commit, method})`
+  is the orchestrator scan.ts should call: git protocol first, then the
+  git-binary clone, then the API path as a last resort only.
+  `HistoryScanResult` gains `method: "clone" | "api" | "git"`,
+  `cachedCommits`, `commitsFetched`, `restCalls`, `gitRequests`;
+  `historyLimitsLine(result)` builds the one limits line naming the
+  path used. The clone path still works unchanged where a git binary
+  exists; the API path is untouched as the last resort.
+- **Caps removed as caps.** The old 1000-commit / 50 MB / 45 s history
+  caps are gone from the clone and git-protocol paths — history runs to
+  the oldest commit, one file at a time, never buffered whole. The only
+  remaining limit is `HISTORY_MEMORY_GUARD_BYTES` (500 MB), an emergency
+  memory guard: if it ever trips, the result is `truncated: true` with
+  a note naming the last commit scanned and that older commits were not
+  checked — a partial scan is never presented as complete. `MAX_HISTORY_
+  COMMITS` / `MAX_HISTORY_PATCH_BYTES` / `HISTORY_TIMEOUT_MS` stay
+  exported (the API fallback still uses them); they no longer cap the
+  clone or git paths.
+- **Verification (2026-11-25):** `npm run build` exit 0;
+  `test:history` 53/53 (was 23 — 30 new: git path over a real smart-HTTP
+  server via `git http-backend`, 1005-commit repo past the old cap,
+  cache reuse, zero-REST assertion); `test:scanner` 68/68;
+  `test:techdirect` 83/B, filesScanned 2,802, history 62 commits.
+  Live proof (`npm run test:history-git`, scripts/scan-history-git-live.ts):
+  `scanHistoryViaGit` on Squ1zM0/TechDirect returns **62/62 commits
+  with 0 REST history calls** (counted with a fetch wrapper: 0 calls to
+  api.github.com; the only git-protocol request counted is the 1
+  info/refs HEAD check — the clone's pack requests go through
+  isomorphic-git's own HTTP client to github.com, never the REST API),
+  10.0 s wall; a second scan in the same process reuses all 62 from
+  cache (0 fetched, 419 ms). No literal secret-pattern values committed
+  (grep-verified; fixtures still use `__SECRET_n__` placeholders,
+  test-assembled fakes only). The memory-guard trip path is NOT directly
+  tested (the guard is a module constant, not an option) — it is code-
+  reviewed only. NOT pushed, NOT deployed — the push worker owns that.
+
 ## Phase 2 status — built and pushed 2026-11-25, commit 870f889f, live at https://gitsecure.vercel.app/ (verified serving: home 200, live TechDirect scan 200, 83/B)
 - Next.js 16 / React 19 / TypeScript + Auth.js (NextAuth 5.0.0-beta.32,
   GitHub provider), in ~/workspace/gitsecure/.
@@ -767,6 +965,8 @@ helpers added: `gradeBand`, `gradeWord`, `biggestProblem` in
 - History caps remain (1000 commits / 50 MB / 45 s) — a secret in a very
   old commit of a huge repo can still be missed, and the report says so
   when a cap hits. (The OAuth item above was removed in Phase 4.)
+  [Phase 2 record — superseded in Phase 8, which removed the history
+  caps entirely: history now runs to the oldest commit.]
 - Next steps: push Phase 2 to Squ1zM0/GitSecure (main), deploy to Vercel.
   (The OAuth App step is gone — Phase 4 removed the gate entirely.)
 

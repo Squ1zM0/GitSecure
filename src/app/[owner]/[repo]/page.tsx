@@ -1,9 +1,17 @@
 // Phase 4: every caller gets the full report — the site only scans
 // public repos, so the detail is information already public in the
 // repo. No login flow, no owner gate, no ?full flag.
-import { scanRepoWithTimeout, ScanError } from "@/lib/scan";
+// Phase 8: the scan runs as an async job. This page waits up to ~50 s
+// for it (the fast path — a small repo renders in one request); if the
+// job is still running, it renders live progress instead and the
+// client polls until the job finishes, then reloads the finished
+// report. No scan is ever killed for taking too long.
+import { after } from "next/server";
+import { FAST_PATH_WAIT_MS, getOrStartJob, waitForJob, type ScanJob } from "@/lib/jobs";
+import { ScanError } from "@/lib/scan";
 import { biggestProblem, explainScore, gradeBand, gradeWord } from "@/lib/score";
 import McpSection from "@/components/McpSection";
+import ScanProgress from "@/components/ScanProgress";
 import ScoreDial from "@/components/ScoreDial";
 import { DependenciesList, FrameworksList, PostureList, SecretsList, VulnerabilitiesList } from "@/components/ReportLists";
 import type { FullReport } from "@/lib/types";
@@ -81,8 +89,8 @@ function errorCopy(err: unknown, owner: string, repo: string): { title: string; 
         };
       case "timeout":
         return {
-          title: "The scan took too long",
-          body: "The scan was stopped because it ran past the time limit. Very large repos can take a while — try again, or try a smaller repo.",
+          title: "GitHub took too long to answer",
+          body: "A request to GitHub timed out, so this scan couldn't run right now. The scan itself has no time limit — try again in a bit.",
         };
       case "bad-format":
         return {
@@ -109,9 +117,27 @@ export default async function ReportPage({
 }) {
   const { owner, repo } = await params;
 
-  let full: FullReport;
+  let full: FullReport | null = null;
+  let runningJob: ScanJob | null = null;
   try {
-    full = await scanRepoWithTimeout(owner, repo);
+    const job = getOrStartJob(owner, repo);
+    // Keep the job alive past this render on Vercel: after() runs
+    // after the response is sent, inside the same invocation.
+    after(async () => {
+      await job.promise.catch(() => undefined);
+    });
+    const finished = await waitForJob(job, FAST_PATH_WAIT_MS);
+    if (finished.status === "done" && finished.report) {
+      full = finished.report;
+    } else if (finished.status === "error" && finished.error) {
+      throw new ScanError(
+        finished.error.status,
+        finished.error.kind as ScanError["kind"],
+        finished.error.message,
+      );
+    } else {
+      runningJob = finished;
+    }
   } catch (err) {
     const { title, body } = errorCopy(err, owner, repo);
     return (
@@ -125,6 +151,13 @@ export default async function ReportPage({
       </div>
     );
   }
+
+  // Still running after the fast-path wait: show honest live progress
+  // and poll the job until it finishes, then reload the report.
+  if (runningJob) {
+    return <ScanProgress jobId={runningJob.id} owner={owner} repo={repo} initial={runningJob.progress} />;
+  }
+  if (!full) throw new Error("Unreachable: job neither done, errored, nor running.");
 
   const report: FullReport = full;
 
@@ -185,7 +218,7 @@ export default async function ReportPage({
       )}
 
       <div className="card">
-        <h2>Scan limits</h2>
+        <h2>About this scan</h2>
         <ul>
           {report.limits.map((l) => (
             <li key={l}>{l}</li>

@@ -6,18 +6,24 @@
 // in the repo, and there is no login flow. HARD RULE (unchanged): a
 // secret is never shown in full — redacted fragment only, never
 // stored, never live-validated. The scanner itself is unchanged: same
-// scanRepo, same scores, same limits.
+// scanRepo, same scores. Phase 8 runs the scan as a background job
+// (see jobs.ts) and polls it server-side until it finishes, within
+// MCP's own limits.
 //
 // Stateless by design: a fresh McpServer + transport is created per HTTP
 // request (sessionIdGenerator: undefined), so nothing is held in memory
 // between invocations and the endpoint works on the Vercel serverless
-// runtime. No git binary is required — the scan path already falls back
+// runtime. Scan jobs themselves live in the in-memory job store
+// (src/lib/jobs.ts) — a job does not survive a cold start, and a
+// get_report call that lands on another instance starts a fresh scan.
+// No git binary is required — the scan path already falls back
 // to API patches when git is unavailable.
 
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { WebStandardStreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/webStandardStreamableHttp.js";
 import { z } from "zod";
-import { ScanError, scanRepoWithTimeout, validateOwnerRepo } from "./scan";
+import { FAST_PATH_WAIT_MS, getOrStartJob, waitForJob } from "./jobs";
+import { ScanError, validateOwnerRepo } from "./scan";
 
 const NAME_RE = /^[A-Za-z0-9_.-]+$/;
 const NAME_MESSAGE =
@@ -40,13 +46,39 @@ function toolError(message: string) {
 /** Run a live scan and return the FULL report as JSON text.
  *  ScanError messages are already plain English; anything else gets a
  *  generic message — never a stack trace. Secrets in the report are
- *  redacted fragments only, never full values. */
+ *  redacted fragments only, never full values.
+ *  Phase 8: the scan runs as a background job and this tool polls it
+ *  server-side until it finishes, within MCP's own limits (the ~50 s
+ *  fast-path wait). A large repo that is still running after that
+ *  comes back as a plain-English "still running" message with the
+ *  live progress and the job ID — the scan continues in the
+ *  background, and calling get_report again picks up the SAME job
+ *  (jobs dedupe by owner/repo) instead of starting over. */
 async function fullScan(owner: string, repo: string) {
   try {
     validateOwnerRepo(owner, repo);
-    const full = await scanRepoWithTimeout(owner, repo);
+    const job = getOrStartJob(owner, repo);
+    const finished = await waitForJob(job, FAST_PATH_WAIT_MS);
+    if (finished.status === "done" && finished.report) {
+      return {
+        content: [{ type: "text" as const, text: JSON.stringify(finished.report, null, 2) }],
+      };
+    }
+    if (finished.status === "error" && finished.error) {
+      return toolError(finished.error.message);
+    }
+    const p = finished.progress;
     return {
-      content: [{ type: "text" as const, text: JSON.stringify(full, null, 2) }],
+      content: [
+        {
+          type: "text" as const,
+          text:
+            `The scan of ${owner}/${repo} is still running in the background (job ${finished.id}). ` +
+            `So far: ${p.filesScanned} of ${p.filesTotal > 0 ? p.filesTotal : "the"} files scanned, ` +
+            `${p.commitsScanned} history commits checked. ` +
+            `Call get_report again for the same repo and it will pick up this same scan — do not start a new one.`,
+        },
+      ],
     };
   } catch (err) {
     if (err instanceof ScanError) return toolError(err.message);
@@ -64,9 +96,9 @@ const LIST_CHECKS_TEXT = `What GitSecure checks when it scans a public GitHub re
 What you get back from a scan is the FULL report: a score from 0 to 100, a letter grade, counts, a one-paragraph summary, and the full detail — file names, line numbers, redacted secret fragments, framework versions, and vulnerability IDs with the version that fixes each one. Secrets are never shown in full, only as redacted fragments.
 
 Scan notes:
-- History is scanned newest-first via an ephemeral clone, capped at 1,000 commits / 50 MB of patches / 45 seconds. A secret in a very old commit of a huge repo may still be missed, and the report says when a cap was hit. If the runtime has no git binary, the scan falls back to the 5 most recent commits and says so.
+- History is scanned newest-first via an ephemeral clone, or via the GitHub API when the runtime has no git binary. The report says which path was used and exactly how many commits were checked.
 - Every file in the repo tree is scanned, manifests and configs first (binary, dist, node_modules and .next skipped — generated/vendored paths, not source files). Every secret finding and every advisory found is listed — there is no cap on the number of results in a report.
-- Full advisory detail (a plain summary, a severity score, and the version that fixes it) is fetched for every advisory found, in batches and inside a time budget; any advisory past the budget is still listed, with its advisory ID only, and the report says how many got full detail. The flaw check itself covers as many pinned dependencies as the scan's time budget allows, and the report says how many were checked.
+- Full advisory detail (a plain summary, a severity score, and the version that fixes it) is fetched for every advisory found, and the flaw check covers every pinned dependency. A scan runs as a background job: small repos answer in one call, about 15 seconds; a large repo keeps running and the tool says so with its live progress — call get_report again for the same repo and it picks up the same scan instead of starting over. A finished scan is kept in memory only for a few minutes so a repeat call does not re-scan; GitSecure never stores reports on disk or in a database.
 - Unauthenticated GitHub API is 60 requests/hour; a scan uses roughly 7 API calls plus raw file fetches. If GitHub's request limit is hit, scans fail with a plain-English rate-limit error — try again in a few minutes.
 - GitSecure is not a replacement for GitHub Advanced Security.`;
 
@@ -88,7 +120,8 @@ export function createMcpServer(): McpServer {
         "dependency vulnerabilities, frameworks, dependencies and posture issues, a one-paragraph summary, " +
         "plus the full detail — file names, line numbers, redacted secret fragments, framework versions, " +
         "and vulnerability IDs with the version that fixes each one. Secrets are never shown in full. " +
-        "A scan takes about 15 seconds and looks at current files plus full history. " +
+        "A small repo takes about 15 seconds and looks at current files plus full history. " +
+        "A large repo keeps running in the background — the tool says so with its live progress, and calling get_report again picks up the same scan. " +
         "If the repo does not exist or is private, or GitHub's request limit is hit, the tool returns a plain-English error instead of a result.",
       inputSchema: repoInput,
       annotations: { readOnlyHint: true },
@@ -103,7 +136,7 @@ export function createMcpServer(): McpServer {
       description:
         "Read (or refresh) the full security report for a public GitHub repo. " +
         "Use this when someone asks for the current score or report for a repo that may already have been scanned, or to check the latest result. " +
-        "It runs a fresh live scan each time — GitSecure never stores reports — so the result is always current. " +
+        "If a scan of the repo is already running, it picks up that same scan; if one finished in the last few minutes it returns that result from memory; otherwise it runs a fresh live scan — GitSecure never stores reports on disk or in a database, so the result is always current. " +
         "Returns the same full report as scan_repo: score, grade, counts, summary, limits, and the full detail " +
         "(file names, line numbers, redacted secret fragments, framework versions, vulnerability IDs). " +
         "Secrets are never shown in full.",

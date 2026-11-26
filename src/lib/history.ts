@@ -7,15 +7,33 @@
 // fragments only. The clone dir is deleted in a finally block; nothing
 // about the repo is stored after the scan.
 //
-// Caps — measured on Squ1zM0/TechDirect on 2026-11-25 (see README):
-//   62 commits, full `git log -p` 40.8 MB / 255k lines, log generated in
-//   0.7 s, detector scan of the 23.4 MB of added lines in 0.7 s, clone
-//   ~10 s. Total history step for that repo: ~12 s, inside the 60 s
-//   serverless route limit with room for the HEAD scan.
-//   MAX_HISTORY_COMMITS = 1000, MAX_HISTORY_PATCH_BYTES = 50 MB,
-//   HISTORY_TIMEOUT_MS = 45 s (clone + log together). The patch stream is
-//   parsed incrementally, so memory stays bounded even at the cap — the
-//   whole patch text is never held in memory at once.
+// PHASE 8 (2026-11-25): git-protocol history + per-commit cache.
+// The clone path above still works where a git binary exists, and the
+// API path below stays as a last-resort fallback — but the primary path
+// is now `scanHistoryViaGit`: isomorphic-git (pure JS, no binary, no
+// GitHub REST API) clones over the git smart-HTTP protocol
+// (github.com, not api.github.com), walks the full log with
+// includeChanges, and diffs each commit against its first parent with
+// jsdiff, scanning ADDED lines only — exactly like the clone path.
+// Merge commits get no diff, matching `git log -p` behaviour.
+// Findings are cached per commit SHA (in-memory only, redacted
+// fragments only — no secret values are ever stored); a re-scan
+// resolves the remote HEAD over the git protocol and, when the tip is
+// unchanged, returns the cached findings without re-fetching a single
+// commit. When the tip moved, only commits newer than the cached tip
+// are walked; older findings come from the cache.
+//
+// CAPS (Phase 8): the old 1000-commit / 50 MB / 45 s history caps are
+// GONE from the clone and git-protocol paths — history runs to the
+// oldest commit, patches streamed/diffed one file at a time, never
+// buffered whole. The only remaining limit is HISTORY_MEMORY_GUARD_BYTES,
+// an emergency memory guard: if it ever trips, the result is
+// truncated=true with a note saying exactly which commits were scanned
+// and which were not — a partial scan is never presented as complete.
+// (The API path keeps its caps: it is the last-resort fallback, and
+// its per-commit REST fetches are what the quota limits. MAX_* /
+// HISTORY_TIMEOUT_MS stay exported for it and for scan.ts's limits
+// copy — they no longer cap the clone or git paths.)
 //
 // Honesty: if git is unavailable (some serverless runtimes ship no git
 // binary) or the clone fails, this returns { ok: false } and the caller
@@ -25,10 +43,14 @@
 // scan was truncated at that cap. Public repos only, no auth, no shell:
 // git is spawned with an argument array and owner/repo are validated.
 
+import fs from "node:fs";
 import { spawn } from "node:child_process";
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import git from "isomorphic-git";
+import http from "isomorphic-git/http/node";
+import { diffLines } from "diff";
 import { scanLinesForSecrets, type ScannedLine } from "./secrets";
 import { isSkippablePath } from "./paths";
 import type { SecretFinding } from "./types";
@@ -36,6 +58,10 @@ import type { SecretFinding } from "./types";
 export const MAX_HISTORY_COMMITS = 1000;
 export const MAX_HISTORY_PATCH_BYTES = 50_000_000;
 export const HISTORY_TIMEOUT_MS = 45_000;
+/** Emergency memory guard ONLY (Phase 8) — see the header. Not a cap
+ *  on how much history is scanned; it only stops a pathological repo
+ *  from exhausting serverless memory. */
+export const HISTORY_MEMORY_GUARD_BYTES = 500_000_000;
 /** One-line plain-English description of the API history path, for the report's limits. */
 export const API_HISTORY_NOTE =
   `Full history via the GitHub API (no git binary needed): up to ${MAX_HISTORY_COMMITS} commits / ${MAX_HISTORY_PATCH_BYTES / 1_000_000} MB of patches, ${HISTORY_TIMEOUT_MS / 1000}s cap, newest-first.`;
@@ -50,6 +76,7 @@ export interface HistoryScanResult {
   /** False when git is missing or the clone failed — caller falls back. */
   ok: boolean;
   findings: SecretFinding[];
+  /** Total commits this result covers (newly scanned + reused from cache). */
   commitsScanned: number;
   patchBytes: number;
   truncated: boolean;
@@ -58,22 +85,38 @@ export interface HistoryScanResult {
   note: string | null;
   /** Milliseconds the clone + log step took. */
   ms: number;
-  /** Which path produced this result — clone (git) or GitHub API. */
-  method: "clone" | "api";
+  /** Which path produced this result — clone (git binary), git-protocol
+   *  (isomorphic-git, no binary, no REST quota), or GitHub API. */
+  method: "clone" | "api" | "git";
+  /** Commits reused from the per-commit cache (Phase 8, git path only). */
+  cachedCommits: number;
+  /** Commits actually walked/fetched this run (0 on a full cache hit). */
+  commitsFetched: number;
+  /** api.github.com requests this history call made (0 on the git path). */
+  restCalls: number;
+  /** Git-protocol remote-info (info/refs) requests made — the HEAD
+   *  check. The clone's own pack requests go through isomorphic-git's
+   *  HTTP client and are not counted here; they hit github.com, never
+   *  the REST API, so they cost zero REST quota either way. */
+  gitRequests: number;
 }
 
 const NAME_RE = /^[A-Za-z0-9][A-Za-z0-9_.-]*$/;
 
-function runGit(args: string[], opts: { timeoutMs: number; cwd?: string }): Promise<{ code: number | null; timedOut: boolean }> {
+function runGit(args: string[], opts: { timeoutMs?: number; cwd?: string }): Promise<{ code: number | null; timedOut: boolean }> {
   return new Promise((resolve) => {
     const child = spawn("git", args, { cwd: opts.cwd, stdio: "ignore" });
     let done = false;
-    const timer = setTimeout(() => {
-      if (done) return;
-      done = true;
-      child.kill("SIGKILL");
-      resolve({ code: null, timedOut: true });
-    }, opts.timeoutMs);
+    // No timeout by default (Phase 8): the scan's 55 s route timeout is
+    // the backstop for a hung clone. Callers that need a bound pass one.
+    const timer = opts.timeoutMs
+      ? setTimeout(() => {
+          if (done) return;
+          done = true;
+          child.kill("SIGKILL");
+          resolve({ code: null, timedOut: true });
+        }, opts.timeoutMs)
+      : undefined;
     child.on("error", () => {
       if (done) return;
       done = true;
@@ -94,8 +137,12 @@ async function gitAvailable(): Promise<boolean> {
   return r.code === 0;
 }
 
-/** Stream `git log -p` and scan added lines as they arrive. */
-function streamLog(dir: string, deadlineMs: number): Promise<{
+/** Stream `git log -p` and scan added lines as they arrive.
+ *  Phase 8: no commit / byte / time caps — the stream runs to the
+ *  oldest commit. The only stop is the emergency memory guard
+ *  (HISTORY_MEMORY_GUARD_BYTES on patch bytes); tripping it sets
+ *  truncated=true and the caller names exactly what was not scanned. */
+function streamLog(dir: string): Promise<{
   findings: SecretFinding[];
   commitsScanned: number;
   patchBytes: number;
@@ -107,7 +154,7 @@ function streamLog(dir: string, deadlineMs: number): Promise<{
     let commitsScanned = 0;
     let patchBytes = 0;
     let truncated = false;
-    let timedOut = false;
+    const timedOut = false;
     let finished = false;
 
     const child = spawn(
@@ -115,12 +162,6 @@ function streamLog(dir: string, deadlineMs: number): Promise<{
       ["-C", dir, "log", "-p", "--all", "--no-color", "--no-textconv", "--no-ext-diff", "--format=__GS_COMMIT__%H"],
       { stdio: ["ignore", "pipe", "ignore"] },
     );
-
-    const timer = setTimeout(() => {
-      if (finished) return;
-      timedOut = true;
-      child.kill("SIGKILL");
-    }, Math.max(1000, deadlineMs - Date.now()));
 
     // --- incremental diff parser state ---
     let buf = ""; // partial line carried across chunks
@@ -144,10 +185,6 @@ function streamLog(dir: string, deadlineMs: number): Promise<{
         commit = line.slice("__GS_COMMIT__".length).slice(0, 7) || null;
         file = null;
         commitsScanned++;
-        if (commitsScanned > MAX_HISTORY_COMMITS) {
-          truncated = true;
-          child.kill("SIGKILL");
-        }
         return;
       }
       const diffM = /^diff --git a\/(.+?) b\/(.+)$/.exec(line);
@@ -192,7 +229,7 @@ function streamLog(dir: string, deadlineMs: number): Promise<{
     child.stdout.on("data", (data: Buffer) => {
       if (finished) return;
       patchBytes += data.length;
-      if (patchBytes > MAX_HISTORY_PATCH_BYTES) {
+      if (patchBytes > HISTORY_MEMORY_GUARD_BYTES) {
         truncated = true;
         child.kill("SIGKILL");
         return;
@@ -209,7 +246,6 @@ function streamLog(dir: string, deadlineMs: number): Promise<{
     const finish = () => {
       if (finished) return;
       finished = true;
-      clearTimeout(timer);
       if (buf.length > 0) handleLine(buf);
       flushChunk();
       resolve({ findings, commitsScanned, patchBytes, truncated, timedOut });
@@ -229,6 +265,7 @@ export async function scanFullHistory(
   const fail = (note: string): HistoryScanResult => ({
     ok: false, findings: [], commitsScanned: 0, patchBytes: 0,
     truncated: false, timedOut: false, note, ms: Date.now() - started, method: "clone",
+    cachedCommits: 0, commitsFetched: 0, restCalls: 0, gitRequests: 0,
   });
   if (!NAME_RE.test(owner) || !NAME_RE.test(repo) || owner.includes("..") || repo.includes("..")) {
     return fail("Invalid owner/repo name — history clone skipped.");
@@ -244,17 +281,17 @@ export async function scanFullHistory(
   try {
     const clone = await runGit(
       ["clone", "--quiet", "--no-checkout", "--single-branch", "--branch", branch, cloneUrl, dir + "/repo"],
-      { timeoutMs: HISTORY_TIMEOUT_MS },
+      {},
     );
     if (clone.timedOut) return fail("History clone timed out.");
     if (clone.code !== 0) return fail("History clone failed (repo may be too large or unreachable).");
     const repoDir = dir + "/repo";
-    const log = await streamLog(repoDir, started + HISTORY_TIMEOUT_MS);
+    const log = await streamLog(repoDir);
     const ms = Date.now() - started;
     let note: string | null = null;
     if (log.timedOut) note = `History scan hit the ${HISTORY_TIMEOUT_MS / 1000}s cap — scanned ${log.commitsScanned} newest commits before stopping.`;
-    else if (log.truncated) note = `History scan hit its cap (${MAX_HISTORY_COMMITS} commits / ${MAX_HISTORY_PATCH_BYTES / 1_000_000} MB of patches, newest-first) — scanned ${log.commitsScanned} newest commits.`;
-    return { ok: true, findings: log.findings, commitsScanned: log.commitsScanned, patchBytes: log.patchBytes, truncated: log.truncated, timedOut: log.timedOut, note, ms, method: "clone" };
+    else if (log.truncated) note = `History scan stopped at the emergency memory guard after scanning ${log.commitsScanned} newest commits — commits older than the last one scanned were not checked, so this report's history is incomplete.`;
+    return { ok: true, findings: log.findings, commitsScanned: log.commitsScanned, patchBytes: log.patchBytes, truncated: log.truncated, timedOut: log.timedOut, note, ms, method: "clone", cachedCommits: 0, commitsFetched: log.commitsScanned, restCalls: 0, gitRequests: 0 };
   } finally {
     await rm(dir, { recursive: true, force: true }).catch(() => undefined);
   }
@@ -298,10 +335,13 @@ function rateLimitNote(commitsScanned: number): string {
 /** Fetch with a per-request abort timeout (12 s, or the time left to the
  *  deadline, whichever is smaller). Returns null on network failure or
  *  abort — the caller decides whether that fails the scan or just skips
- *  one commit. */
-async function apiFetch(url: string, timeoutMs: number): Promise<Response | null> {
+ *  one commit. `stats.restCalls` counts every api.github.com request
+ *  this history call makes (Phase 8: proves the git-protocol path,
+ *  which never calls this, uses zero REST quota). */
+async function apiFetch(url: string, timeoutMs: number, stats: { restCalls: number }): Promise<Response | null> {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), Math.max(50, Math.min(API_FETCH_TIMEOUT_MS, timeoutMs)));
+  stats.restCalls++;
   try {
     return await fetch(url, { headers: apiHeaders(), signal: controller.signal });
   } catch {
@@ -348,9 +388,11 @@ export async function scanHistoryViaApi(
   // apiBase exists only so tests can point at a local mock server.
   // Production callers never pass it.
   const apiBase = (opts?.apiBase ?? "https://api.github.com").replace(/\/$/, "");
+  const stats = { restCalls: 0 };
   const fail = (note: string): HistoryScanResult => ({
     ok: false, findings: [], commitsScanned: 0, patchBytes: 0,
     truncated: false, timedOut: false, note, ms: Date.now() - started, method: "api",
+    cachedCommits: 0, commitsFetched: 0, restCalls: stats.restCalls, gitRequests: 0,
   });
   if (!NAME_RE.test(owner) || !NAME_RE.test(repo) || owner.includes("..") || repo.includes("..")) {
     return fail("Invalid owner/repo name — history API scan skipped.");
@@ -373,11 +415,11 @@ export async function scanHistoryViaApi(
       timedOut = true;
       break;
     }
-    const res = await apiFetch(listUrl, remaining);
+    const res = await apiFetch(listUrl, remaining, stats);
     if (!res) return fail("GitHub API could not be reached — history API scan skipped.");
     if (res.status === 404) return fail("Repository not found (or it is private).");
     if (isApiRateLimited(res)) {
-      return { ok: true, findings, commitsScanned, patchBytes, truncated: false, timedOut: false, note: rateLimitNote(0), ms: Date.now() - started, method: "api" };
+      return { ok: true, findings, commitsScanned, patchBytes, truncated: false, timedOut: false, note: rateLimitNote(0), ms: Date.now() - started, method: "api", cachedCommits: 0, commitsFetched: commitsScanned, restCalls: stats.restCalls, gitRequests: 0 };
     }
     if (!res.ok) return fail(`GitHub API answered with an unexpected error (${res.status}) — history API scan skipped.`);
     let page: { sha?: string }[];
@@ -405,7 +447,7 @@ export async function scanHistoryViaApi(
       timedOut = true;
       return;
     }
-    const res = await apiFetch(`${apiBase}/repos/${owner}/${repo}/commits/${sha}`, remaining);
+    const res = await apiFetch(`${apiBase}/repos/${owner}/${repo}/commits/${sha}`, remaining, stats);
     if (!res) return; // one bad commit must not fail the whole scan
     if (isApiRateLimited(res)) {
       rateLimited = true;
@@ -451,5 +493,314 @@ export async function scanHistoryViaApi(
   if (rateLimited) note = rateLimitNote(commitsScanned);
   else if (timedOut) note = `History scan hit the ${timeoutMs / 1000}s cap — scanned ${commitsScanned} newest commits before stopping.`;
   else if (wasTruncated) note = `History scan hit its cap (${MAX_HISTORY_COMMITS} commits / ${MAX_HISTORY_PATCH_BYTES / 1_000_000} MB of patches, newest-first) — scanned ${commitsScanned} newest commits.`;
-  return { ok: true, findings, commitsScanned, patchBytes, truncated: wasTruncated, timedOut, note, ms, method: "api" };
+  return { ok: true, findings, commitsScanned, patchBytes, truncated: wasTruncated, timedOut, note, ms, method: "api", cachedCommits: 0, commitsFetched: commitsScanned, restCalls: stats.restCalls, gitRequests: 0 };
+}
+
+// ---------------------------------------------------------------------------
+// Git-protocol history path + per-commit cache (Phase 8).
+//
+// Why: the API path (above) needs ~1 REST request per commit plus the
+// list pages, and the unauthenticated quota is 60 req/hour from the
+// shared Vercel IP — a 62-commit repo needs ~65 requests, so live
+// history stopped at 56/62. A GITHUB_TOKEN is forbidden (Freddy's
+// ruling), so the fix is to stop using the REST API for history at
+// all: isomorphic-git speaks the git smart-HTTP protocol against
+// github.com (the same protocol `git clone` uses), which has no REST
+// quota. Measured on Squ1zM0/TechDirect: clone ~4.6 s, full log 62
+// commits ~2.2 s, diff+scan ~2 s (with a shared isomorphic-git object
+// cache; without it the same walk took ~40 s).
+//
+// What is cached: per commit SHA, the (redacted-fragment-only) findings
+// that commit introduced, plus the bytes read for that commit's diffs.
+// In-memory only, module-level, keyed by "owner/repo@branch" with the
+// cached HEAD tip. Nothing durable exists in this project (no DB /
+// Redis), and none is added — a serverless instance that restarts just
+// re-walks cold. A secret value is never cached: findings carry the
+// same redacted fragments as everywhere else.
+// ---------------------------------------------------------------------------
+
+/** One repo's cached history: newest-first full SHAs, findings per SHA. */
+interface CachedHistory {
+  tip: string;
+  order: string[];
+  bySha: Map<string, SecretFinding[]>;
+  bytesBySha: Map<string, number>;
+  patchBytes: number;
+}
+
+const historyCache = new Map<string, CachedHistory>();
+
+/** Test/support hook: drop the whole in-memory history cache. */
+export function clearHistoryCache(): void {
+  historyCache.clear();
+}
+
+/** jsdiff added lines of newText vs oldText, with new-file line numbers.
+ *  Removed and context lines are not returned — only added lines are
+ *  ever scanned, exactly like the clone path's `git log -p` parsing. */
+function addedLines(oldText: string, newText: string): ScannedLine[] {
+  const out: ScannedLine[] = [];
+  let newLine = 1;
+  for (const part of diffLines(oldText, newText)) {
+    const count = part.count ?? 0;
+    if (part.added) {
+      const lines = part.value.split("\n");
+      for (let i = 0; i < count; i++) {
+        out.push({ line: newLine + i, text: lines[i] ?? "" });
+      }
+    }
+    if (!part.removed) newLine += count;
+  }
+  return out;
+}
+
+/** Read one blob as text. Returns "" for a missing side (added/deleted
+ *  file) and null for binary content (NUL byte) — binary files are
+ *  skipped, like everywhere else in the scanner. */
+async function readBlobText(dir: string, oid: string | null, cache: object): Promise<string | null> {
+  if (!oid) return "";
+  const { blob } = await git.readBlob({ fs, dir, oid, cache });
+  const text = Buffer.from(blob).toString("utf8");
+  return text.includes("\0") ? null : text;
+}
+
+/** Resolve the branch tip over the git protocol (one info/refs request
+ *  to github.com — NOT api.github.com, so it costs zero REST quota).
+ *  Returns null when the ref cannot be read (network error, missing or
+ *  private repo) — the caller then fails over to the next path. */
+async function resolveRemoteTip(url: string, branch: string): Promise<{ tip: string | null; gitRequests: number }> {
+  try {
+    const info = await git.getRemoteInfo({ http, url });
+    const heads = (info.refs as unknown as Record<string, Record<string, string>>)?.heads;
+    return { tip: heads?.[branch] ?? null, gitRequests: 1 };
+  } catch {
+    return { tip: null, gitRequests: 1 };
+  }
+}
+
+export interface GitHistoryOptions {
+  /** Test-only: smart-HTTP URL of a mock git server (the test suite
+   *  serves a fixture repo through `git http-backend`). Production
+   *  callers never pass it — the URL is always the public github.com repo.
+   *  Note: isomorphic-git cannot clone from a local filesystem path,
+   *  which is why the tests use a real smart-HTTP server, not a path. */
+  cloneUrlOverride?: string;
+  /** Known HEAD sha — skips the remote-info round trip. */
+  headSha?: string;
+  /** Live progress: called with the number of commits walked so far. */
+  onProgress?: (commitsScanned: number) => void;
+}
+
+/** Full history over the git protocol, no REST API calls, no git binary.
+ *  Clones (single branch, no checkout) into an ephemeral temp dir,
+ *  walks `git.log` newest-first with includeChanges, diffs each commit
+ *  against its first parent, and scans added lines only. Merge commits
+ *  get no diff — matching `git log -p`, which also shows no patch for
+ *  a merge. The root commit is diffed against the empty tree, so a
+ *  secret planted in the very first commit is found. Runs to the oldest
+ *  commit: no commit cap, no time cap — only the emergency memory
+ *  guard (HISTORY_MEMORY_GUARD_BYTES) can stop it early, and then the
+ *  note says exactly what was not scanned. */
+export async function scanHistoryViaGit(
+  owner: string,
+  repo: string,
+  branch: string,
+  opts: GitHistoryOptions = {},
+): Promise<HistoryScanResult> {
+  const started = Date.now();
+  let gitRequests = 0;
+  const fail = (note: string): HistoryScanResult => ({
+    ok: false, findings: [], commitsScanned: 0, patchBytes: 0,
+    truncated: false, timedOut: false, note, ms: Date.now() - started, method: "git",
+    cachedCommits: 0, commitsFetched: 0, restCalls: 0, gitRequests,
+  });
+  if (!NAME_RE.test(owner) || !NAME_RE.test(repo) || owner.includes("..") || repo.includes("..")) {
+    return fail("Invalid owner/repo name — history git scan skipped.");
+  }
+  const cacheKey = `${owner}/${repo}@${branch}`;
+  const url = opts.cloneUrlOverride ?? `https://github.com/${owner}/${repo}.git`;
+  let tip: string | null = opts.headSha ?? null;
+  if (!tip) {
+    const resolved = await resolveRemoteTip(url, branch);
+    gitRequests += resolved.gitRequests;
+    tip = resolved.tip;
+    if (!tip) return fail("Could not read the repo's HEAD over the git protocol — history git scan skipped.");
+  }
+  const cached = historyCache.get(cacheKey);
+  if (cached && cached.tip === tip) {
+    // Full cache hit: no clone, no walk, no commit fetched.
+    opts.onProgress?.(cached.order.length);
+    return {
+      ok: true,
+      findings: cached.order.flatMap((sha) => cached.bySha.get(sha) ?? []),
+      commitsScanned: cached.order.length,
+      patchBytes: cached.patchBytes,
+      truncated: false, timedOut: false, note: null, ms: Date.now() - started, method: "git",
+      cachedCommits: cached.order.length, commitsFetched: 0, restCalls: 0, gitRequests,
+    };
+  }
+
+  const dir = await mkdtemp(join(tmpdir(), "gitsecure-git-"));
+  try {
+    await git.clone({ fs, http, dir, url, ref: branch, singleBranch: true, noCheckout: true });
+    // One shared object cache across log + readBlob: without it the
+    // same TechDirect walk took ~40 s (packfile re-parsed per blob);
+    // with it, ~4 s. The cache is per-scan and discarded with the dir.
+    const cacheObj: Record<string, unknown> = {};
+    const commits = await git.log({ fs, dir, ref: branch, includeChanges: true, cache: cacheObj });
+
+    const newBySha = new Map<string, SecretFinding[]>();
+    const newBytesBySha = new Map<string, number>();
+    const newOrder: string[] = [];
+    let newPatchBytes = 0;
+    let truncated = false;
+    let stopSha: string | null = null;
+
+    for (const entry of commits) {
+      const oid = entry.oid;
+      if (cached?.bySha.has(oid)) {
+        // Everything from here on is already cached — reuse it.
+        stopSha = oid;
+        break;
+      }
+      newOrder.push(oid);
+      const parents = entry.commit.parent ?? [];
+      const changes = entry.commit.changes ?? [];
+      if (parents.length > 1) {
+        newBySha.set(oid, []);
+        newBytesBySha.set(oid, 0);
+        opts.onProgress?.(newOrder.length);
+        continue; // merge commit: no diff, like `git log -p`.
+      }
+      const commitFindings: SecretFinding[] = [];
+      let commitBytes = 0;
+      for (const [newOid, oldOid, filepath] of changes) {
+        if (truncated) break;
+        if (!filepath || isSkippablePath(filepath)) continue;
+        let oldText: string | null;
+        let newText: string | null;
+        try {
+          oldText = await readBlobText(dir, oldOid, cacheObj);
+          newText = await readBlobText(dir, newOid, cacheObj);
+        } catch {
+          continue; // one unreadable file must not fail the scan
+        }
+        if (oldText === null || newText === null) continue; // binary
+        commitBytes += Buffer.byteLength(oldText, "utf8") + Buffer.byteLength(newText, "utf8");
+        // Emergency memory guard, checked per file: if it trips, this
+        // commit is discarded whole (popped below) and the walk stops.
+        if (newPatchBytes + commitBytes > HISTORY_MEMORY_GUARD_BYTES) truncated = true;
+        else commitFindings.push(...scanLinesForSecrets({ path: filepath }, addedLines(oldText, newText), oid.slice(0, 7)));
+      }
+      if (truncated) {
+        newOrder.pop();
+        break;
+      }
+      newBySha.set(oid, commitFindings);
+      newBytesBySha.set(oid, commitBytes);
+      newPatchBytes += commitBytes;
+      opts.onProgress?.(newOrder.length);
+    }
+
+    // Merge the newly walked commits with the cached suffix (if the walk
+    // stopped at a cached commit, everything from it onward is reused).
+    const cachedSuffix: string[] = [];
+    if (stopSha && cached) {
+      const idx = cached.order.indexOf(stopSha);
+      if (idx >= 0) cachedSuffix.push(...cached.order.slice(idx));
+    }
+    const mergedOrder = [...newOrder, ...cachedSuffix];
+    const mergedBySha = new Map<string, SecretFinding[]>();
+    const mergedBytes = new Map<string, number>();
+    for (const sha of newOrder) {
+      mergedBySha.set(sha, newBySha.get(sha) ?? []);
+      mergedBytes.set(sha, newBytesBySha.get(sha) ?? 0);
+    }
+    for (const sha of cachedSuffix) {
+      mergedBySha.set(sha, cached?.bySha.get(sha) ?? []);
+      mergedBytes.set(sha, cached?.bytesBySha.get(sha) ?? 0);
+    }
+    const patchBytes = [...mergedBytes.values()].reduce((a, b) => a + b, 0);
+    const findings = mergedOrder.flatMap((sha) => mergedBySha.get(sha) ?? []);
+    historyCache.set(cacheKey, { tip, order: mergedOrder, bySha: mergedBySha, bytesBySha: mergedBytes, patchBytes });
+
+    let note: string | null = null;
+    if (truncated) {
+      const last = newOrder.length > 0 ? `${newOrder[newOrder.length - 1].slice(0, 7)}` : "none";
+      note = `History scan stopped at the emergency memory guard after scanning ${newOrder.length} newest commit${newOrder.length === 1 ? "" : "s"} (through ${last}) — commits older than ${last} were not checked, so this report's history is incomplete.`;
+    }
+    return {
+      ok: true, findings, commitsScanned: mergedOrder.length, patchBytes,
+      truncated, timedOut: false, note, ms: Date.now() - started, method: "git",
+      cachedCommits: cachedSuffix.length, commitsFetched: newOrder.length, restCalls: 0, gitRequests,
+    };
+  } catch {
+    return fail("History git-protocol clone failed (repo may be too large or unreachable).");
+  } finally {
+    await rm(dir, { recursive: true, force: true }).catch(() => undefined);
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Orchestrator (Phase 8): the one entry point scan.ts should call.
+// Order — git protocol first (no REST quota, works on Vercel, cached on
+// repeats), then the git-binary clone (fastest cold path where a binary
+// exists), then the GitHub API as a last resort only. A path that
+// returns ok:false falls through to the next one; only when every path
+// fails does the scan report the last failure. `method` pins a path
+// for tests: "git" tries git then API, "clone" tries clone then git
+// then API, "api" tries API only.
+// ---------------------------------------------------------------------------
+
+export interface ScanHistoryOptions {
+  owner: string;
+  repo: string;
+  branch: string;
+  /** Known HEAD sha — skips the remote-info round trip on the git path. */
+  commit?: string;
+  method?: "auto" | "git" | "clone" | "api";
+  /** Test-only override, passed to both the git path (smart-HTTP URL)
+   *  and the clone path (local filesystem path or remote URL). */
+  cloneUrlOverride?: string;
+  /** Test-only: mock GitHub API base for the last-resort API path. */
+  apiBase?: string;
+  /** Live progress: called with the number of commits walked so far
+   *  (git path only; clone/API paths report on return). */
+  onProgress?: (commitsScanned: number) => void;
+}
+
+export async function scanHistory(opts: ScanHistoryOptions): Promise<HistoryScanResult> {
+  const { owner, repo, branch } = opts;
+  const want = opts.method ?? "auto";
+  const gitPath = () => scanHistoryViaGit(owner, repo, branch, { cloneUrlOverride: opts.cloneUrlOverride, headSha: opts.commit, onProgress: opts.onProgress });
+  const clonePath = () => scanFullHistory(owner, repo, branch, opts.cloneUrlOverride);
+  const apiPath = () => scanHistoryViaApi(owner, repo, branch, { apiBase: opts.apiBase });
+  const attempts: Array<() => Promise<HistoryScanResult>> =
+    want === "api" ? [apiPath]
+    : want === "clone" ? [clonePath, gitPath, apiPath]
+    : [gitPath, clonePath, apiPath];
+  let last: HistoryScanResult | null = null;
+  for (const attempt of attempts) {
+    const result = await attempt();
+    if (result.ok) return result;
+    last = result;
+  }
+  // Unreachable in practice (attempts is never empty), but typed.
+  return last ?? {
+    ok: false, findings: [], commitsScanned: 0, patchBytes: 0,
+    truncated: false, timedOut: false, note: "History scan unavailable.", ms: 0, method: "git",
+    cachedCommits: 0, commitsFetched: 0, restCalls: 0, gitRequests: 0,
+  };
+}
+
+/** One plain-English limits line for a history result, for scan.ts to
+ *  push into the report's limits. Names the path used, so a partial or
+ *  fallback scan is never mistaken for a complete one. */
+export function historyLimitsLine(r: HistoryScanResult): string {
+  const path =
+    r.method === "git" ? "git protocol (no GitHub API quota used)"
+    : r.method === "clone" ? "ephemeral git clone"
+    : "GitHub API (last resort)";
+  const cached = r.cachedCommits > 0 ? `, ${r.cachedCommits} reused from cache` : "";
+  return `History scan (${path}): ${r.commitsScanned} commits${cached}, ${(r.patchBytes / 1_000_000).toFixed(1)} MB of patches, ${(r.ms / 1000).toFixed(1)}s.`;
 }

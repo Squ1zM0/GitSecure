@@ -28,9 +28,9 @@ github.com/Squ1zM0/TechDirect  →  git-secure.com/Squ1zM0/TechDirect
   database of known software flaws; npm / PyPI / crates.io / Go / RubyGems /
   Packagist / Maven / NuGet), with full advisory detail (a plain summary, a
   severity score, and the version that fixes it) fetched for every advisory
-  found, in batches inside a time budget — any advisory past the budget is
-  still listed, with its advisory ID and a link, and the report says how
-  many got full detail. Every advisory found is listed; there is no cap.
+  found. Every advisory found is listed; there is no cap, and no time
+  budget either — the scan runs as a background job (Phase 8), so the
+  flaw check covers every pinned dependency and details every advisory.
 - **Security posture** — missing `SECURITY.md`, no Dependabot, `.gitignore` gaps,
   and risky GitHub Actions patterns (`pull_request_target`, `write-all`, secrets
   echoed into logs).
@@ -71,11 +71,22 @@ env var gates it.
 - `/` — home page, explains GitSecure, owner/repo input.
 - `/[owner]/[repo]` — full scan report for a public repo. Streams a loading
   state first ("Scanning the repo… checking files, then history, then
-  dependencies") while the ~15 s live scan runs.
+  dependencies") while the ~15 s live scan runs. A large repo that is
+  still running after the ~50 s fast-path wait shows live progress
+  instead (files and commits scanned so far) and polls until the job
+  finishes — it never times out.
 - `/api/scan/[owner]/[repo]` — the full JSON report, same detail as the page.
-  No sign-in, no `?full` flag. Errors carry honest statuses: 400 bad
-  owner/repo format, 404 repo not found or private, 429 GitHub rate limit,
-  504 scan timeout, 502 GitHub upstream error.
+  No sign-in, no `?full` flag. A small repo answers 200 in one request;
+  a large repo answers **202 with a `jobId` and live progress** — poll
+  `GET /api/scan/jobs/{jobId}` until the job is done (200, report
+  included) or errors. Errors carry honest statuses: 400 bad
+  owner/repo format, 404 repo not found or private, 404 job not found
+  (the server restarted — start the scan again), 429 GitHub rate limit,
+  502 GitHub upstream error. There is no 504 scan timeout any more.
+- `/api/scan/jobs/{jobId}` — live state of one async scan job: running
+  (current step, files/commits/deps/advisories so far), done (with the
+  full report), or error (plain-English message). Job IDs are random
+  UUIDs and carry no owner, repo, or secret fragment.
 - `/mcp` — MCP server for AI assistants (Streamable HTTP transport,
   stateless). `/api/mcp` is an alias for the same handler. See
   "Use with your AI assistant (MCP)" below.
@@ -99,18 +110,27 @@ Tools (all return the full report — see below):
   (file names, line numbers, redacted secret fragments, framework
   versions, vulnerability IDs). Use when someone asks whether a repo is safe.
 - `get_report` (owner, repo) — read or refresh the full report for a
-  repo. Runs a fresh live scan each time (GitSecure never stores reports).
+  repo. If a scan of the repo is already running it picks up that same
+  scan; if one finished in the last few minutes it returns that result
+  from memory; otherwise it runs a fresh live scan. GitSecure never
+  stores reports on disk or in a database.
 - `list_checks` (no args) — what GitSecure checks, in plain English, plus
   the scan notes. Use before a scan, or to explain a score.
 
 **MCP returns the full report, like the web flow.** Secrets are still
 redacted fragments only — never shown in full. There is no `full`
-parameter and no login. A scan takes about 15 seconds; owner/repo names
+parameter and no login. A scan takes about 15 seconds for a small repo; owner/repo names
 are validated the same way as on the site, and a bad name, a missing/private
 repo, or a GitHub rate limit comes back as a plain-English error, never a
-stack trace. The endpoint is stateless (a fresh server per request, no
-session state, no git binary needed — the scan falls back to API patches
-when git is unavailable), so it works on the Vercel serverless runtime.
+stack trace. A large repo keeps running in the background: the tool polls
+the scan job server-side for ~50 s, and if it is still running it says so
+with its live progress — call `get_report` again for the same repo and it
+picks up the same scan instead of starting over. The endpoint is stateless
+(a fresh server per request, no session state, no git binary needed — the
+scan falls back to API patches when git is unavailable), so it works on
+the Vercel serverless runtime. Scan jobs themselves live in memory only
+(see "How scans run" below): a job does not survive a cold start, and a
+call that lands on another instance starts a fresh scan.
 A plain `GET /mcp` is refused with a 4xx: in stateless mode the server
 holds no SSE stream (MCP clients use POST).
 
@@ -119,7 +139,7 @@ the SDK client — initialize, tools/list, live `scan_repo` calls):
 
 ```bash
 npm run build && npm start     # in one terminal
-npm run test:mcp               # in another — 49 checks
+npm run test:mcp               # in another — 51 checks
 ```
 
 ## No login
@@ -132,44 +152,75 @@ only scans public repos, so the full detail is information already public
 in the repo. The redaction rule did not change: a secret is never shown
 in full.
 
-## Scan limits (developer notes — not shown on the site)
+## How scans run (Phase 8 — developer notes)
 
-- **History depth:** full history, newest-first, via an ephemeral `git clone`
-  into `/tmp` (deleted after the scan). Caps: **1,000 commits / 50 MB of
-  patches / 45 s**. Measured on Squ1zM0/TechDirect (62 commits, 40.8 MB of
-  patches): history step 6–12 s, whole scan ~15 s — inside the 60 s route
-  limit. A secret in a very old commit of a huge repo may still be missed,
-  and the report says when a cap was hit. If the runtime has no `git`
-  binary (Vercel serverless ships none), or the clone fails, the scan
-  uses the **API history path** instead (Phase 6): it pages the GitHub
-  commits API and fetches each commit's patch — same caps, per-commit
-  attribution, and the report says which path was used. Only if the API
-  path also fails does it fall back to patches of the 5 most recent
-  commits.
+There are no scan caps left to list. A scan runs as an **async job**
+(`src/lib/jobs.ts`): the API / report page / MCP start one, wait up to
+~50 s for it (the fast path — TechDirect answers 200 in ~12–19 s), and
+if it is still running answer 202 with a job ID; the client polls
+`GET /api/scan/jobs/{jobId}` for live progress (current step, files
+scanned so far, commits checked so far, dependencies checked) until
+the job finishes. **No scan is ever killed for taking too long** — the
+old 55 s timeout race is gone, and the job keeps running in the
+background (`after()` keeps the invocation alive past the response).
+
+- **Jobs are in-memory only.** No durable store, no paid service, no
+  database. A job does NOT survive a cold start, a redeploy, or a poll
+  that lands on a different serverless instance — a poll for an unknown
+  ID answers 404 telling the client to start the scan again. Finished
+  jobs are kept for 10 minutes (so the report page can reload without
+  re-scanning), then dropped. That is the only sense in which GitSecure
+  "stores" a report: in memory, for minutes, never on disk. Job IDs are
+  random UUIDs and carry no owner, repo, or secret fragment.
+- **One job per repo.** Starting a scan while one is already running (or
+  recently finished) returns the same job — MCP `get_report` picks up a
+  running scan instead of starting a second one.
+- **History depth:** full history, newest-first, to the oldest commit —
+  no commit cap, no patch-size cap, no time cap. The scan uses the
+  **git-protocol path** first (pure JS, no git binary, no GitHub REST
+  quota — it clones over the git smart-HTTP protocol and walks commits
+  directly, with findings cached per commit SHA so a re-scan only walks
+  new commits), then an ephemeral `git clone` into `/tmp` (deleted after
+  the scan) where a git binary exists, then the **API history path** as a
+  last resort (it pages the GitHub commits API and fetches each commit's
+  patch, per-commit attribution). The report says which path was used
+  and exactly how many commits were checked. Only if every path fails
+  does it fall back to patches of the 5 most recent commits. The only
+  remaining history bound is an emergency memory guard (500 MB of
+  patches) that, if it ever trips, says exactly what was scanned and
+  what was not — never a partial scan presented as complete.
 - **HEAD scan: unlimited.** Every file in the HEAD tree is scanned,
-  manifests and configs first (fetched 10 at a time). There is no
+  manifests and configs first (fetched from one tarball download,
+  falling back to per-file fetches). There is no
   file-count cap and no per-file or total size cap — no 250, no 1,000,
   no 5,000. Binary, `dist`, `node_modules` and `.next` paths are skipped:
-  generated/vendored paths, not source files. The 60 s route limit and
-  GitHub rate limits still exist, so a gigantic repo may hit a time/rate
-  boundary — if it does, the report says plainly how many files were
-  actually scanned and that it stopped for time/rate, never pretending
-  it scanned everything.
+  generated/vendored paths, not source files. The tarball download has
+  a **streaming memory guard** (the download aborts mid-stream past
+  500 MB and the per-file fallback still scans every file) — a guard,
+  not a cap. GitHub rate limits still exist; if a fetch fails, the
+  report says plainly how many files were actually scanned, never
+  pretending it scanned everything.
 - **No result-count caps (Phase 5).** Every secret finding, every
   dependency, every advisory, every posture and framework finding is
   listed — no 100-secret cap, no 200-dependency slice, no 100-advisory
   cap. The report page renders huge lists progressively (100 at a time
   with "Show more" / "Show all"), with collapsible groups, filters, and
   a file map — the data is never capped to make the page fit.
-- **Dependency check (Phase 5):** every pinned dependency is asked about
-  via OSV.dev, in batches of 1,000 per query, inside a 15 s query budget;
-  full advisory detail is fetched for every advisory found, in batches
-  of 8 inside a 12 s detail budget. A repo with thousands of deps (e.g.
-  DefinitelyTyped, 9,401) cannot always be fully queried inside the
-  55 s scan timeout — if a budget runs out, the report says plainly how
-  many deps were checked and how many advisories got full detail. A
-  budget never drops a finding from the list. If OSV is unreachable the
-  scan continues and says so.
+- **Dependency check (Phase 8):** every pinned dependency is asked about
+  via OSV.dev, in batches of 1,000 per query, and full advisory detail
+  is fetched for every advisory found, in batches of 8 — with **no time
+  budget on either phase**. The old 15 s query / 12 s detail budgets
+  existed to fit the 55 s scan timeout, and that timeout is gone. A
+  repo with thousands of deps (e.g. DefinitelyTyped, 9,401) is now
+  fully queried and fully detailed inside the background job. If OSV is
+  unreachable the scan continues and says so.
+- **"About this scan" (was "Scan limits").** The report page no longer
+  lists caps. A complete scan says so once, with the exact counts
+  (files, history commits, dependencies checked, advisories with full
+  detail), and nothing else. A scan that could not cover everything
+  states exactly what it could not cover, one line per fact. The
+  standing facts stay: public repos only; no secret is ever stored,
+  logged, or shown in full.
 - **Rate limits:** unauthenticated GitHub API is 60 requests/hour. A scan uses
   roughly 7 API calls plus raw file fetches — but the API history path
   (Phase 6) uses about one request per commit, so a repo with more than
@@ -343,6 +394,16 @@ npm run test:public-full # Phase 4: no login flow, no owner gate, no
 npm run test:techdirect  # live scan of the real public repo Squ1zM0/TechDirect
                          # (score 83/B, 62 history commits, filesScanned =
                          # full scannable tree — 2,802, ~12 s via tarball)
+npm run test:ui-phase7   # Phase 7: dial, lists, map, CSS, no-sign-in copy —
+                         # 52 checks, no network
+npm run test:jobs-phase8 # Phase 8: async scan jobs — a slow scan completes
+                         # via the job/poll path (fake runner, no network),
+                         # dedupe, job-ID safety, TTL eviction, error jobs,
+                         # the rewritten "About this scan" copy (buildLimits),
+                         # live progress text (ScanProgress render), OSV
+                         # detail with no time budget (stubbed slow OSV:
+                         # 160 advisories, ~14 s of detail fetches, all
+                         # detailed) — 44 checks
 npm run test:mcp         # MCP end-to-end: needs a running production server
                          # (npm run build && npm start) — real SDK-client
                          # handshake, tools/list, live scan_repo calls for
@@ -379,7 +440,8 @@ NOT 250, and NOT a higher cap either. No file-count cap at all.
   updated — nothing on the site promises a login-gated view anymore.
 - **"Honest limits" section removed** from the home page and everywhere in
   the UI. Scan limits live in code comments and developer docs only now
-  (README "Scan limits" section above, `src/lib/scan.ts` header).
+  (README "How scans run" section above, `src/lib/scan.ts` header) —
+  renamed "About this scan" in Phase 8.
 - **Unlimited HEAD scan.** Removed `MAX_FILES = 250`, `MAX_FILE_BYTES =
   200_000`, `MAX_TOTAL_BYTES = 3_000_000` and the `slice(0, MAX_FILES)` —
   the scan now reads the whole non-skipped tree, manifests and configs
@@ -395,7 +457,9 @@ NOT 250, and NOT a higher cap either. No file-count cap at all.
   fetches and still scans everything, just slower. A 55 s scan timeout
   still exists inside the 60 s route limit — on timeout the report says
   how many files had been fetched, never pretending it finished.
-  History caps unchanged (1,000 commits / 50 MB / 45 s).
+  History caps unchanged (1,000 commits / 50 MB / 45 s). [Phase 4
+  record — both superseded in Phase 8: the timeout is gone (async
+  jobs) and the history caps are gone (git-protocol history, no caps).]
 - **Redaction unchanged and re-tested:** secrets are still fragments only.
   Proved by `test:scanner` (full-report checks), `test:public-full`
   (fixture scan, no full fake secret), and `test:mcp` (GitSecure dogfood
@@ -581,6 +645,74 @@ changed is how the report looks and reads.
   same run: the mobile scan input was 220px tall (column flex-basis),
   inline code broke mid-word, and the dark-mode button was white text
   on light green.
+
+## Phase 8 — async scan jobs + remaining caps removed (built 2026-11-25)
+
+Freddy's word, from a screenshot of the live TechDirect report's "Scan
+limits" section: "Fix all of the scan limits as much as you can so you
+don't have limit limits." So the limits went away instead of being
+reworded — what remained was the 55 s scan timeout, the OSV query/detail
+time budgets, and the tarball whole-buffer read, and all three are gone.
+
+- **Async scan jobs** (`src/lib/jobs.ts`, `src/app/api/scan/jobs/[jobId]/route.ts`,
+  `src/components/ScanProgress.tsx`): a scan starts a job and the caller
+  waits up to ~50 s for it (fast path — TechDirect still answers 200 in
+  one request, ~12–19 s). Still running after that, the API answers 202
+  with a job ID and live progress, and the client polls the job endpoint
+  until the job is done. The report page shows honest live progress while
+  a job runs (current step, "1,200 of 2,802 files scanned", commits
+  checked so far) and reloads the finished report — never a spinner that
+  lies. Jobs dedupe by owner/repo, so a second start (or MCP `get_report`)
+  joins the running scan. The job store is **in-memory only** (no durable
+  store, no paid service): a job does not survive a cold start, a redeploy,
+  or a poll on another instance — an unknown ID answers 404 telling the
+  client to start again. Finished jobs are kept 10 minutes, then dropped.
+  Job IDs are random UUIDs carrying no owner, repo, or secret fragment.
+  The job is kept alive past the 202 response with Next.js `after()`.
+  Live progress comes from `scanRepo`'s `onProgress` callback
+  (`src/lib/progress.ts` — client-safe, no node imports, so the browser
+  bundle never pulls in `node:child_process`).
+- **55 s timeout: gone.** `scanRepoWithTimeout` / `SCAN_TIMEOUT_MS` are
+  deleted; `scanRepo` runs to completion in the background job. Individual
+  GitHub fetches still have short abort timeouts (a hung upstream fails
+  that fetch, not the scan).
+- **OSV budgets: gone.** `checkDependencies` takes no budget by default —
+  every pinned dep is queried (batches of 1,000) and every advisory gets
+  full detail (batches of 8). Callers can still pass an explicit budget;
+  the report only mentions uncovered deps/advisories when one ran out.
+- **Tarball guard: streaming, not a cap.** The download is read chunk by
+  chunk and aborted mid-stream past 500 MB; tripping it only switches to
+  the per-file fallback, which still scans every file. The decompressed
+  tar is still materialised in memory (a physical bound, stated in code).
+- **"Scan limits" rewritten as "About this scan"** (`buildLimits` in
+  `src/lib/scan.ts`, pure and tested): a complete scan says so once with
+  the exact counts and nothing else; a partial scan states exactly what
+  it could not cover, one line per fact. History's own numbers live in
+  `history.ts` (owned by the history worker) — this phase states none,
+  and the report's history line carries only the method and the exact
+  count scanned (clone / git-protocol / API).
+- **MCP:** `scan_repo` / `get_report` poll the job server-side for ~50 s;
+  a still-running large repo comes back as plain English with live
+  progress and the job ID, and `get_report` picks up the same scan.
+- **Phase 7 UI untouched:** dial, verdict, stat grid, collapsible groups,
+  filters, spider map, GitHub links, copy-link anchors, dark mode,
+  360 px mobile, ≥44 px tap targets, reduced-motion — all still green
+  (`test:ui-phase7` 52/52, unchanged).
+- **Verification (2026-11-25):** `npm run build` exit 0;
+  `test:scanner` 68/68, `test:tier3` 40/40, `test:history` 23/23,
+  `test:public-full` 56/56, `test:ui-phase7` 52/52,
+  `test:jobs-phase8` 44/44 (new), `test:techdirect` 83/B with
+  filesScanned = 2,802 and the new three-line "About this scan"
+  ("Scanned all 2802 files in the tree…", "History checked: 62 commits,
+  newest first (ephemeral git clone).", "Public repos only…"),
+  `test:mcp` 51/51 against a local production server. Live (local
+  production server, not pushed): scan API 200 in ~19 s, report page 200
+  with the dial and "About this scan", bogus job ID 404 with
+  `job-not-found`. Not verified live: a real 202/poll round-trip on a
+  repo that takes over 50 s (no available public repo reliably exceeds
+  the fast path from this machine — DefinitelyTyped fits in ~30 s); the
+  job/poll path is proved by the fake-slow-runner test instead. Not
+  pushed, not deployed — another worker owns the push.
 
 ## Project notes
 

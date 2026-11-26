@@ -1,6 +1,8 @@
 {
   "dependencies": {
     "@modelcontextprotocol/sdk": "1.32.2",
+    "diff": "8.0.2",
+    "isomorphic-git": "1.44.19",
     "next": "16.4.6",
     "react": "19.3.0",
     "react-dom": "19.3.0",
@@ -21,11 +23,13 @@
     "dev": "next dev",
     "start": "next start",
     "test:history": "tsx scripts/test-history.ts",
+    "test:history-git": "tsx scripts/scan-history-git-live.ts",
     "test:public-full": "tsx scripts/test-public-full.ts",
     "test:scanner": "tsx scripts/test-scanner.ts",
     "test:tier3": "tsx scripts/test-tier3.ts",
     "test:techdirect": "tsx scripts/scan-techdirect.ts",
     "test:ui-phase7": "tsx scripts/test-ui-phase7.ts",
+    "test:jobs-phase8": "tsx scripts/test-jobs-phase8.ts",
     "test:mcp": "tsx scripts/test-mcp.ts"
   },
   "version": "0.1.0"

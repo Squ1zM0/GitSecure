@@ -1,33 +1,43 @@
 // GitSecure scanner — public repos only, no auth required (optional
 // GITHUB_TOKEN env raises the GitHub API rate limit; it is never logged).
 //
+// PHASE 8 (2026-11-25): ASYNC SCAN JOBS — no scan dies on a clock
+// any more. scanRepo runs to completion in a background job (see
+// jobs.ts): the old 55 s race inside the 60 s route limit is gone, so
+// a big repo finishes instead of timing out. The API / report page
+// wait up to ~50 s for the job (the fast path — TechDirect still
+// answers in one request, ~12 s); if the job is still running they
+// answer 202 with a job ID and the client polls for live progress.
+// OSV detail has no time budget any more either (see osv.ts): every
+// advisory gets full detail inside the background job. The tarball
+// download guard is a STREAMING memory guard (the download aborts
+// mid-stream past the cap and the per-file fallback still scans every
+// file) — never a scan cap. History caps live in history.ts and are
+// owned by the history worker; this file states no history numbers
+// any more, and the report's history line carries only the method and
+// the exact count scanned. No secret values are stored or logged —
+// findings carry redacted fragments only (see secrets.ts / redact.ts).
+//
 // PHASE 5 (2026-11-25): NO result-count caps anywhere. Every secret
 // finding is listed (the old 100 cap is gone), every dependency is
 // listed (the old 200 slice is gone), every advisory OSV returns is
 // listed (the old 100 cap is gone), and posture / framework findings
-// were never capped. The OSV query + detail fetches are time-budgeted
-// (see osv.ts) — a budget can leave an advisory ID-only or a dep
-// unchecked for flaws, but it never drops a finding from the list, and
-// the report says plainly how many got full detail / were checked.
-// Score still floors at 0 (see score.ts) however many findings there
-// are — DefinitelyTyped stays 0/F, it just lists everything now.
+// were never capped.
 //
 // HISTORY DEPTH (Phase 2, API path Phase 6): full history via an ephemeral git clone into
 // /tmp, streaming `git log -p --all` newest-first through the same secret
-// detectors as the HEAD scan, capped at 1000 commits / 50 MB of patches /
-// 45 s (measured on Squ1zM0/TechDirect: 62 commits, 40.8 MB of patches,
-// ~12 s total). If git is unavailable in the runtime (Vercel serverless
+// detectors as the HEAD scan. If git is unavailable in the runtime (Vercel serverless
 // ships no git binary) or the clone fails, the scan falls back to the
 // API history path (history.ts scanHistoryViaApi: page the commits API,
-// fetch each commit's patch, same caps, per-commit attribution) — and
+// fetch each commit's patch, per-commit attribution) — and
 // only if that also fails to patches of the 5 most recent commits.
-// The report says which path was used.
-// A secret deleted long ago in an old commit is now caught, up to the caps.
+// The report says which path was used and how many commits it scanned.
+// A secret deleted long ago in an old commit is now caught.
 //
 // HEAD SCAN (Phase 4): UNLIMITED. The entire HEAD tree is scanned —
 // every file, manifests and configs first, then the rest. There is NO
 // file-count cap, NO per-file size cap, and NO total-size cap anywhere
-// in this code (no 250, no 1,000, no other number). The only files not
+// in this code. The only files not
 // read are binary / generated / vendored paths (dist, node_modules,
 // .next, images, archives — see paths.ts): those are not source files
 // to scan, not a cap. The GitHub recursive-tree call returns the whole
@@ -39,15 +49,16 @@
 // one client), while the 1.7 MB TechDirect tarball downloads in ~1.4 s.
 // If the tarball is unavailable, the scan falls back to per-file fetches
 // and still scans everything, just slower. External boundaries still
-// exist and are reported honestly, never hidden: the Vercel route limit
-// is 60 s (scan stops at 55 s with a 504 that says how many files had
-// been fetched) and the GitHub API has rate limits. No secret values are
-// stored or logged — findings carry redacted fragments only
-// (see secrets.ts / redact.ts).
+// exist and are reported honestly, never hidden: the GitHub API has
+// rate limits, and the tarball download has a streaming memory guard
+// (see TARBALL_MAX_BYTES) whose only effect is to switch to the
+// per-file fallback. No secret values are stored or logged — findings
+// carry redacted fragments only (see secrets.ts / redact.ts).
 
 import { gunzipSync } from "node:zlib";
 import { checkDependencies } from "./osv";
-import { scanFullHistory, scanHistoryViaApi, API_HISTORY_NOTE, MAX_HISTORY_COMMITS, MAX_HISTORY_PATCH_BYTES, HISTORY_TIMEOUT_MS } from "./history";
+import { emptyProgress, type ScanProgress } from "./progress";
+import { scanHistory } from "./history";
 import { detectInfraFrameworks, infraFindings, parseWorkflowActions } from "./infra";
 import { isSkippablePath } from "./paths";
 import { computeScore, plainSummary } from "./score";
@@ -55,20 +66,18 @@ import { envFileFinding, scanTextForSecrets, type ScannedFile } from "./secrets"
 import { fingerprintFrameworks, parseCargoLock, parseCargoToml, parseComposerJson, parseComposerLock, parseCsproj, parseGemfile, parseGemfileLock, parseGoMod, parseGradle, parsePackagesConfig, parsePackageJson, parsePackageLock, parsePomXml, parseRequirements, parseYamlLock, viteFindings } from "./frameworks";
 import type { Dependency, Framework, FullReport, PostureIssue, SecretFinding, Vulnerability } from "./types";
 
-export const HISTORY_DEPTH = `Full history (newest-first) via ephemeral git clone: up to ${MAX_HISTORY_COMMITS} commits / ${MAX_HISTORY_PATCH_BYTES / 1_000_000} MB of patches, ${HISTORY_TIMEOUT_MS / 1000}s cap. ${API_HISTORY_NOTE}`;
-export const HEAD_LIMITS = "HEAD: every file in the tree is scanned, manifests and configs first. Binary, dist, node_modules and .next are skipped — generated/vendored paths, not source files.";
+export const HISTORY_DEPTH = "Full history, newest first.";
+// NOTE (Phase 8): history is scanned by scanHistory() in history.ts —
+// git protocol first (no REST quota, cached on repeats), then the
+// git-binary clone, then the GitHub API as a last resort. This file
+// states no history numbers: the report's history line is built from
+// the live result (method + exact commits scanned) in buildLimits()
+// below. The git path reports live progress via onProgress; the clone
+// and API paths report on return, which is honest about what is known
+// when.
 
 const GH_API = "https://api.github.com";
 const HISTORY_COMMITS = 5;
-
-/** Live progress for the scan currently running for a repo, so a
- *  timeout can say honestly how far it got instead of just failing.
- *  Keyed by "owner/repo"; set at scan start, updated as HEAD files
- *  are fetched. Never stored beyond the scan. */
-const scanProgress = new Map<string, { total: number; fetched: number }>();
-export function getScanProgress(owner: string, repo: string): { total: number; fetched: number } | undefined {
-  return scanProgress.get(`${owner}/${repo}`);
-}
 
 /** Error kind a scan can fail with, mapped to an honest HTTP status.
  *  The report page and the scan API both render from `kind` + `message`,
@@ -100,39 +109,13 @@ export function validateOwnerRepo(owner: string, repo: string): void {
   }
 }
 
-/** Whole-scan safety net: the route/page limit is 60 s, so stop at 55 s
- *  with an honest 504 instead of letting the platform kill the request
- *  with a generic error. The message says how many HEAD files had been
- *  fetched when it stopped (from the live progress tracker), so a
- *  timeout never pretends the scan finished. The underlying scan keeps
- *  running in the background; nothing is stored either way. */
-export const SCAN_TIMEOUT_MS = 55_000;
-export async function scanRepoWithTimeout(owner: string, repo: string): Promise<FullReport> {
-  let timer: ReturnType<typeof setTimeout> | undefined;
-  try {
-    return await Promise.race([
-      scanRepo(owner, repo),
-      new Promise<FullReport>((_resolve, reject) => {
-        timer = setTimeout(() => {
-          const progress = getScanProgress(owner, repo);
-          const where =
-            progress && progress.total > 0
-              ? ` It had fetched ${progress.fetched} of ${progress.total} files in the tree when it stopped, so the report is incomplete — not every file was scanned.`
-              : "";
-          reject(
-            new ScanError(
-              504,
-              "timeout",
-              `The scan took too long (over 55 seconds) and was stopped.${where} Very large repos can take a while — try again, or try a smaller repo.`,
-            ),
-          );
-        }, SCAN_TIMEOUT_MS);
-      }),
-    ]);
-  } finally {
-    if (timer) clearTimeout(timer);
-  }
-}
+/** Phase 8: the 55 s scan timeout is GONE. A scan is no longer raced
+ *  against a clock — it runs to completion in a background job (see
+ *  jobs.ts) and the caller polls for progress. scanRepo itself has no
+ *  deadline. Individual GitHub fetches still have their own short
+ *  abort timeouts (12 s in ghJson, 10 s per raw file, 30 s for the
+ *  tarball download) — a hung upstream request fails that fetch, not
+ *  the scan, and the report says which files could not be fetched. */
 
 function ghHeaders(): Record<string, string> {
   const headers: Record<string, string> = { Accept: "application/vnd.github+json", "User-Agent": "GitSecure/0.1" };
@@ -195,6 +178,11 @@ function priority(path: string): number {
 
 export interface ScanOptions {
   historyCommits?: number;
+  /** Called with honest live progress as each phase lands. */
+  onProgress?: (p: ScanProgress) => void;
+  /** OSV budgets for this scan. Default (Phase 8): no budget — every
+   *  pinned dep is queried and every advisory gets full detail. */
+  osv?: { queryBudgetMs?: number | null; detailBudgetMs?: number | null };
 }
 
 /** Fetch the whole HEAD tree from ONE tarball download
@@ -206,13 +194,22 @@ export interface ScanOptions {
  *  scanned. Entries are never written to disk, only held in memory
  *  for the scan. A path-traversal entry (../ or absolute) is ignored.
  *  Throws on any failure so the caller can fall back to per-file
- *  fetching — a failed tarball must never silently shrink the scan. */
-const TARBALL_MAX_BYTES = 500_000_000; // memory guard on the download, NOT a scan cap: if a repo's tarball is bigger, the per-file fallback still scans every file.
+ *  fetching — a failed tarball must never silently shrink the scan.
+ *  Phase 8: the download guard is a STREAMING memory guard — the body
+ *  is read chunk by chunk and the download is aborted mid-stream the
+ *  moment it passes TARBALL_MAX_BYTES, instead of buffering the whole
+ *  response first and then checking its size. The guard is still not
+ *  a scan cap: tripping it only switches to the per-file fallback,
+ *  which still scans every file. What remains a physical bound (not a
+ *  cap) is memory for the decompressed tar itself — gunzip materialises
+ *  it whole, so a repo whose decompressed tree cannot fit in memory
+ *  fails the tarball path and falls back to per-file fetches too. */
+const TARBALL_MAX_BYTES = 500_000_000; // streaming memory guard on the download, NOT a scan cap: if a repo's tarball is bigger, the per-file fallback still scans every file.
 async function fetchHeadFilesViaTarball(
   owner: string,
   repo: string,
   branch: string,
-  progressKey: string,
+  onFiles?: (fetched: number) => void,
 ): Promise<Map<string, string>> {
   const url = `https://codeload.github.com/${owner}/${repo}/tar.gz/refs/heads/${encodeURIComponent(branch)}`;
   const controller = new AbortController();
@@ -221,9 +218,23 @@ async function fetchHeadFilesViaTarball(
   try {
     const res = await fetch(url, { signal: controller.signal, cache: "no-store" });
     if (!res.ok) throw new Error(`tarball fetch ${res.status}`);
-    const buf = Buffer.from(await res.arrayBuffer());
-    if (buf.length > TARBALL_MAX_BYTES) throw new Error("tarball too large for memory");
-    gz = buf;
+    if (!res.body) throw new Error("tarball has no body");
+    // Stream the download: abort as soon as the guard trips, instead
+    // of buffering an unbounded response and checking afterwards.
+    const reader = res.body.getReader();
+    const chunks: Uint8Array[] = [];
+    let total = 0;
+    for (;;) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      total += value.byteLength;
+      if (total > TARBALL_MAX_BYTES) {
+        controller.abort();
+        throw new Error("tarball too large for memory");
+      }
+      chunks.push(value);
+    }
+    gz = Buffer.concat(chunks.map((c) => Buffer.from(c)));
   } finally {
     clearTimeout(timer);
   }
@@ -255,8 +266,7 @@ async function fetchHeadFilesViaTarball(
       const rel = slash >= 0 ? name.slice(slash + 1) : name;
       if (rel && !rel.startsWith("../") && !rel.startsWith("/") && !isSkippable(rel)) {
         files.set(rel, tar.toString("utf8", dataStart, dataEnd));
-        const progress = scanProgress.get(progressKey);
-        if (progress) progress.fetched = files.size;
+        onFiles?.(files.size);
       }
     }
     // else: directory ('5'), symlink ('2'), extended header ('x'/'g') — skip.
@@ -272,15 +282,14 @@ async function fetchHeadFilesViaTarball(
  *  stopping early. Measured: raw fetching is ~25 files/s from one
  *  client no matter the pool size, so a 2,802-file repo takes ~120 s
  *  this way — which is why the tarball is the primary path. Progress
- *  is reported to the live tracker so a timeout can say how far the
- *  scan got. */
+ *  is reported to the caller's progress callback as files land. */
 const HEAD_FETCH_CONCURRENCY = 10;
 async function fetchHeadFiles(
   owner: string,
   repo: string,
   branch: string,
   chosen: { path: string; size?: number }[],
-  progressKey: string,
+  onFiles?: (fetched: number) => void,
 ): Promise<Map<string, string>> {
   const files = new Map<string, string>();
   let next = 0;
@@ -290,8 +299,7 @@ async function fetchHeadFiles(
       const content = await fetchRaw(owner, repo, branch, entry.path);
       if (content == null) continue;
       files.set(entry.path, content);
-      const progress = scanProgress.get(progressKey);
-      if (progress) progress.fetched = files.size;
+      onFiles?.(files.size);
     }
   });
   await Promise.all(workers);
@@ -311,19 +319,88 @@ export function dedupeSecrets(secrets: SecretFinding[]): SecretFinding[] {
   });
 }
 
+/** Build the report's "About this scan" lines (Phase 8 rewrite).
+ *  There is no list of caps any more. A complete scan says so once,
+ *  with the exact counts — files, history commits, dependencies
+ *  checked, advisories with full detail — and nothing else. A scan
+ *  that could not cover everything says exactly what it could not
+ *  cover, with the exact numbers, one line per fact. The last line is
+ *  always the standing facts (public repos only; secrets never
+ *  stored/logged/shown in full), which are facts, not caps. Pure
+ *  function of its inputs so tests can prove the copy. */
+export interface BuildLimitsInput {
+  filesScanned: number;
+  filesTotal: number;
+  historyOk: boolean;
+  /** "clone" (git binary), "git" (git-protocol path, no binary, no
+   *  REST quota — added by the history worker in Phase 8), or "api". */
+  historyMethod: "clone" | "api" | "git";
+  historyCommitsScanned: number;
+  historyMs: number;
+  historyNote: string | null;
+  depsChecked: number;
+  depsQueryable: number;
+  depsTotal: number;
+  advisoriesTotal: number;
+  detailCapped: number;
+  treeTruncated: boolean;
+  tarballFallback: boolean;
+}
+export function buildLimits(input: BuildLimitsInput): string[] {
+  const limits: string[] = [];
+  if (input.filesScanned >= input.filesTotal) {
+    limits.push(`Scanned all ${input.filesTotal} files in the tree (binary, dist, node_modules and .next skipped — generated/vendored paths, not source files).`);
+  } else {
+    limits.push(`Fetched ${input.filesScanned} of ${input.filesTotal} files in the tree — ${input.filesTotal - input.filesScanned} could not be fetched from GitHub, so they were not scanned.`);
+  }
+  if (input.historyOk) {
+    const methodLabel =
+      input.historyMethod === "api"
+        ? "GitHub API — no git binary in this runtime"
+        : input.historyMethod === "git"
+          ? "git protocol — no git binary, no REST quota"
+          : "ephemeral git clone";
+    limits.push(`History checked: ${input.historyCommitsScanned} commit${input.historyCommitsScanned === 1 ? "" : "s"}, newest first (${methodLabel}).`);
+  } else {
+    limits.push(`History scan took ${(input.historyMs / 1000).toFixed(1)}s (clone and API history paths both unavailable; last-resort fallback scanned ${input.historyCommitsScanned} most recent commits).`);
+  }
+  if (input.historyNote) limits.push(input.historyNote);
+  // Phase 8: the OSV query and detail phases have no time budget, so a
+  // complete scan checks every pinned dep and details every advisory.
+  // These lines only appear when a caller passed an explicit budget (or
+  // OSV was unreachable mid-scan) and something was left uncovered.
+  if (input.depsChecked < input.depsQueryable) {
+    limits.push(`Dependency flaw check: ${input.depsChecked} of ${input.depsQueryable} pinned dependencies were checked against the flaw database (OSV.dev) — the rest were not checked for flaws in this scan. All ${input.depsTotal} dependencies are still listed in this report.`);
+  }
+  if (input.detailCapped > 0) {
+    limits.push(`Full advisory detail (a plain summary, a severity score, and the version that fixes it) fetched for ${input.advisoriesTotal - input.detailCapped} of ${input.advisoriesTotal} listed advisories; ${input.detailCapped} listed with advisory ID only.`);
+  }
+  if (input.treeTruncated) limits.push("GitHub returned a truncated file tree — some files were not scanned. The tree was too large for GitHub to return in one response.");
+  if (input.tarballFallback) limits.push("Tarball download was unavailable, so files were fetched one by one instead — same files, just slower.");
+  limits.push("Public repos only. No secret is ever stored, logged, or shown in full.");
+  return limits;
+}
+
 export async function scanRepo(owner: string, repo: string, options: ScanOptions = {}): Promise<FullReport> {
   validateOwnerRepo(owner, repo);
-  const progressKey = `${owner}/${repo}`;
-  scanProgress.set(progressKey, { total: 0, fetched: 0 });
+  const progress: ScanProgress = emptyProgress();
+  const emit = () => options.onProgress?.({ ...progress });
   const historyCount = options.historyCommits ?? HISTORY_COMMITS;
   const repoInfo = await ghJson<{ default_branch: string; description: string | null; private: boolean }>(`${GH_API}/repos/${owner}/${repo}`);
   if (repoInfo.private) throw new ScanError(404, "private", "This repository is private. GitSecure scans public repos only.");
   const branch = repoInfo.default_branch || "main";
 
-  // Start the history clone NOW so it runs concurrently with the HEAD
-  // fetch below (clone ~10 s, HEAD fetch ~11 s in parallel instead of
-  // ~22 s in series — this is what keeps TechDirect inside 60 s).
-  const historyPromise = scanFullHistory(owner, repo, branch);
+  // Start the history scan NOW so it runs concurrently with the HEAD
+  // fetch below (history ~10 s, HEAD fetch ~11 s in parallel instead
+  // of ~22 s in series). The git-protocol path reports live progress;
+  // other paths report their count when they return.
+  const historyPromise = scanHistory({
+    owner, repo, branch,
+    onProgress: (n) => {
+      progress.commitsScanned = n;
+      emit();
+    },
+  });
 
   const tree = await ghJson<{ tree: { path: string; type: string; size?: number }[]; truncated?: boolean }>(
     `${GH_API}/repos/${owner}/${repo}/git/trees/${encodeURIComponent(branch)}?recursive=1`,
@@ -332,19 +409,27 @@ export async function scanRepo(owner: string, repo: string, options: ScanOptions
   const sorted = [...allFiles].sort((a, b) => priority(a.path) - priority(b.path) || a.path.localeCompare(b.path));
   // UNLIMITED: the whole non-skipped tree, no slice, no count cap.
   const chosen = sorted;
-  scanProgress.set(progressKey, { total: chosen.length, fetched: 0 });
+  progress.filesTotal = chosen.length;
+  emit();
 
   // Primary path: one tarball download. Fallback: per-file fetches.
   // Either way every file in `chosen` is scanned — the fallback only
   // costs time, never coverage.
   let tarballFallback = false;
   let files: Map<string, string>;
+  const onFiles = (fetched: number) => {
+    progress.filesScanned = fetched;
+    emit();
+  };
   try {
-    files = await fetchHeadFilesViaTarball(owner, repo, branch, progressKey);
+    files = await fetchHeadFilesViaTarball(owner, repo, branch, onFiles);
   } catch {
     tarballFallback = true;
-    files = await fetchHeadFiles(owner, repo, branch, chosen, progressKey);
+    files = await fetchHeadFiles(owner, repo, branch, chosen, onFiles);
   }
+  progress.filesScanned = files.size;
+  progress.step = "history";
+  emit();
 
   // Secrets: HEAD files — iterate in priority (chosen) order, not fetch
   // completion order, so findings are deterministic run to run.
@@ -359,8 +444,9 @@ export async function scanRepo(owner: string, repo: string, options: ScanOptions
     secrets.push(...scanTextForSecrets({ path, content, commit: "HEAD" }));
   }
 
-  // Secrets: full history first (ephemeral clone, newest-first), with the
-  // MVP API patch path as fallback when git/clone is unavailable.
+  // Secrets: full history first (git protocol, newest-first, via the
+  // scanHistory() orchestrator), with API patches of the most recent
+  // commits as a last resort when every history path fails.
   const commits = await ghJson<{ sha: string; commit: { message: string } }[]>(
     `${GH_API}/repos/${owner}/${repo}/commits?per_page=50&sha=${encodeURIComponent(branch)}`,
   ).catch(() => []);
@@ -368,44 +454,37 @@ export async function scanRepo(owner: string, repo: string, options: ScanOptions
   let historyScanned = 0;
   let historyNote: string | null = null;
   const historyStarted = Date.now();
-  // `let`, not `const`: when the clone path fails, a successful API-history
-  // result takes its place so the limits lines below work unchanged.
-  let history = await historyPromise;
+  // Phase 8: scanHistory already tried git protocol, then the clone,
+  // then the API — so a failed result means every path failed, and only
+  // then do we fall back to patches of the most recent commits.
+  const history = await historyPromise;
   if (history.ok) {
     historyScanned = history.commitsScanned;
     secrets.push(...history.findings);
     if (history.note) historyNote = history.note;
   } else {
-    // Phase 6: clone unavailable (e.g. no git binary on Vercel) — full
-    // history via the GitHub API instead of the old 5-commit patch
-    // fallback. Only if the API path also fails do we fall back to
-    // patches of the most recent commits.
-    const cloneNote = history.note ?? "Full-history clone unavailable.";
-    const apiHistory = await scanHistoryViaApi(owner, repo, branch);
-    if (apiHistory.ok) {
-      history = apiHistory;
-      historyScanned = apiHistory.commitsScanned;
-      secrets.push(...apiHistory.findings);
-      if (apiHistory.note) historyNote = apiHistory.note;
-    } else {
-      historyNote = `${cloneNote} ${apiHistory.note ?? ""} Used API patches of the ${historyCount} most recent commits instead.`;
-      for (const commit of commits.slice(0, historyCount)) {
-        try {
-          const detail = await ghJson<{ files?: { filename: string; patch?: string }[] }>(`${GH_API}/repos/${owner}/${repo}/commits/${commit.sha}`);
-          historyScanned++;
-          for (const f of detail.files ?? []) {
-            if (!f.patch || isSkippable(f.filename)) continue;
-            // Patches are diffs: scan added lines only (lines starting with +).
-            const added = f.patch.split("\n").filter((l) => l.startsWith("+") && !l.startsWith("+++")).map((l) => l.slice(1)).join("\n");
-            secrets.push(...scanTextForSecrets({ path: f.filename, content: added, commit: commit.sha.slice(0, 7) }));
-          }
-        } catch {
-          // One bad commit must not fail the whole scan.
+    historyNote = `${history.note ?? "Full-history scan unavailable."} Used API patches of the ${historyCount} most recent commits instead.`;
+    for (const commit of commits.slice(0, historyCount)) {
+      try {
+        const detail = await ghJson<{ files?: { filename: string; patch?: string }[] }>(`${GH_API}/repos/${owner}/${repo}/commits/${commit.sha}`);
+        historyScanned++;
+        for (const f of detail.files ?? []) {
+          if (!f.patch || isSkippable(f.filename)) continue;
+          // Patches are diffs: scan added lines only (lines starting with +).
+          const added = f.patch.split("\n").filter((l) => l.startsWith("+") && !l.startsWith("+++")).map((l) => l.slice(1)).join("\n");
+          secrets.push(...scanTextForSecrets({ path: f.filename, content: added, commit: commit.sha.slice(0, 7) }));
         }
+      } catch {
+        // One bad commit must not fail the whole scan.
       }
     }
   }
   const historyMs = Date.now() - historyStarted;
+  // The git path already reported live progress; the count is set
+  // definitively here now that the step has returned.
+  progress.commitsScanned = historyScanned;
+  progress.step = "dependencies";
+  emit();
   // Dedupe secrets (same type/file/line/fragment, HEAD vs history).
   // Phase 5: no cap — HEAD + history findings are ALL listed.
   const dedupedSecrets = dedupeSecrets(secrets);
@@ -467,7 +546,23 @@ export async function scanRepo(owner: string, repo: string, options: ScanOptions
   frameworks.sort((a, b) => a.name.localeCompare(b.name));
   const unpinnedCount = deps.filter((d) => d.direct && (!d.version || d.version === "*" || d.version.toLowerCase() === "latest")).length;
 
-  const { vulnerabilities, unavailable: osvUnavailable, detailCapped, depsChecked, depsQueryable } = await checkDependencies(deps);
+  const { vulnerabilities, unavailable: osvUnavailable, detailCapped, depsChecked, depsQueryable } = await checkDependencies(deps, {
+    queryBudgetMs: options.osv?.queryBudgetMs ?? null,
+    detailBudgetMs: options.osv?.detailBudgetMs ?? null,
+    onProgress: (p) => {
+      progress.depsChecked = p.depsChecked;
+      progress.depsTotal = p.depsTotal;
+      progress.advisoriesDetailed = p.advisoriesDetailed;
+      progress.advisoriesTotal = p.advisoriesTotal;
+      emit();
+    },
+  });
+  progress.advisoriesDetailed = vulnerabilities.length - detailCapped;
+  progress.advisoriesTotal = vulnerabilities.length;
+  progress.depsChecked = depsChecked;
+  progress.depsTotal = depsQueryable;
+  progress.step = "done";
+  emit();
 
   // Posture.
   const posture: PostureIssue[] = [];
@@ -512,20 +607,22 @@ export async function scanRepo(owner: string, repo: string, options: ScanOptions
   }
 
   const { score, grade } = computeScore({ secrets: dedupedSecrets, vulnerabilities, posture, unpinnedCount });
-  const limits = [HISTORY_DEPTH, HEAD_LIMITS, "Public repos only. No secret is ever stored, logged, or shown in full."];
-  if (history.ok) limits.push(`History scan (${history.method === "api" ? "GitHub API — no git binary in this runtime" : "ephemeral git clone"}): ${history.commitsScanned} commits, ${(history.patchBytes / 1_000_000).toFixed(1)} MB of patches, ${(history.ms / 1000).toFixed(1)}s (caps: ${MAX_HISTORY_COMMITS} commits / ${MAX_HISTORY_PATCH_BYTES / 1_000_000} MB / ${HISTORY_TIMEOUT_MS / 1000}s, newest-first).`);
-  else limits.push(`History scan took ${(historyMs / 1000).toFixed(1)}s (clone and API history paths both unavailable; last-resort fallback scanned ${historyScanned} most recent commits).`);
-  if (historyNote) limits.push(historyNote);
-  // Phase 5: no result list is capped, so there is no truncation line
-  // any more. What the time budgets could not cover is stated plainly
-  // instead: advisories are all listed, but some may be ID-only;
-  // dependencies are all listed, but some may not have been checked.
-  if (depsChecked < depsQueryable) limits.push(`Dependency flaw check: ${depsChecked} of ${depsQueryable} pinned dependencies were checked against the flaw database (OSV.dev) within the scan's time budget — the rest were not checked for flaws in this scan. All ${deps.length} dependencies are still listed in this report.`);
-  if (detailCapped > 0) limits.push(`Full advisory detail (a plain summary, a severity score, and the version that fixes it) fetched for ${vulnerabilities.length - detailCapped} of ${vulnerabilities.length} listed advisories; ${detailCapped} listed with advisory ID only (detail fetch ran past its time budget).`);
-  if (tree.truncated) limits.push("GitHub returned a truncated file tree — some files were not scanned. The tree was too large for GitHub to return in one response.");
-  if (tarballFallback) limits.push("Tarball download was unavailable, so files were fetched one by one instead — same files, just slower.");
-  if (files.size < allFiles.length) limits.push(`Fetched ${files.size} of ${allFiles.length} files in the tree — ${allFiles.length - files.size} could not be fetched from GitHub, so they were not scanned.`);
-  else limits.push(`Scanned all ${allFiles.length} files in the tree (binary, dist, node_modules and .next skipped — generated/vendored paths, not source files).`);
+  const limits = buildLimits({
+    filesScanned: files.size,
+    filesTotal: allFiles.length,
+    historyOk: history.ok,
+    historyMethod: history.method,
+    historyCommitsScanned: historyScanned,
+    historyMs,
+    historyNote,
+    depsChecked,
+    depsQueryable,
+    depsTotal: deps.length,
+    advisoriesTotal: vulnerabilities.length,
+    detailCapped,
+    treeTruncated: tree.truncated ?? false,
+    tarballFallback,
+  });
 
   const base = {
     repo,

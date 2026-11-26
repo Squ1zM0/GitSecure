@@ -34,21 +34,37 @@ function fixedVersion(vuln: Record<string, unknown>): string | null {
 //
 // Phase 5: NO list caps. Every advisory OSV returns is listed, however
 // many there are. Full detail is fetched for EVERY unique advisory ID,
-// in small parallel batches, inside a time budget (DETAIL_BUDGET_MS) —
-// advisories past the budget are still listed, with ID + osv.dev link,
-// and the report says how many got full detail and how many are ID-only.
-// Likewise the query phase asks OSV about EVERY pinned dependency, in
-// batches of QUERY_BATCH_SIZE, inside QUERY_BUDGET_MS. A repo with
-// thousands of deps (DefinitelyTyped: 9,401 — measured: a 1,000-query
-// batch takes ~3 s, a 100-query batch ~1.5 s, so big batches are far
-// more efficient) cannot always be fully queried inside the 55 s scan
-// timeout, so the query phase stops at its budget and the report says
-// honestly how many dependencies were checked for flaws. Neither budget
-// ever drops an advisory OSV already returned.
+// in small parallel batches.
+// Phase 8: NO time budgets either. The query phase asks OSV about EVERY
+// pinned dependency, in batches of QUERY_BATCH_SIZE, and the detail
+// phase fetches full detail for EVERY unique advisory ID — neither
+// phase stops early any more, so no advisory is ever left ID-only and
+// no dependency is ever left unchecked for flaws. This only works
+// because the scan now runs as a background job (see jobs.ts): the old
+// 15 s query / 12 s detail budgets existed to fit the 55 s route
+// timeout, and that timeout is gone. Callers that still need a budget
+// (a test, a one-shot script) can pass one explicitly via opts — the
+// default is no budget. A budget that runs out still never drops a
+// finding from the list; the report says how many were checked / got
+// full detail. onProgress reports depsChecked and advisoriesDetailed
+// as each batch lands, so a running job can show honest progress.
 const QUERY_BATCH_SIZE = 1000;
-const QUERY_BUDGET_MS = 15_000;
 const DETAIL_BATCH = 8;
-const DETAIL_BUDGET_MS = 12_000;
+
+export interface OsvProgress {
+  depsChecked: number;
+  depsTotal: number;
+  advisoriesDetailed: number;
+  advisoriesTotal: number;
+}
+
+export interface CheckDependenciesOptions {
+  /** Milliseconds the query phase may run, or null/undefined = no budget. */
+  queryBudgetMs?: number | null;
+  /** Milliseconds the detail phase may run, or null/undefined = no budget. */
+  detailBudgetMs?: number | null;
+  onProgress?: (p: OsvProgress) => void;
+}
 
 async function fetchVulnDetail(id: string): Promise<Record<string, unknown> | null> {
   try {
@@ -63,21 +79,21 @@ async function fetchVulnDetail(id: string): Promise<Record<string, unknown> | nu
   }
 }
 
-export async function checkDependencies(deps: Dependency[]): Promise<{ vulnerabilities: Vulnerability[]; unavailable: boolean; advisoriesFound: number; detailCapped: number; depsChecked: number; depsQueryable: number }> {
+export async function checkDependencies(deps: Dependency[], opts: CheckDependenciesOptions = {}): Promise<{ vulnerabilities: Vulnerability[]; unavailable: boolean; advisoriesFound: number; detailCapped: number; depsChecked: number; depsQueryable: number }> {
   const queryable = deps.filter((d) => d.version && !/[\^~><*]/.test(d.version) && d.name.length > 0);
   const empty = { vulnerabilities: [], unavailable: false, advisoriesFound: 0, detailCapped: 0, depsChecked: 0, depsQueryable: queryable.length };
   if (queryable.length === 0) return empty;
   const ecosystemMap: Record<string, string> = { npm: "npm", pypi: "PyPI", crates: "crates.io", go: "Go", ruby: "RubyGems", php: "Packagist", java: "Maven", dotnet: "NuGet", actions: "GitHub Actions" };
-  // Query phase: every pinned dep, QUERY_BATCH_SIZE per querybatch call,
-  // until the time budget runs out. At least one batch always runs.
+  // Query phase: every pinned dep, QUERY_BATCH_SIZE per querybatch call.
+  // No budget by default (Phase 8) — at least one batch always runs.
   // Collect (dep, vuln id) pairs from every batch that answers.
   const pairs: { dep: Dependency; id: string }[] = [];
-  const queryDeadline = Date.now() + QUERY_BUDGET_MS;
+  const queryDeadline = opts.queryBudgetMs != null ? Date.now() + opts.queryBudgetMs : null;
   let depsChecked = 0;
   let unavailable = false;
   try {
     for (let i = 0; i < queryable.length; i += QUERY_BATCH_SIZE) {
-      if (i > 0 && Date.now() > queryDeadline) break;
+      if (i > 0 && queryDeadline != null && Date.now() > queryDeadline) break;
       const batch = queryable.slice(i, i + QUERY_BATCH_SIZE);
       const controller = new AbortController();
       const timer = setTimeout(() => controller.abort(), 15000);
@@ -103,6 +119,7 @@ export async function checkDependencies(deps: Dependency[]): Promise<{ vulnerabi
         break;
       }
       depsChecked += batch.length;
+      opts.onProgress?.({ depsChecked, depsTotal: queryable.length, advisoriesDetailed: 0, advisoriesTotal: 0 });
       (data.results ?? []).forEach((result, j) => {
         const dep = batch[j];
         for (const v of result.vulns ?? []) pairs.push({ dep, id: String(v.id ?? "OSV-UNKNOWN") });
@@ -113,19 +130,20 @@ export async function checkDependencies(deps: Dependency[]): Promise<{ vulnerabi
   }
   if (pairs.length === 0) return { vulnerabilities: [], unavailable, advisoriesFound: 0, detailCapped: 0, depsChecked, depsQueryable: queryable.length };
   // Detail phase: full detail for EVERY unique advisory ID, in small
-  // parallel batches, until the time budget runs out. Advisories past
-  // the budget are listed with ID only — never dropped.
+  // parallel batches. No budget by default (Phase 8) — advisories past
+  // an explicit budget are listed with ID only, never dropped.
   const uniqueIds = [...new Set(pairs.map((p) => p.id))];
-  const detailDeadline = Date.now() + DETAIL_BUDGET_MS;
+  const detailDeadline = opts.detailBudgetMs != null ? Date.now() + opts.detailBudgetMs : null;
   const detailById = await (async () => {
     const map = new Map<string, Record<string, unknown>>();
     for (let i = 0; i < uniqueIds.length; i += DETAIL_BATCH) {
-      if (i > 0 && Date.now() > detailDeadline) break;
+      if (i > 0 && detailDeadline != null && Date.now() > detailDeadline) break;
       const batchIds = uniqueIds.slice(i, i + DETAIL_BATCH);
       const results = await Promise.all(batchIds.map((id) => fetchVulnDetail(id)));
       results.forEach((detail, j) => {
         if (detail) map.set(batchIds[j], detail);
       });
+      opts.onProgress?.({ depsChecked, depsTotal: queryable.length, advisoriesDetailed: map.size, advisoriesTotal: uniqueIds.length });
     }
     return map;
   })();

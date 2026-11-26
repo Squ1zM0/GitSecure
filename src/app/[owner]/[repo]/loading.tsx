@@ -2,7 +2,11 @@
 // typical repo). The scan itself is one server-side job, so this is a
 // static progress message describing the steps in order — checking the
 // current files, then the full history, then dependencies for known
-// flaws — not a live per-step indicator.
+// flaws — not a live per-step indicator. If the scan is still running
+// after the page's fast-path wait, the page swaps this for live
+// progress (files and commits scanned so far) that polls until the
+// job finishes — a big repo keeps running in the background instead
+// of timing out.
 export default function Loading() {
   return (
     <div>
@@ -19,7 +23,8 @@ export default function Loading() {
         </ol>
         <p className="muted">
           A full scan usually takes about 15 seconds. The page will appear here as soon as
-          it is done — there is nothing to click.
+          it is done — there is nothing to click. A very large repo takes longer and keeps
+          running in the background; the page will show live progress instead of timing out.
         </p>
       </div>
     </div>
