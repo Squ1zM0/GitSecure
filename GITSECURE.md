@@ -1903,7 +1903,21 @@ vs the page's stated "usually takes 15–30 seconds".
   (The JSON's `historyCommits: null` is a regex miss in the
   verification script — the finished text reads "History checked:
   3350 commits"; the count is confirmed from the screenshot.)
-- **Live verification:** [TO FILL after push/deploy]
+- **Live verification (2026-11-26, ~21:15–21:22 MST, push
+  ee86cad3):** awesome-python shell 200, TTFB 0.53 s, total 1.03 s,
+  22,754 bytes (was 52.80–63.6 s pre-fix); TechDirect API 200 in
+  8.8 s, 83/B, 2,802 files, 62 history commits; self-scan API 200 in
+  15.3 s, 100/A, 37 secrets all likely-test-key, 0 vulns, 0 posture,
+  189 files, 35 history commits; awesome-python walked to a finished
+  report via the public chunk API (16 calls to 3,200 commits + 2
+  resume calls): 91/A, 0 secrets, 0 vulns, 1 framework, 1 dependency,
+  3 posture, 126 files, 3,350 history commits, scoreDetail
+  `{postureDeduction 9, everything else 0, wouldBeScore 91}` —
+  identical to Freddy's device-browser result; MCP initialize 200 in
+  0.64 s on https://git-secure.com/mcp. Roll all into report is
+  present in the rendered finished report on this build (local
+  headless, screenshots) — the served shell HTML correctly does not
+  contain it, since the report renders client-side.
 
 ## Phase 2 status — built and pushed 2026-11-25, commit 870f889f, live at https://gitsecure.vercel.app/ (verified serving: home 200, live TechDirect scan 200, 83/B)
 - Next.js 16 / React 19 / TypeScript + Auth.js (NextAuth 5.0.0-beta.32,

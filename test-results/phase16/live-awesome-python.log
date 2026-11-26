@@ -1,0 +1,17 @@
+call 1 GET: http=202 status=running score=None
+call 2 POST chunk: http=200 status=partial scanned=400 complete=False findings=0 cursor=yes
+call 3 POST chunk: http=200 status=partial scanned=600 complete=False findings=0 cursor=yes
+call 4 POST chunk: http=200 status=partial scanned=800 complete=False findings=0 cursor=yes
+call 5 POST chunk: http=200 status=partial scanned=1000 complete=False findings=0 cursor=yes
+call 6 POST chunk: http=200 status=partial scanned=1200 complete=False findings=0 cursor=yes
+call 7 POST chunk: http=200 status=partial scanned=1400 complete=False findings=0 cursor=yes
+call 8 POST chunk: http=200 status=partial scanned=1600 complete=False findings=0 cursor=yes
+call 9 POST chunk: http=200 status=partial scanned=1800 complete=False findings=0 cursor=yes
+call 10 POST chunk: http=200 status=partial scanned=2000 complete=False findings=0 cursor=yes
+call 11 POST chunk: http=200 status=partial scanned=2200 complete=False findings=0 cursor=yes
+call 12 POST chunk: http=200 status=partial scanned=2400 complete=False findings=0 cursor=yes
+call 13 POST chunk: http=200 status=partial scanned=2600 complete=False findings=0 cursor=yes
+call 14 POST chunk: http=200 status=partial scanned=2800 complete=False findings=0 cursor=yes
+call 15 POST chunk: http=200 status=partial scanned=3000 complete=False findings=0 cursor=yes
+call 16 POST chunk: http=200 status=partial scanned=3200 complete=False findings=0 cursor=yes
+NOT DONE after 16 calls; last keys: ['status', 'cursor', 'partial', 'chunkFindings', 'progress', 'note']

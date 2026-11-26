@@ -1,0 +1,3 @@
+resume call 1: http=200 status=partial scanned=3350 complete=True findings=0 score=None grade=None
+resume call 2: http=200 status=done scanned=None complete=None findings=0 score=None grade=None
+NO CURSOR, last keys: ['status', 'report']
