@@ -1551,7 +1551,7 @@ honestly, not by gaming the score.
   posture items through `buildPosture`. Nothing was kept committed
   for lack of a generation path; no test was deleted.
 - **Real posture gaps, fixed for real.** `SECURITY.md` (repo root;
-  vulnerability reports to voicesbyfredsupport@gmail.com, no other
+  vulnerability reports to motdhvacr@gmail.com, no other
   reporting contact exists in the repo; acknowledgement within 3
   business days, fix or plan within 30 days for real-risk issues, no
   bounty program, safe harbor) and `.github/dependabot.yml` (npm, `/`,

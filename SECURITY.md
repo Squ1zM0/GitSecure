@@ -14,7 +14,7 @@ a report or a secret — every scan is fresh.
 If you find a security problem in GitSecure itself — the scanner, the
 website, or this repository — please report it by email:
 
-**voicesbyfredsupport@gmail.com**
+**motdhvacr@gmail.com**
 
 Please include:
 
