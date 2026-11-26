@@ -1269,9 +1269,35 @@ spider web.
   zero horizontal overflow, in `test-results/phase11/`; two defects
   found by looking and fixed (finding-node labels struck through by
   their own edges; a no-usage finding mislabelled "unused").
+- **Phase 11.1 — comment mentions are not usage (live false flip,
+  fixed 2026-11-26).** The first live self-scan after the Phase 11
+  push flipped one fixture to `likely-genuine-leak`: the test-scanner
+  fixture `api_key = "FAKEPW"` (identifier `api_key`) was "referenced
+  from src/lib/usage.ts:140,190,191 in production code" — but those
+  are mentions inside usage.ts's own doc comments, not uses of the
+  value. Fix (`src/lib/usage.ts`, `stripComments`, applied before the
+  prefilter and attribution): comments are stripped from file content
+  before matching, replacing every comment character with a space so
+  offsets and line numbers are unchanged; string literals are NOT
+  stripped (`process.env["api_key"]` in code is a real reference).
+  The stripper is string-aware so `//` inside a URL string does not
+  eat the rest of the line, and it resets single/double-quote state
+  at each newline — a regex literal full of quotes (`/^[\"']?…/`)
+  otherwise leaves the tracker stuck in quote state across lines, so
+  the next line's block comment never opens (that was the second
+  bug, found by testing the stripper against the real file: lines
+  190/191 stripped, line 140 survived). Regression tests in
+  `test-usage-phase11` case (ix): comment-only mentions (line,
+  block, `#` full-line) → no reference, dead end, stays
+  likely-test-key; string-literal reference counts; URL-string and
+  regex-quote-trap unit checks. Suite now 75/75 (was 64). Local
+  self-scan after the fix: 0/F, 32 secrets, all 32 likely-test-key,
+  3 dead ends, 0 in use. MCP dogfood counts updated 22 → 32 (history
+  grew to 25 commits; Phase 11 added new fake-secret fixtures —
+  same pattern as Phases 5/10, reason recorded in test-mcp.ts).
 - **Live verification (2026-11-26, after <COMMIT>):** home 200; live
   TechDirect 83/B, 0 secrets, 4 vulns, 2,802 files, 62/62 history;
-  live GitSecure self-scan 0/F, 22 secrets, all 22 likely-test-key —
+  live GitSecure self-scan 0/F, 32 secrets, all 32 likely-test-key —
   the likely-test section is clickable and separate, dead-end findings
   labelled, in-use findings show their track in the map; MCP
   initialize 200, tools/list shows `scan_repo`, `get_report`,

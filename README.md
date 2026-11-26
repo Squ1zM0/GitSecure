@@ -528,7 +528,7 @@ npm run test:mcp         # MCP end-to-end: needs a running production server
                          # (npm run build && npm start) — real SDK-client
                          # handshake, tools/list, live scan_repo calls for
                          # TechDirect (83/B, full detail) and GitSecure
-                         # (0/F, 22 secrets — all 22 triage likely-test-key,
+                         # (0/F, 32 secrets — all 32 triage likely-test-key,
                          # full detail, no full fake secret), error cases,
                          # snippet JSON validity, resume_scan with a bogus
                          # cursor, usage annotations on findings — 60 checks.
@@ -1184,20 +1184,33 @@ usage — in use vs dead end".
 **Verification (2026-11-26, local):** `npm run build` exit 0;
 `test:scanner` 73/73, `test:triage-phase10` 59/59, `test:tier3` 40/40,
 `test:history` 56/56, `test:public-full` 56/56,
-`test:cursor-phase9` 181/181, `test:usage-phase11` 64/64 (new),
+`test:cursor-phase9` 181/181, `test:usage-phase11` 75/75 (64 + 9 new
+Phase 11.1 comment-strip checks),
 `test:ui-phase7` 87/87 (was 62 — 29 new Phase 11 checks: verdict
 sections, dead-end labels, usage-map edges, no-usage fallback),
 `test:mcp` 60/60 (was 58), `test:techdirect` 83/B with filesScanned =
 2,802, history 62/62 via git protocol. Dogfood self-scan (local):
-0/F, 22 secrets, 22/22 likely-test-key — 6 false triage flips found
-during the phase (3 database-url via the URL-scheme guard, 2
-hardcoded-password via match-anchoring, 1 env-file via dropping the
-`.env` basename) were fixed in `usage.ts` before pushing; the env-file
-finding now correctly shows `deadEnd: true`. No literal secret-pattern
-values committed (grep-verified). UI visually verified by the UI worker
-via a render harness + headless Chromium screenshots at 360 px and
-1280 px (light + dark), zero horizontal overflow, in
+0/F, 32 secrets, all 32 likely-test-key, 3 dead ends, 0 in use — 6 false
+triage flips found during the phase were fixed in `usage.ts` (3
+database-url via the URL-scheme guard, 2 hardcoded-password via
+match-anchoring, 1 env-file via dropping the `.env` basename; the
+env-file finding now correctly shows `deadEnd: true`). No literal
+secret-pattern values committed (grep-verified). UI visually verified
+by the UI worker via a render harness + headless Chromium screenshots
+at 360 px and 1280 px (light + dark), zero horizontal overflow, in
 `test-results/phase11/`.
+
+**Phase 11.1 — comment mentions are not usage (live false flip,
+fixed 2026-11-26).** The first live self-scan after the Phase 11 push
+flipped one fixture to `likely-genuine-leak`: `api_key` named in
+`usage.ts`'s own doc comments was counted as a production reference.
+Fix: comments are stripped before matching (string-aware,
+length-preserving, line numbers unchanged); string literals still
+count as references. The stripper resets quote state at each newline,
+or a regex literal full of quotes traps it across lines and the next
+block comment never opens — found by testing against the real file.
+MCP dogfood counts updated 22 → 32 (history grew to 25 commits;
+Phase 11 added fixtures — same pattern as Phases 5/10).
 
 ## Project notes
 

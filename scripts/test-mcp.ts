@@ -14,7 +14,7 @@
 //   4. tools/call scan_repo Squ1zM0/TechDirect returns the known FULL
 //      result (83/B, 0 secrets, 4 vulns) — with the full detail present
 //      (vulnerability IDs, js-yaml, fixed versions)
-//   5. tools/call scan_repo Squ1zM0/GitSecure returns 0/F with 22 secrets
+//   5. tools/call scan_repo Squ1zM0/GitSecure returns 0/F with 32 secrets
 //      counted — and the response DOES carry the full detail (file names,
 //      line numbers, redacted fragments) while containing NO full fake
 //      secret anywhere (redaction rule, proved on a repo WITH findings).
@@ -45,7 +45,13 @@
 //      two Phase 10 pushes added 2 commits, and the triage test fixture
 //      line (scripts/test-triage-phase10.ts:118) is found at HEAD and in
 //      its introducing commit b4ca165 — same pattern, +2. All 22 triage
-//      likely-test-key.
+//      likely-test-key. Then 32, not 22: history grew to 25 commits
+//      (Phase 11 push + the 11.1 fix push) and Phase 11 added new
+//      fake-secret fixtures (test-usage-phase11.ts, test-scanner.ts
+//      lines re-found in each introducing commit) — same pattern, +10.
+//      All 32 triage likely-test-key after the 11.1 comment-strip fix
+//      (before it, one fixture flipped to likely-genuine-leak on a
+//      comment mention — see GITSECURE.md Phase 11.1).
 //   6. bad owner/repo format and a missing repo return plain-English
 //      errors, never a stack trace
 //   7. the config snippets shown on the human pages are valid JSON
@@ -193,21 +199,21 @@ async function main() {
   // header note); the pre-change code returns the identical 20. Then
   // 22: the Phase 10 pushes added the triage test fixture line, found
   // at HEAD and in b4ca165.
-  check("scan_repo GitSecure score 0 / grade F (Phase 10: 22 secrets + 196 vulns, see header note)", gsReport?.score === 0 && gsReport?.grade === "F", `got ${gsReport?.score}/${gsReport?.grade}`);
-  check("scan_repo GitSecure counts 22 secrets", gsReport?.counts?.secrets === 22, `got ${gsReport?.counts?.secrets}`);
-  // Phase 10 dogfood: every one of the 22 is a known-fake fixture
-  // secret, so all 22 must triage likely-test-key — and the honest
+  check("scan_repo GitSecure score 0 / grade F (Phase 10: 32 secrets + 196 vulns, see header note)", gsReport?.score === 0 && gsReport?.grade === "F", `got ${gsReport?.score}/${gsReport?.grade}`);
+  check("scan_repo GitSecure counts 32 secrets", gsReport?.counts?.secrets === 32, `got ${gsReport?.counts?.secrets}`);
+  // Phase 10 dogfood: every one of the 32 is a known-fake fixture
+  // secret, so all 32 must triage likely-test-key — and the honest
   // split must say so.
   const gsFull = gsReport as { secrets?: { triage?: { verdict?: string }; usage?: { deadEnd?: boolean } }[] } | null;
   const gsTestKeys = gsFull?.secrets?.filter((s) => s.triage?.verdict === "likely-test-key").length ?? -1;
-  check("scan_repo GitSecure: all 22 secrets triage likely-test-key", gsFull?.secrets?.length === 22 && gsTestKeys === 22, `test keys ${gsTestKeys} of ${gsFull?.secrets?.length ?? "?"}`);
-  check("scan_repo GitSecure: counts.testKeySecrets is 22", gsReport?.counts?.testKeySecrets === 22, `got ${gsReport?.counts?.testKeySecrets}`);
+  check("scan_repo GitSecure: all 32 secrets triage likely-test-key", gsFull?.secrets?.length === 32 && gsTestKeys === 32, `test keys ${gsTestKeys} of ${gsFull?.secrets?.length ?? "?"}`);
+  check("scan_repo GitSecure: counts.testKeySecrets is 32", gsReport?.counts?.testKeySecrets === 32, `got ${gsReport?.counts?.testKeySecrets}`);
   // Phase 11 dogfood: every secret finding in the MCP response
   // carries usage alongside triage (HEAD findings from scanHead,
   // history findings from the git-path HEAD corpus).
   check(
     "scan_repo GitSecure: every secret carries a usage annotation",
-    (gsFull?.secrets?.length ?? 0) === 22 && (gsFull?.secrets ?? []).every((s) => s.usage !== undefined && typeof s.usage.deadEnd === "boolean"),
+    (gsFull?.secrets?.length ?? 0) === 32 && (gsFull?.secrets ?? []).every((s) => s.usage !== undefined && typeof s.usage.deadEnd === "boolean"),
     `usage on ${(gsFull?.secrets ?? []).filter((s) => s.usage !== undefined).length} of ${gsFull?.secrets?.length ?? "?"} secrets`,
   );
   check("scan_repo GitSecure kind is full", gsReport?.kind === "full");

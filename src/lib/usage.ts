@@ -33,7 +33,11 @@
 // What does NOT count: the finding's own file; ignore-files
 // (.gitignore, .gitattributes, .dockerignore, .npmignore — they
 // name files to exclude, they do not use the value); matches on
-// the secret value itself; and generic names (`key`, `token`,
+// the secret value itself; mentions of the identifier inside
+// COMMENTS (a doc comment naming an example, "set api_key in
+// config" — stripComments removes those before matching, or a
+// test fixture's generic name would flip to likely-genuine-leak
+// on the strength of prose); and generic names (`key`, `token`,
 // `password`, …) which are too common to mean anything — a finding
 // whose line yields no usable identifier gets an empty usage
 // annotation with deadEnd: false, i.e. "liveness undetermined",
@@ -265,6 +269,71 @@ function escapeRegExp(s: string): string {
   return s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
 
+/** Remove comments from file content for the usage search,
+ *  replacing every comment character with a space so offsets and
+ *  line numbers are unchanged. A mention of an identifier inside a
+ *  comment ("set api_key in config", a doc comment naming an
+ *  example) is not a use of the value — counting it flipped a test
+ *  fixture to likely-genuine-leak live (api_key named in usage.ts's
+ *  own doc comments). String literals are NOT stripped:
+ *  `process.env["api_key"]` and `"api_key": "…"` in code are real
+ *  references. The scanner is string-aware so `//` inside a URL
+ *  string does not eat the rest of the line. Handles line comments,
+ *  block comments, and `#` comments that start
+ *  a line (Python/shell style); a mid-line `#` (URL fragment, CSS
+ *  colour) is left alone. */
+export function stripComments(content: string): string {
+  const out = content.split("");
+  const n = content.length;
+  let i = 0;
+  let state: "code" | "sq" | "dq" | "bt" | "line" | "block" = "code";
+  let lineStart = true; // only whitespace seen since the last newline
+  while (i < n) {
+    const ch = content[i];
+    const next = i + 1 < n ? content[i + 1] : "";
+    if (state === "line") {
+      if (ch === "\n") { state = "code"; lineStart = true; i++; continue; }
+      out[i] = " ";
+      i++;
+      continue;
+    }
+    if (state === "block") {
+      if (ch === "*" && next === "/") { out[i] = " "; out[i + 1] = " "; i += 2; state = "code"; continue; }
+      if (ch !== "\n") out[i] = " ";
+      i++;
+      continue;
+    }
+    if (state === "sq" || state === "dq" || state === "bt") {
+      const q = state === "sq" ? "'" : state === "dq" ? '"' : "`";
+      if (ch === "\\") { i += 2; continue; }
+      if (ch === q) state = "code";
+      // Single/double-quoted strings cannot span lines: a newline
+      // ends them. (A regex literal full of quotes — /^[\"']?…/ —
+      // leaves the tracker in quote state at end of line; without
+      // this reset the next line's block comment never opens, and a
+      // comment mention past it counts as a reference. Backtick
+      // template literals CAN span lines, so `bt` keeps its state.)
+      if (ch === "\n") {
+        if (state !== "bt") state = "code";
+        lineStart = true;
+      }
+      i++;
+      continue;
+    }
+    // Code state.
+    if (ch === "'") { state = "sq"; i++; continue; }
+    if (ch === '"') { state = "dq"; i++; continue; }
+    if (ch === "`") { state = "bt"; i++; continue; }
+    if (ch === "/" && next === "/") { out[i] = " "; out[i + 1] = " "; i += 2; state = "line"; continue; }
+    if (ch === "/" && next === "*") { out[i] = " "; out[i + 1] = " "; i += 2; state = "block"; continue; }
+    if (ch === "#" && lineStart) { out[i] = " "; i++; state = "line"; continue; }
+    if (ch === "\n") { lineStart = true; i++; continue; }
+    if (ch !== " " && ch !== "\t" && ch !== "\r") lineStart = false;
+    i++;
+  }
+  return out.join("");
+}
+
 /** Line numbers (1-based) of every bounded occurrence of
  *  `identifier` in `content`. Bounded means the character before
  *  and after the match is not [A-Za-z0-9_], so `MY_KEY` never
@@ -347,7 +416,11 @@ export function computeUsageForFindings(
       const base = basename(path);
       if (IGNORE_FILE_BASENAMES.has(base)) continue;
       const content = files.get(path);
-      if (content === undefined || !prefilter.test(content)) continue;
+      if (content === undefined) continue;
+      // Comments are not usage: strip them (line numbers unchanged)
+      // before the prefilter and the attribution below.
+      const searchable = stripComments(content);
+      if (!prefilter.test(searchable)) continue;
       const isTest = isTestFilePath(path);
       for (const f of findings) {
         if (f.file === path) continue; // never the finding's own file
@@ -355,7 +428,7 @@ export function computeUsageForFindings(
         if (ids.length === 0) continue;
         const bucket = refs.get(f)!;
         for (const id of ids) {
-          for (const line of findIdentifierOccurrences(content, id)) {
+          for (const line of findIdentifierOccurrences(searchable, id)) {
             (isTest ? bucket.tests : bucket.code).push({ file: path, line });
           }
         }

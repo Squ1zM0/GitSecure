@@ -18,10 +18,14 @@
 //         absent) must NOT produce a reference
 //   (vi)  triage-upgrade rule cases (prod usage -> genuine, docs-only
 //         usage on a decisive key -> stays test, dead end reinforces)
+//   (ix)  LIVE REGRESSION (2026-11-26): a comment mention is not
+//         usage — `api_key` named in usage.ts's own doc comments
+//         wrongly upgraded the test-scanner fixture to
+//         likely-genuine-leak; comments are stripped before matching
 
 import { generateKeyPairSync } from "node:crypto";
 import { readFileSync } from "node:fs";
-import { computeUsageForFindings, extractIdentifiers } from "../src/lib/usage";
+import { computeUsageForFindings, extractIdentifiers, stripComments } from "../src/lib/usage";
 import { isDocsPath, isProductionPath, parsePrivateKeyInContent, triageFinding } from "../src/lib/triage";
 import { buildLimits } from "../src/lib/scan";
 import { buildProvisionalReport } from "../src/lib/provisional";
@@ -318,6 +322,70 @@ check(
   "(viii) string match: stays likely-test-key (no production-usage upgrade)",
   triageFinding(hiddenFinding, { usage: hiddenFinding.usage }).triage.verdict === "likely-test-key",
 );
+
+// --- (ix) LIVE REGRESSION: a comment mention is not usage ---
+// Live self-scan 2026-11-26: the test-scanner fixture
+// `api_key = "FAKEPW"` (identifier `api_key`) was upgraded to
+// likely-genuine-leak because `api_key` appears in the doc comments
+// of src/lib/usage.ts itself (`api_key` from `"api_key": "…"`).
+// A mention in prose is not a use of the value.
+const commentFinding = finding({ type: "hardcoded-password", file: "scripts/test-scanner.ts", line: 104 });
+const commentLine = `api_key = "__SECRET_9__"; api_key = "__SECRET_9__";`;
+check(
+  "(ix) comment: identifier is api_key",
+  extractIdentifiers(commentFinding, { lineText: commentLine }).join(",") === "api_key",
+  extractIdentifiers(commentFinding, { lineText: commentLine }).join(","),
+);
+computeUsageForFindings(
+  [commentFinding],
+  filesMap([
+    ["scripts/test-scanner.ts", `${"// filler\n".repeat(103)}${commentLine}\n`],
+    // Doc comments naming the identifier — the exact live false flip.
+    ["src/lib/usage.ts", `/** The name inside a detector match: \`api_key\` from \`"api_key": "…"\`. */\n// set api_key in config before running\nconst x = 1;\n`],
+    // A # full-line comment in a Python file naming it too.
+    ["src/app.py", `# configure api_key before deploying\nprint("ok")\n`],
+  ]),
+  ctxFrom(filesMap([["scripts/test-scanner.ts", `${"// filler\n".repeat(103)}${commentLine}\n`]])),
+);
+check("(ix) comment: no production reference from comments", commentFinding.usage?.referencedByTotal === 0, JSON.stringify(commentFinding.usage?.referencedBy));
+check("(ix) comment: true dead end", commentFinding.usage?.deadEnd === true);
+check(
+  "(ix) comment: stays likely-test-key (no production-usage upgrade)",
+  triageFinding(commentFinding, { usage: commentFinding.usage }).triage.verdict === "likely-test-key",
+  triageFinding(commentFinding, { usage: commentFinding.usage }).triage.verdict,
+);
+check(
+  "(ix) comment: dead-end signal recorded",
+  triageFinding(commentFinding, { usage: commentFinding.usage }).triage.signals.includes("usage-dead-end"),
+);
+// …but the same identifier inside a string literal in real code IS a reference.
+const stringRefFinding = finding({ type: "hardcoded-password", file: "scripts/test-scanner.ts", line: 104 });
+computeUsageForFindings(
+  [stringRefFinding],
+  filesMap([
+    ["scripts/test-scanner.ts", `${"// filler\n".repeat(103)}${commentLine}\n`],
+    ["src/config.ts", `const key = process.env["api_key"];\n`],
+  ]),
+  ctxFrom(filesMap([["scripts/test-scanner.ts", `${"// filler\n".repeat(103)}${commentLine}\n`]])),
+);
+check("(ix) string: identifier in a string literal in code counts", stringRefFinding.usage?.referencedByTotal === 1, `${stringRefFinding.usage?.referencedByTotal}`);
+// stripComments unit checks: `//` inside a URL string must not eat
+// the rest of the line, and line numbers must survive stripping.
+const stripped = stripComments(`const u = "https://x/api_key";\nconst y = api_key;\n// api_key in a comment\n`);
+check("(ix) stripComments: URL string survives", stripped.includes(`"https://x/api_key"`), JSON.stringify(stripped));
+check("(ix) stripComments: real reference after the URL survives", stripped.split("\n")[1].includes("api_key"));
+check("(ix) stripComments: comment line blanked, line count kept", stripped.split("\n").length === 4 && !stripped.split("\n")[2].includes("api_key"), JSON.stringify(stripped));
+// A regex literal full of quotes must not trap the tracker in quote
+// state across lines: /^[\"']?…[\"']?/ ends the line in sq state, and
+// without the newline reset the NEXT line's block comment never opens,
+// so a comment mention past it counted as a reference (live flip,
+// usage.ts:140 in the pre-fix code).
+const regexTrap = stripComments(
+  `const m = /^\\s*["']?([A-Za-z_][A-Za-z0-9_.\\-]*)["']?\\s*[:=]/.exec(match);\n` +
+  `/** The assignment name: ("api_key": "ghp_…"). */\nconst y = api_key;\n`,
+);
+check("(ix) stripComments: regex-quote trap — block comment after a regex is stripped", !regexTrap.split("\n")[1].includes("api_key"), JSON.stringify(regexTrap));
+check("(ix) stripComments: regex-quote trap — real reference on the next line survives", regexTrap.split("\n")[2].includes("api_key"), JSON.stringify(regexTrap));
 
 // --- Generic names yield no identifier: liveness undetermined, never a false dead end ---
 const genericFinding = finding({ type: "github-token", file: "src/config.ts", line: 5 });
