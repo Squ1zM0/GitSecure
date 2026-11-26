@@ -812,10 +812,13 @@ you don't have limit limits."
   commits, newest first (git protocol — no git binary, no REST
   quota).", "Public repos only…"),
   `test:mcp` 51/51 against a local production server. Live against
-  that local server (NOT pushed, NOT deployed): scan API 200 in ~19 s,
+  that local server: scan API 200 in ~19 s,
   report page 200 with the dial and "About this scan", bogus job ID
   404 `job-not-found`. No literal secret-pattern values committed
   (grep-verified; fixtures still use `__SECRET_n__` placeholders).
+  Pushed as cf88fe4c (88 files), head verified by read-back; live
+  TechDirect scan 200, 83/B, history 62/62 via the git protocol, no
+  rate-limit line; live second scan 0.33 s (cache working).
 - **NOT verified live:** a real 202/poll round-trip on a repo that
   takes over 50 s. No available public repo reliably exceeds the
   fast path from this machine (DefinitelyTyped fits in ~30 s), so the
@@ -883,7 +886,9 @@ ruling stands — no token, do not raise it).
   (grep-verified; fixtures still use `__SECRET_n__` placeholders,
   test-assembled fakes only). The memory-guard trip path is NOT directly
   tested (the guard is a module constant, not an option) — it is code-
-  reviewed only. NOT pushed, NOT deployed — the push worker owns that.
+  reviewed only. Pushed as cf88fe4c (88 files, remote head and tree
+  verified by read-back); live TechDirect 83/B, 62/62 via git protocol,
+  second scan 0.33 s (cache working live).
 
 ## Phase 8.1 status — giant-repo history fix (built 2026-11-25, integration)
 
@@ -922,6 +927,19 @@ Phase 5 never hit this: live history then was only 5 commits.
   path's partial history + note is the honest maximum today; a
   durable per-commit cache (KV/DB) would be a separate, paid
   decision, not taken here.
+- **Live verification (2026-11-25, after push 6f1402ab):**
+  DefinitelyTyped scan **200 in 36.4 s, 0/F, 403 secrets listed,
+  61,814 files**, history 48 commits via the API path with the honest
+  size-gate + rate-limit notes ("This repo is 818 MB — too large to
+  clone… GitHub API rate limit was hit — scanned 48 commits before
+  stopping."). TechDirect still **83/B, 62/62 via git protocol**
+  (one transient 429 on the shared Vercel IP quota during
+  verification, then 200 on retry — the scan correctly answers 429
+  instead of crashing when the quota is gone). MCP initialize 200,
+  protocol 2025-03-26. Tests after integration: build exit 0;
+  scanner 68/68, tier3 40/40, history 56/56 (53 + 3 size-gate),
+  public-full 56/56, jobs-phase8 44/44, ui-phase7 52/52, techdirect
+  83/B, mcp 51/51, history-git live proof 62/62 with 0 REST calls.
 
 ## Phase 2 status — built and pushed 2026-11-25, commit 870f889f, live at https://gitsecure.vercel.app/ (verified serving: home 200, live TechDirect scan 200, 83/B)
 - Next.js 16 / React 19 / TypeScript + Auth.js (NextAuth 5.0.0-beta.32,
