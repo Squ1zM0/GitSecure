@@ -1,8 +1,6 @@
-import { defineConfig } from "vite";
-import react from "@vitejs/plugin-react";
-
-export default defineConfig({
-  plugins: [react()],
-  server: { host: "0.0.0.0", port: 5173 },
-});
-export const apiUrl = import.meta.env.VITE_API_URL;
+// Clean committed fixture (Phase 14): no dev-server host, no plugins,
+// no public-variable reference — the risky config lives only in the
+// generated test-time fixture (scripts/fixture-gen.ts), so the
+// self-scan stays clean. Kept as a file so the Vite framework is still
+// fingerprinted from a config file when no vite dep is present.
+export default {};

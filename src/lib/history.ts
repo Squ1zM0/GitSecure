@@ -802,29 +802,44 @@ async function readHeadUsageCorpus(
   let bytes = 0;
   let over = false;
   try {
-    await git.walk({
-      fs,
-      dir,
-      cache,
-      trees: [git.TREE({ ref: branch })],
-      map: async (filepath, [head]) => {
-        if (over || !head || !filepath) return null;
-        if ((await head.type()) !== "blob") return null;
-        if (isSkippablePath(filepath)) return null;
-        const text = await readBlobText(dir, await head.oid(), cache);
-        if (text === null) return null; // binary
-        const size = Buffer.byteLength(text, "utf8");
-        if (size > 1_000_000) return null; // same 1 MB per-file rule as scanHead
-        files++;
-        bytes += size;
-        if (files > HEAD_USAGE_CORPUS_MAX_FILES || bytes > HEAD_USAGE_CORPUS_MAX_BYTES) {
-          over = true;
-          return null;
+    // Phase 14: the old `git.walk` over `git.TREE({ ref: branch })`
+    // visited exactly 1 entry (the root) and 0 blobs in a
+    // `noCheckout: true` clone, so the corpus came back an empty
+    // (non-null) Map and every history finding was labelled a dead
+    // end. `git.walk` does not descend the tree in that clone shape
+    // (proved in the standalone repro: TREE by ref AND by resolved
+    // tip oid both visit 1 entry / 0 blobs, while `git.readTree`
+    // from the tip commit's tree lists every entry). Read the tree
+    // directly instead: resolve the branch tip to its commit, take
+    // the commit's tree oid, and recurse with `git.readTree`,
+    // reading each blob with the same readBlobText as the diff walk.
+    const tipOid = await git.resolveRef({ fs, dir, ref: branch });
+    const { commit } = await git.readCommit({ fs, dir, oid: tipOid, cache });
+    const readTree = async (treeOid: string, prefix: string): Promise<void> => {
+      if (over) return;
+      const { tree } = await git.readTree({ fs, dir, oid: treeOid, cache });
+      for (const entry of tree) {
+        if (over) return;
+        const filepath = prefix ? `${prefix}/${entry.path}` : entry.path;
+        if (entry.type === "tree") {
+          await readTree(entry.oid, filepath);
+        } else if (entry.type === "blob") {
+          if (isSkippablePath(filepath)) continue;
+          const text = await readBlobText(dir, entry.oid, cache);
+          if (text === null) continue; // binary
+          const size = Buffer.byteLength(text, "utf8");
+          if (size > 1_000_000) continue; // same 1 MB per-file rule as scanHead
+          files++;
+          bytes += size;
+          if (files > HEAD_USAGE_CORPUS_MAX_FILES || bytes > HEAD_USAGE_CORPUS_MAX_BYTES) {
+            over = true;
+            return;
+          }
+          corpus.set(filepath, text);
         }
-        corpus.set(filepath, text);
-        return null;
-      },
-    });
+      }
+    };
+    await readTree(commit.tree, "");
   } catch {
     return null;
   }

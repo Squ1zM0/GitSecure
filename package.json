@@ -34,7 +34,8 @@
     "test:triage-phase10": "tsx scripts/test-triage-phase10.ts",
     "test:usage-phase11": "tsx scripts/test-usage-phase11.ts",
     "test:mcp": "tsx scripts/test-mcp.ts",
-    "test:cursor-phase9": "tsx scripts/test-cursor-phase9.ts"
+    "test:cursor-phase9": "tsx scripts/test-cursor-phase9.ts",
+    "test:fixtures-phase14": "tsx scripts/test-fixtures-phase14.ts"
   },
   "version": "0.1.0"
 }

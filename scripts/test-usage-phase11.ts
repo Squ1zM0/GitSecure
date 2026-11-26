@@ -188,6 +188,17 @@ check("(vi-a) prod usage: test-key + src/ reference upgrades to likely-genuine-l
 check("(vi-a) prod usage: explanation names src/service.ts", /src\/service\.ts/.test(awsTriage.triage.explanation), awsTriage.triage.explanation);
 
 // (vi-b) decisive fingerprint + docs-only usage -> stays likely-test-key.
+//
+// PHASE 14 BEHAVIOUR CHANGE (Bug 2 fix): a docs/prose mention is
+// not usage at all — it is not recorded in referencedBy, so a
+// finding mentioned only in docs is a dead end, not "referenced
+// from documentation". Before the fix this case asserted the
+// docs/guide.md reference was recorded in referencedBy with a
+// `usage-docs-ref` signal; the usage layer now skips docs files
+// entirely (see computeUsageForFindings), so that signal can no
+// longer fire from real usage data. The verdict is unchanged
+// (decisive fingerprint -> likely-test-key); the dead-end signal
+// now reinforces it instead.
 const { privateKey: decisivePem } = generateKeyPairSync("rsa", { modulusLength: 2048, publicExponent: 0x10001 });
 const decisivePemText = decisivePem.export({ type: "pkcs1", format: "pem" }).toString();
 const decisiveParsed = parsePrivateKeyInContent(decisivePemText, 1)!;
@@ -198,19 +209,20 @@ const docsContents = filesMap([
 const docsFinding = finding({ type: "private-key", file: "tests/fixtures/sign_key.pem", line: 1 });
 computeUsageForFindings([docsFinding], docsContents, ctxFrom(docsContents));
 check(
-  "(vi-b) docs-only: reference recorded in referencedBy",
-  docsFinding.usage?.referencedBy.some((r) => r.file === "docs/guide.md" && r.line === 3) ?? false,
+  "(vi-b) docs-only: a docs mention is NOT a non-test reference",
+  docsFinding.usage?.referencedByTotal === 0 && (docsFinding.usage?.referencedBy.length ?? -1) === 0,
   JSON.stringify(docsFinding.usage?.referencedBy),
 );
+check("(vi-b) docs-only: docs mention leaves it a dead end", docsFinding.usage?.deadEnd === true);
 check("(vi-b) docs-only: docs/ is a docs path, not a production path", isDocsPath("docs/guide.md") && !isProductionPath("docs/guide.md"));
 const docsTriage = triageFinding(docsFinding, {
   content: decisivePemText,
   extraKnownFingerprints: [{ sha256: decisiveParsed.fingerprint, name: "Test-only planted key" }],
   usage: docsFinding.usage,
 });
-check("(vi-b) docs-only: decisive key + docs reference stays likely-test-key", docsTriage.triage.verdict === "likely-test-key", docsTriage.triage.verdict);
-check("(vi-b) docs-only: usage-docs-ref signal recorded", docsTriage.triage.signals.includes("usage-docs-ref"), docsTriage.triage.signals.join(","));
-check("(vi-b) docs-only: explanation names the docs file", /docs\/guide\.md/.test(docsTriage.triage.explanation), docsTriage.triage.explanation);
+check("(vi-b) docs-only: decisive key + docs mention stays likely-test-key", docsTriage.triage.verdict === "likely-test-key", docsTriage.triage.verdict);
+check("(vi-b) docs-only: usage-dead-end signal recorded (no usage-docs-ref any more)", docsTriage.triage.signals.includes("usage-dead-end") && !docsTriage.triage.signals.includes("usage-docs-ref"), docsTriage.triage.signals.join(","));
+check("(vi-b) docs-only: explanation says it is a dead end", docsTriage.triage.explanation.includes(DEAD_END_SENTENCE), docsTriage.triage.explanation);
 
 // (vi-c) dead end reinforces likely-test-key (uncertain -> test-key).
 const { privateKey: strongPem } = generateKeyPairSync("rsa", { modulusLength: 4096, publicExponent: 0x10001 });
@@ -386,6 +398,83 @@ const regexTrap = stripComments(
 );
 check("(ix) stripComments: regex-quote trap — block comment after a regex is stripped", !regexTrap.split("\n")[1].includes("api_key"), JSON.stringify(regexTrap));
 check("(ix) stripComments: regex-quote trap — real reference on the next line survives", regexTrap.split("\n")[2].includes("api_key"), JSON.stringify(regexTrap));
+
+// --- (x) LIVE REGRESSION (Phase 14, Bug 2): a docs/prose mention is not usage ---
+// The two uncertain self-scan findings (scripts/test-scanner.ts:104
+// and scripts/test-usage-phase11.ts:333, both `api_key` fixtures)
+// were kept uncertain by one signal, `usage-referenced`, whose only
+// non-test references were prose mentions in GITSECURE.md:1294/1301
+// and README.md:1228 — the Phase 11.1 write-up itself describing
+// the comment-strip fix. Those lines quote the identifier while
+// explaining a fix; they never use the value. A `.md` mention is
+// not code using a credential.
+const proseFinding = finding({ type: "hardcoded-password", file: "scripts/test-scanner.ts", line: 104 });
+computeUsageForFindings(
+  [proseFinding],
+  filesMap([
+    ["scripts/test-scanner.ts", `${"// filler\n".repeat(103)}${commentLine}\n`],
+    // The exact live shape: prose in the repo docs naming the identifier.
+    ["GITSECURE.md", `# Phase 11.1\n\nThe fixture \`api_key = "FAKEPW"\` was flipped.\nSee \`api_key\` in the write-up.\n`],
+    ["README.md", `# Project\n\nSet \`api_key\` in config before running.\n`],
+    ["docs/guide.md", `# Guide\n\nThe \`api_key\` example above is only a test value.\n`],
+  ]),
+  ctxFrom(filesMap([["scripts/test-scanner.ts", `${"// filler\n".repeat(103)}${commentLine}\n`]])),
+);
+check("(x) prose: identifier is api_key", extractIdentifiers(proseFinding, { lineText: commentLine }).join(",") === "api_key");
+check("(x) prose: no non-test reference from .md / docs prose", proseFinding.usage?.referencedByTotal === 0, JSON.stringify(proseFinding.usage?.referencedBy));
+check("(x) prose: no test reference either", proseFinding.usage?.referencedByTestsTotal === 0);
+check("(x) prose: true dead end", proseFinding.usage?.deadEnd === true);
+const proseTriage = triageFinding(proseFinding, { usage: proseFinding.usage });
+check("(x) prose: stays likely-test-key (no production-usage upgrade)", proseTriage.triage.verdict === "likely-test-key", proseTriage.triage.verdict);
+check("(x) prose: usage-dead-end signal recorded, no usage-referenced", proseTriage.triage.signals.includes("usage-dead-end") && !proseTriage.triage.signals.includes("usage-referenced"), proseTriage.triage.signals.join(","));
+// …but the same identifier referenced from real code still counts.
+const proseCodeFinding = finding({ type: "hardcoded-password", file: "scripts/test-scanner.ts", line: 104 });
+computeUsageForFindings(
+  [proseCodeFinding],
+  filesMap([
+    ["scripts/test-scanner.ts", `${"// filler\n".repeat(103)}${commentLine}\n`],
+    ["README.md", `# Project\n\nSet \`api_key\` in config before running.\n`],
+    ["src/config.ts", `const key = process.env["api_key"];\n`],
+  ]),
+  ctxFrom(filesMap([["scripts/test-scanner.ts", `${"// filler\n".repeat(103)}${commentLine}\n`]])),
+);
+check(
+  "(x) code: real code reference counts, docs mention does not",
+  proseCodeFinding.usage?.referencedByTotal === 1 &&
+    proseCodeFinding.usage?.referencedBy.some((r) => r.file === "src/config.ts" && r.line === 1) === true &&
+    !(proseCodeFinding.usage?.referencedBy.some((r) => r.file === "README.md") ?? true),
+  JSON.stringify(proseCodeFinding.usage?.referencedBy),
+);
+check("(x) code: not a dead end", proseCodeFinding.usage?.deadEnd === false);
+check(
+  "(x) code: test-key + production code reference upgrades to likely-genuine-leak",
+  triageFinding(proseCodeFinding, { usage: proseCodeFinding.usage }).triage.verdict === "likely-genuine-leak",
+  triageFinding(proseCodeFinding, { usage: proseCodeFinding.usage }).triage.verdict,
+);
+// …and a test-file reference is still recorded in referencedByTests.
+const proseTestFinding = finding({ type: "hardcoded-password", file: "scripts/test-scanner.ts", line: 104 });
+computeUsageForFindings(
+  [proseTestFinding],
+  filesMap([
+    ["scripts/test-scanner.ts", `${"// filler\n".repeat(103)}${commentLine}\n`],
+    ["README.md", `# Project\n\nSet \`api_key\` in config before running.\n`],
+    ["tests/other.test.ts", `const k = api_key;\n`],
+  ]),
+  ctxFrom(filesMap([["scripts/test-scanner.ts", `${"// filler\n".repeat(103)}${commentLine}\n`]])),
+);
+check(
+  "(x) test: test-file reference still recorded in referencedByTests",
+  proseTestFinding.usage?.referencedByTestsTotal === 1 &&
+    proseTestFinding.usage?.referencedByTests.some((r) => r.file === "tests/other.test.ts") === true,
+  JSON.stringify(proseTestFinding.usage?.referencedByTests),
+);
+check("(x) test: no non-test reference (docs + tests only)", proseTestFinding.usage?.referencedByTotal === 0);
+check("(x) test: not a dead end (tests reference it)", proseTestFinding.usage?.deadEnd === false);
+check(
+  "(x) test: still likely-test-key (test-only references do not upgrade)",
+  triageFinding(proseTestFinding, { usage: proseTestFinding.usage }).triage.verdict === "likely-test-key",
+  triageFinding(proseTestFinding, { usage: proseTestFinding.usage }).triage.verdict,
+);
 
 // --- Generic names yield no identifier: liveness undetermined, never a false dead end ---
 const genericFinding = finding({ type: "github-token", file: "src/config.ts", line: 5 });

@@ -1,0 +1,12 @@
+# Dependabot — automated dependency updates for GitSecure.
+# npm covers the Next.js app (package.json + package-lock.json).
+# There is no github-actions entry: this repo has no workflows under
+# .github/workflows/ yet, so there is nothing for that ecosystem to update.
+# If a workflow is added later, add a github-actions entry here too.
+version: 2
+updates:
+  - package-ecosystem: "npm"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+    open-pull-requests-limit: 10

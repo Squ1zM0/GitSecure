@@ -17,7 +17,7 @@
 // cache section proving a second scan fetches zero already-scanned
 // commits and a scan after one new commit fetches exactly one.
 
-import { mkdtemp, rm, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { execFile, spawn } from "node:child_process";
@@ -315,6 +315,69 @@ async function main() {
         const g4 = await scanHistory({ owner: "gitowner", repo: "gitrepo", branch: "main", method: "git", cloneUrlOverride: gitBase });
         check("scanHistory method git returns the git path", g4.ok && g4.method === "git", g4.method);
         check("scanHistory method git covers all 4 commits", g4.commitsScanned === 4, `${g4.commitsScanned} scanned`);
+
+        // --- Phase 14, Bug 1 regression: the history usage corpus
+        // must actually contain the HEAD files. Commit 1 plants
+        // `api_key` in scripts/legacy.js, references it from real
+        // code (src/app.ts), and mentions it in README.md prose;
+        // commit 2 removes the secret line (HEAD is clean of the
+        // secret, but src/app.ts still references the identifier);
+        // commit 3 is unrelated. Before the fix readHeadUsageCorpus
+        // walked the no-checkout clone's tree to 1 entry / 0 blobs,
+        // so the history finding came back referencedByTotal 0 with
+        // deadEnd true — a genuinely referenced history secret
+        // mis-triaged as a dead-end test key.
+        // The planted value is assembled from fragments at runtime
+        // (like the webhook fixtures above): the committed source
+        // must contain no literal `api_key = "<value>"` line, or
+        // the scanner would flag this test file itself in the
+        // self-scan and move the dogfood counts.
+        clearHistoryCache();
+        const usageRepo = join(gitRoot, "usagerepo");
+        await git(gitRoot, ["init", "-b", "main", "usagerepo"]);
+        await git(usageRepo, ["config", "user.email", "test@example.com"]);
+        await git(usageRepo, ["config", "user.name", "GitSecure Test"]);
+        await mkdir(join(usageRepo, "scripts"), { recursive: true });
+        await mkdir(join(usageRepo, "src"), { recursive: true });
+        const fakePw = FAKE.repeat(3) + "FAKE1";
+        const legacyLine = ["api_key", "=", `"${fakePw}"`].join(" ");
+        await writeFile(join(usageRepo, "scripts", "legacy.js"), `${legacyLine};\nmodule.exports = {};\n`);
+        await writeFile(join(usageRepo, "src", "app.ts"), `const k = api_key;\nconsole.log(k);\n`);
+        await writeFile(join(usageRepo, "README.md"), "# Docs\n\nSet api_key in config before running.\n");
+        await git(usageRepo, ["add", "."]);
+        await git(usageRepo, ["commit", "-m", "plant api_key + reference it from src"]);
+        const usageOldSha = await git(usageRepo, ["rev-parse", "--short=7", "HEAD"]);
+        await writeFile(join(usageRepo, "scripts", "legacy.js"), `module.exports = {};\n`);
+        await git(usageRepo, ["add", "."]);
+        await git(usageRepo, ["commit", "-m", "remove the secret line"]);
+        await writeFile(join(usageRepo, "notes.txt"), "unrelated change\n");
+        await git(usageRepo, ["add", "."]);
+        await git(usageRepo, ["commit", "-m", "notes"]);
+        const usageBase = `http://127.0.0.1:${(gitServer.address() as { port: number }).port}/usagerepo`;
+        const u1 = await scanHistoryViaGit("usageowner", "usagerepo", "main", { cloneUrlOverride: usageBase });
+        check("history usage: scan succeeds", u1.ok, u1.note ?? "");
+        check("history usage: scans all 3 commits", u1.commitsScanned === 3, `${u1.commitsScanned} scanned`);
+        const usageFinding = u1.findings.find((f) => f.type === "hardcoded-password" && f.file === "scripts/legacy.js" && f.commit === usageOldSha);
+        check("history usage: old-commit api_key finding found", !!usageFinding, `commit=${usageFinding?.commit ?? "?"} expected ${usageOldSha}`);
+        check(
+          "history usage: HEAD corpus contains the files — src/app.ts reference is found",
+          usageFinding?.usage?.referencedBy.some((r) => r.file === "src/app.ts" && r.line === 1) ?? false,
+          JSON.stringify(usageFinding?.usage?.referencedBy),
+        );
+        check("history usage: referencedByTotal is 1 (real code only)", usageFinding?.usage?.referencedByTotal === 1, `${usageFinding?.usage?.referencedByTotal}`);
+        check(
+          "history usage: README.md prose mention is NOT a reference (Phase 14 Bug 2)",
+          !(usageFinding?.usage?.referencedBy.some((r) => r.file === "README.md") ?? true),
+          JSON.stringify(usageFinding?.usage?.referencedBy),
+        );
+        check("history usage: not a dead end", usageFinding?.usage?.deadEnd === false);
+        check("history usage: annotation is HEAD-only", usageFinding?.usage?.historyOnly === true);
+        check(
+          "history usage: no dead-end signal on a referenced finding",
+          !(usageFinding?.triage?.signals.includes("usage-dead-end") ?? true),
+          usageFinding?.triage?.signals.join(",") ?? "(no triage)",
+        );
+        check("no full fake secret in history-usage findings", !leaksSecret(JSON.stringify(u1.findings), fakePw));
       } finally {
         await new Promise<void>((resolve) => gitServer.close(() => resolve()));
       }

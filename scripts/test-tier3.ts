@@ -3,8 +3,7 @@
 // Uses FAKE placeholder values only. Run: npx tsx scripts/test-tier3.ts
 // (coordinator adds: "test:tier3": "tsx scripts/test-tier3.ts").
 
-import { readFileSync, readdirSync, statSync } from "node:fs";
-import { join } from "node:path";
+import { loadFakeRepoTier3 } from "./fixture-gen";
 import {
   ACTIONS_OSV_ECOSYSTEM,
   detectInfraFrameworks,
@@ -13,7 +12,13 @@ import {
   parseWorkflowActions,
 } from "../src/lib/infra";
 
-const FIXTURE = join(process.cwd(), "tests/fixtures/fake-repo-tier3");
+// Phase 14: the risky Tier 3 configs (Dockerfile, k8s/deployment.yaml,
+// main.tf) are generated at test time by scripts/fixture-gen.ts — the
+// committed files keep only the clean ones (docker-compose.yml,
+// ci.yml, supabase/config.toml, vercel.json). loadFakeRepoTier3()
+// overlays the generated contents on the committed ones, so every
+// assertion below runs against the same contents as before.
+const files = loadFakeRepoTier3();
 
 // A 40-char hex string assembled at runtime, never written literally:
 // GitHub push protection blocks literal 40-hex strings (they look like
@@ -26,21 +31,6 @@ function check(name: string, ok: boolean, extra = "") {
   if (!ok) failures++;
 }
 
-function loadDir(dir: string, prefix = ""): Map<string, string> {
-  const out = new Map<string, string>();
-  for (const entry of readdirSync(dir)) {
-    const full = join(dir, entry);
-    const rel = prefix ? `${prefix}/${entry}` : entry;
-    if (statSync(full).isDirectory()) {
-      for (const [k, v] of loadDir(full, rel)) out.set(k, v);
-    } else {
-      out.set(rel, readFileSync(full, "utf8"));
-    }
-  }
-  return out;
-}
-
-const files = loadDir(FIXTURE);
 const frameworks = detectInfraFrameworks(files);
 const byName = new Map(frameworks.map((f) => [f.name, f]));
 const findings = infraFindings(files);

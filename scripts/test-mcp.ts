@@ -68,6 +68,15 @@
 //      fixture-driven vulnerabilities stand. The 0/F here is honest,
 //      not a leftover of the old rule — and it is the stable assertion:
 //      the secret count drifts up as history grows, the grade does not.
+//      Phase 14: all 34 triage likely-test-key, 0 uncertain — the
+//      docs/prose-mention fix removes the only non-test references
+//      keeping the two `api_key` fixtures uncertain (secrets
+//      deduction 8 -> 0, total 302 -> 294, score still 0/F), and
+//      the fixed history usage corpus means their history copies
+//      are no longer false dead ends (test-only references now
+//      recorded). Measured 2026-11-26 by a direct local scanRepo
+//      run against the live remote (see the Phase 14 worker
+//      report), not assumed.
 //      Phase 13: the vulnerabilities were FIXED, not relabelled —
 //      Django 4.2.0 -> 5.2.17, next 14.2.5 -> 15.5.29, fiber/sinatra/
 //      puma/phpunit and the real deps diff/zod upgraded to fixed
@@ -223,19 +232,29 @@ async function main() {
   // scripts/test-deps-phase13.ts. Phase 13: 34 secrets, not 32 —
   // history grew to 27 commits (see the header note); the count drifts
   // with history, the grade does not.
-  check("scan_repo GitSecure score 0 / grade F (Phase 13: 34 secrets, secrets deduction 8, vulns 206 — see header note)", gsReport?.score === 0 && gsReport?.grade === "F", `got ${gsReport?.score}/${gsReport?.grade}`);
+  // Phase 14: the secrets deduction is now 0, not 8, and the total is
+  // 294, not 302 — the 2 uncertain findings are gone, not relabelled
+  // by hand: the Bug 2 fix (docs/prose mentions are not usage) removes
+  // the only non-test references keeping the test-scanner.ts:104 and
+  // test-usage-phase11.ts:333 `api_key` fixtures uncertain, so all 34
+  // triage likely-test-key; the Bug 1 fix (history usage corpus now
+  // actually reads the HEAD files) means their history copies are no
+  // longer false dead ends either — they carry test-only references.
+  // Score stays 0/F on vulns 206 + posture 84 + unpinned 4 alone.
+  check("scan_repo GitSecure score 0 / grade F (Phase 14: 34 secrets, secrets deduction 0, vulns 206 — see header note)", gsReport?.score === 0 && gsReport?.grade === "F", `got ${gsReport?.score}/${gsReport?.grade}`);
   check("scan_repo GitSecure counts 34 secrets", gsReport?.counts?.secrets === 34, `got ${gsReport?.counts?.secrets}`);
   check("scan_repo GitSecure counts 73 vulnerabilities (Phase 13: was 197)", gsReport?.counts?.vulnerabilities === 73, `got ${gsReport?.counts?.vulnerabilities}`);
-  // Phase 12 dogfood: 32 of the 34 are known-fake fixture secrets
-  // triaging likely-test-key; the other 2 are uncertain (the
-  // test-scanner.ts:104 and test-usage-phase11.ts:333 fixtures) — and
-  // the honest split must say so.
+  // Phase 14 dogfood: all 34 known-fake fixture secrets triage
+  // likely-test-key; the 2 formerly uncertain `api_key` fixtures
+  // (test-scanner.ts:104, test-usage-phase11.ts:333) are test keys
+  // now that docs/prose mentions no longer count as usage — and the
+  // honest split must say so.
   const gsFull = gsReport as { secrets?: { triage?: { verdict?: string }; usage?: { deadEnd?: boolean } }[]; scoreDetail?: { secretsDeduction?: number; wouldBeScore?: number; secretsExcluded?: number; secretsHalfWeight?: number } } | null;
   const gsTestKeys = gsFull?.secrets?.filter((s) => s.triage?.verdict === "likely-test-key").length ?? -1;
   const gsUncertain = gsFull?.secrets?.filter((s) => s.triage?.verdict === "uncertain").length ?? -1;
-  check("scan_repo GitSecure: 32 of 34 secrets triage likely-test-key, 2 uncertain", gsFull?.secrets?.length === 34 && gsTestKeys === 32 && gsUncertain === 2, `test keys ${gsTestKeys}, uncertain ${gsUncertain} of ${gsFull?.secrets?.length ?? "?"}`);
-  check("scan_repo GitSecure: counts.testKeySecrets is 32", gsReport?.counts?.testKeySecrets === 32, `got ${gsReport?.counts?.testKeySecrets}`);
-  check("scan_repo GitSecure: scoreDetail carries the Phase 12 breakdown (secrets 8, wouldBe 0, excluded 32, half 2) and Phase 13 vulns (206)", gsFull?.scoreDetail?.secretsDeduction === 8 && gsFull?.scoreDetail?.wouldBeScore === 0 && gsFull?.scoreDetail?.secretsExcluded === 32 && gsFull?.scoreDetail?.secretsHalfWeight === 2 && gsFull?.scoreDetail?.vulnDeduction === 206, JSON.stringify(gsFull?.scoreDetail));
+  check("scan_repo GitSecure: all 34 secrets triage likely-test-key, 0 uncertain (Phase 14)", gsFull?.secrets?.length === 34 && gsTestKeys === 34 && gsUncertain === 0, `test keys ${gsTestKeys}, uncertain ${gsUncertain} of ${gsFull?.secrets?.length ?? "?"}`);
+  check("scan_repo GitSecure: counts.testKeySecrets is 34", gsReport?.counts?.testKeySecrets === 34, `got ${gsReport?.counts?.testKeySecrets}`);
+  check("scan_repo GitSecure: scoreDetail carries the Phase 12 breakdown (secrets 0, wouldBe 0, excluded 34, half 0) and Phase 13 vulns (206)", gsFull?.scoreDetail?.secretsDeduction === 0 && gsFull?.scoreDetail?.wouldBeScore === 0 && gsFull?.scoreDetail?.secretsExcluded === 34 && gsFull?.scoreDetail?.secretsHalfWeight === 0 && gsFull?.scoreDetail?.vulnDeduction === 206, JSON.stringify(gsFull?.scoreDetail));
   // Phase 11 dogfood: every secret finding in the MCP response
   // carries usage alongside triage (HEAD findings from scanHead,
   // history findings from the git-path HEAD corpus).

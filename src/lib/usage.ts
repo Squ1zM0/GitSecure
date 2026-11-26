@@ -37,7 +37,13 @@
 // COMMENTS (a doc comment naming an example, "set api_key in
 // config" — stripComments removes those before matching, or a
 // test fixture's generic name would flip to likely-genuine-leak
-// on the strength of prose); and generic names (`key`, `token`,
+// on the strength of prose); mentions in DOCUMENTATION / PROSE
+// files (Phase 14: a `.md` / `.txt` / `.rst` / `.adoc` file, or a
+// file under `docs/` — see isDocsPath in triage.ts — quoting the
+// identifier while describing it is not code using the value, so
+// it is not a reference at all, not even a non-test one: the
+// Phase 11.1 write-up itself naming `api_key` kept two test
+// fixtures uncertain on prose alone); and generic names (`key`, `token`,
 // `password`, …) which are too common to mean anything — a finding
 // whose line yields no usable identifier gets an empty usage
 // annotation with deadEnd: false, i.e. "liveness undetermined",
@@ -60,7 +66,7 @@
 // extracted from (the finding's line text and, for .env files, the
 // whole file content so its variable names can be read).
 
-import { isProductionPath, isTestFilePath } from "./triage";
+import { isDocsPath, isProductionPath, isTestFilePath } from "./triage";
 import { DETECTORS } from "./secrets";
 import { redactSecret } from "./redact";
 import type { SecretFinding, SecretUsage } from "./types";
@@ -415,6 +421,13 @@ export function computeUsageForFindings(
     for (const path of paths) {
       const base = basename(path);
       if (IGNORE_FILE_BASENAMES.has(base)) continue;
+      // Phase 14: documentation / prose is not usage — a `.md`
+      // (or `.txt` / `.rst` / `.adoc`, or `docs/`) file quoting
+      // the identifier while describing it never uses the value,
+      // so it contributes to neither reference list. Test files
+      // are unaffected: isDocsPath is false for test paths, so a
+      // test `.md` still counts as a test reference.
+      if (isDocsPath(path)) continue;
       const content = files.get(path);
       if (content === undefined) continue;
       // Comments are not usage: strip them (line numbers unchanged)

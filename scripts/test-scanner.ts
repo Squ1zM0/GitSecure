@@ -7,8 +7,7 @@
 // detail — file names, framework names, vulnerability IDs — with
 // secrets still redacted).
 
-import { readFileSync, readdirSync } from "node:fs";
-import { join } from "node:path";
+import { loadFakeRepo, loadFakeRepoTier2 } from "./fixture-gen";
 import { envFileFinding, scanLinesForSecrets, scanTextForSecrets } from "../src/lib/secrets";
 import { dedupeSecrets } from "../src/lib/scan";
 import { computeScore } from "../src/lib/score";
@@ -17,7 +16,11 @@ import { fingerprintFrameworks, parseCargoToml, parseComposerJson, parseComposer
 import { leaksSecret } from "../src/lib/redact";
 import type { Dependency, FullReport, SecretFinding } from "../src/lib/types";
 
-const FIXTURE = join(process.cwd(), "tests/fixtures/fake-repo");
+// Phase 14: the vulnerable fixture contents are generated at test time
+// by scripts/fixture-gen.ts — the committed files under
+// tests/fixtures/fake-repo/ keep only the clean versions. loadFakeRepo()
+// overlays the generated contents on the committed ones.
+const contents = loadFakeRepo();
 
 // Fake secrets are assembled from fragments at runtime, never written
 // as literal values: GitHub push protection blocks literal secret-pattern
@@ -42,9 +45,8 @@ function check(name: string, ok: boolean, extra = "") {
   if (!ok) failures++;
 }
 
-const files = readdirSync(FIXTURE);
-const contents = new Map<string, string>();
-for (const f of files) contents.set(f, readFileSync(join(FIXTURE, f), "utf8"));
+const files = [...contents.keys()];
+
 
 // --- Secret detection ---
 // The fixture file holds __SECRET_n__ placeholders (see its header).
@@ -129,9 +131,14 @@ check("fingerprints Serde (Rust)", byName.has("Serde"));
 check("flags unpinned express (*)", byName.get("Express")?.unpinned === true || deps.some((d) => d.name === "express" && (!d.version || d.version === "*")));
 
 // --- Framework fingerprinting, Tier 2 (Go, Ruby, PHP, Java, .NET) ---
-const TIER2 = join(process.cwd(), "tests/fixtures/fake-repo-tier2");
-const t2 = new Map<string, string>();
-for (const f of readdirSync(TIER2)) t2.set(f, readFileSync(join(TIER2, f), "utf8"));
+// Phase 14: the vulnerable Tier 2 contents (Echo v4.11.1, laravel
+// v10.34.2, rails 7.1.3, spring-core 6.1.2 + the unresolvable dep, the
+// .NET SDK pseudo-dep) are generated at test time by
+// scripts/fixture-gen.ts — the committed files keep only the clean
+// versions (Fiber v2.52.14, Sinatra 4.2.0, ...). loadFakeRepoTier2()
+// overlays the generated contents, so the assertions below are
+// unchanged.
+const t2 = loadFakeRepoTier2();
 const deps2: Dependency[] = [
   ...parseGoMod(t2.get("go.mod") ?? "", "go.mod"),
   ...parseGemfile(t2.get("Gemfile") ?? "", "Gemfile"),
