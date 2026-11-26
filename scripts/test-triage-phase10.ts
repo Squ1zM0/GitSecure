@@ -111,6 +111,7 @@ const fpTriage = triageFinding(fpFinding, {
 });
 check("Fingerprint match: known test key is decisive even in a prod path", fpTriage.triage.verdict === "likely-test-key", fpTriage.triage.verdict);
 check("Fingerprint match: explanation names the fingerprint", /fingerprint matches a published test key/.test(fpTriage.triage.explanation));
+check("Fingerprint match: the decisive match is recorded in the signals list", fpTriage.triage.signals.includes("known-test-key"), fpTriage.triage.signals.join(","));
 const fpTriageNoList = triageFinding(fpFinding, { content: fpKey });
 check("Fingerprint match: same key WITHOUT the fingerprint stays genuine in a prod path", fpTriageNoList.triage.verdict === "likely-genuine-leak", fpTriageNoList.triage.verdict);
 
@@ -197,6 +198,7 @@ const awsExampleFinding = awsExampleFindings.find((f) => f.type === "aws-access-
 const awsExampleTriage = triageFinding(awsExampleFinding, { content: `const key = "${awsKey}";` });
 check("Example value: AWS docs example key triages likely-test-key", awsExampleTriage.triage.verdict === "likely-test-key", awsExampleTriage.triage.verdict);
 check("Example value: explanation names the AWS example", /AWS documentation example/.test(awsExampleTriage.triage.explanation));
+check("Example value: the decisive match is recorded in the signals list", awsExampleTriage.triage.signals.includes("known-example-value"), awsExampleTriage.triage.signals.join(","));
 check("Example value: baked hash matches the assembled string", createHash("sha256").update(awsKey).digest("hex") === "1a5d44a2dca19669d72edf4c4f1c27c4c1ca4b4408fbb17f6ce4ad452d78ddb3");
 
 // --- Case 6: uncertain — test path, production-looking key, nothing else ---

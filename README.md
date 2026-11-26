@@ -507,7 +507,7 @@ npm run test:triage-phase10 # Phase 10: layered secret triage — the Linux
                          # counterpart, Stripe test mode, AWS example
                          # value, uncertain case, history-lines triage,
                          # the no-finding-dropped regression, the score-
-                         # unchanged rule, and the counts split — 57
+                         # unchanged rule, and the counts split — 59
                          # checks, no network
 npm run test:cursor-phase9 # Phase 9: stateless chunked scans — cursor
                          # round-trip + bogus cursors, chunked API-path and
@@ -1055,7 +1055,7 @@ creation).
 `test:scanner` 73/73, `test:tier3` 40/40, `test:history` 56/56,
 `test:public-full` 56/56, `test:ui-phase7` 62/62 (was 53 — 9 new
 triage UI checks), `test:cursor-phase9` 181/181,
-`test:triage-phase10` 57/57 (new), `test:techdirect` 83/B with
+`test:triage-phase10` 59/59 (new), `test:techdirect` 83/B with
 filesScanned = 2,802 ("Scanned all 2802 files in the tree"), history
 62/62 via git protocol, `test:mcp` — see note below. No literal
 secret-pattern values committed (grep-verified; the AWS example key

@@ -553,7 +553,13 @@ export function triageFinding(finding: SecretFinding, ctx: TriageContext = {}): 
       signals.push({ id: "stripe-test-mode", points: 3, text: "it is a Stripe test-mode key, which can never move real money" });
     }
     const example = KNOWN_EXAMPLE_VALUE_HASHES.find((e) => e.sha256 === sha256Hex(raw));
-    if (example) decisiveTest = `it matches a published example value (${example.name})`;
+    if (example) {
+      decisiveTest = `it matches a published example value (${example.name})`;
+      // 0 points: the match is decisive on its own, so it must not
+      // double-count — but it IS a signal that produced the verdict,
+      // so it belongs in the recorded list.
+      signals.push({ id: "known-example-value", points: 0, text: decisiveTest });
+    }
   }
   if (finding.type === "private-key" && contentText) {
     const parsed = parsePrivateKeyInContent(contentText, finding.line);
@@ -562,7 +568,12 @@ export function triageFinding(finding: SecretFinding, ctx: TriageContext = {}): 
       const known = [...KNOWN_TEST_KEY_FINGERPRINTS, ...(ctx.extraKnownFingerprints ?? [])].find(
         (k) => k.sha256 === parsed.fingerprint,
       );
-      if (known) decisiveTest = `its fingerprint matches a published test key (${known.name})`;
+      if (known) {
+        decisiveTest = `its fingerprint matches a published test key (${known.name})`;
+        // 0 points: decisive on its own — but recorded, because it is
+        // the signal that produced the verdict.
+        signals.push({ id: "known-test-key", points: 0, text: decisiveTest });
+      }
       if (parsed.kind === "rsa" && parsed.bits != null && parsed.bits < 2048) {
         signals.push({ id: `weak-key:${parsed.label}`, points: 2, text: `the key is weak for production use (${parsed.label})` });
       }

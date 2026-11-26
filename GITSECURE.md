@@ -1119,7 +1119,7 @@ finding above it (`drivers/of/unittest-data/tests-phandle.dtsi`, line
   `test:public-full` 56/56, `test:ui-phase7` 62/62 (was 53 — 9 new
   triage UI checks: pills, explanation, test-key Fix, verdict filter,
   count line, adjusted severity, pill styles),
-  `test:cursor-phase9` 181/181, `test:triage-phase10` 57/57 (new —
+  `test:cursor-phase9` 181/181, `test:triage-phase10` 59/59 (new —
   both screenshot cases, the production control, fixture-vs-src,
   fingerprint match, uncertain case, weak key, public counterpart,
   Stripe test mode, AWS example value, history-lines triage, the
