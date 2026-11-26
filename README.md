@@ -27,9 +27,10 @@ github.com/Squ1zM0/TechDirect  →  git-secure.com/Squ1zM0/TechDirect
   dependencies, checked against [OSV.dev](https://osv.dev) (a free public
   database of known software flaws; npm / PyPI / crates.io / Go / RubyGems /
   Packagist / Maven / NuGet), with full advisory detail (a plain summary, a
-  severity score, and the version that fixes it) for every advisory found,
-  up to 50 per scan — any beyond that are listed with their advisory ID and
-  a link.
+  severity score, and the version that fixes it) fetched for every advisory
+  found, in batches inside a time budget — any advisory past the budget is
+  still listed, with its advisory ID and a link, and the report says how
+  many got full detail. Every advisory found is listed; there is no cap.
 - **Security posture** — missing `SECURITY.md`, no Dependabot, `.gitignore` gaps,
   and risky GitHub Actions patterns (`pull_request_target`, `write-all`, secrets
   echoed into logs).
@@ -150,38 +151,49 @@ in full.
   boundary — if it does, the report says plainly how many files were
   actually scanned and that it stopped for time/rate, never pretending
   it scanned everything.
-- **Findings caps:** at most 100 secret findings and 100 advisories listed
-  per report (the report says how many more were found).
-- **Dependency check:** up to 60 pinned dependencies per scan via OSV.dev
-  (a free public database of known software flaws); full advisory detail (a
-  plain summary, a severity score, and the version that fixes it) fetched for
-  up to 50 advisories per scan — any beyond that are listed with their
-  advisory ID and an osv.dev link. If OSV is unreachable the scan continues
-  and says so.
+- **No result-count caps (Phase 5).** Every secret finding, every
+  dependency, every advisory, every posture and framework finding is
+  listed — no 100-secret cap, no 200-dependency slice, no 100-advisory
+  cap. The report page renders huge lists progressively (100 at a time
+  with "Show more" / "Show all"), with collapsible groups, filters, and
+  a file map — the data is never capped to make the page fit.
+- **Dependency check (Phase 5):** every pinned dependency is asked about
+  via OSV.dev, in batches of 1,000 per query, inside a 15 s query budget;
+  full advisory detail is fetched for every advisory found, in batches
+  of 8 inside a 12 s detail budget. A repo with thousands of deps (e.g.
+  DefinitelyTyped, 9,401) cannot always be fully queried inside the
+  55 s scan timeout — if a budget runs out, the report says plainly how
+  many deps were checked and how many advisories got full detail. A
+  budget never drops a finding from the list. If OSV is unreachable the
+  scan continues and says so.
 - **Rate limits:** unauthenticated GitHub API is 60 requests/hour. A scan uses
   roughly 7 API calls plus raw file fetches.
 - GitSecure is **not a replacement for GitHub Advanced Security**.
 
 ## Dogfooding note
 
-Scanning GitSecure's own repo (`Squ1zM0/GitSecure`) returns score **1 / F**
-with 6 secret findings — all known-fake: the test fixtures that are
+Scanning GitSecure's own repo (`Squ1zM0/GitSecure`) returns score **0 / F**
+with 8 secret findings — all known-fake: the test fixtures that are
 deliberately detector bait (`.env` fixture, `hunter2hunter2` password,
-fake Postgres URL in the test file), plus the official AWS example key in
+fake Postgres URL in the test files), plus the official AWS example key in
 an old README commit. No real secret is in the repo. The scanner does not
 skip test files on purpose: real leaks hide in "just a test" files too, so
 a scanner that ignored them would miss real ones.
 
 (The repo scored 3 / F in the MVP-era note, then 0 / F after the Phase 2
 push added `package-lock.json` — 119 dependencies fingerprinted — Tier 2
-fixtures, and a fake `vite.config.ts`. It is 1 / F now: deductions are
+fixtures, and a fake `vite.config.ts`. It was 1 / F in Phase 4: deductions
 76 (secrets: 4 high + 2 medium) + 19 (posture) + 4 (2 unpinned deps × 2)
-= 99, so the score is 1. The 0 / F was measured when remote head was
-d6a7e136 (Phase 2); the Phase 3 push (5d8da890) changed the repo's
-contents and the unpinned count, so the total dropped below the 100-point
-clamp. The 6 secret findings are unchanged. The change is in the repo's
-contents, not the scanner — the Phase 4 scanner change cannot affect a
-53-file repo, where the old 250-file cap never bound.)
+= 99, with 6 secrets counted. It is 0 / F in Phase 5, for two honest
+reasons, measured 2026-11-25 against remote head e99ab65b: (a) 8 secrets,
+not 6 — the fake database URL in the test scripts is found at HEAD *and*
+in the older commits that introduced it (same line, different commit = a
+distinct finding); (b) 196 vulnerabilities — Phase 5 removed the 60-dep
+OSV query cap, so all 202 pinned deps are now checked, including the
+Tier 2 fixtures with deliberately old versions (Django 4.2.0, Laravel,
+Echo, Fiber…), which carry many real advisories. Deductions far exceed
+100, so the score floors at 0. The change is the scanner now reporting
+everything it finds, not a regression.)
 
 ## Phase 3 Part A — functionality polish (built 2026-11-25, not pushed, not deployed)
 
@@ -263,7 +275,7 @@ scans 83/B (verified locally and over MCP).
   reports through `toPublicReport`, with no file names, line numbers, or
   secret fragments. Phase 4 flipped it: MCP returns the full report, like
   the web flow — secrets still redacted fragments only. `npm run test:mcp`
-  now scans Squ1zM0/GitSecure (1/F, 6 known-fake findings) over MCP and
+  now scans Squ1zM0/GitSecure (0/F, 8 known-fake findings) over MCP and
   asserts the response carries the full detail while containing no full
   fake secret.
 - **Human view:** `src/components/McpSection.tsx` (copy buttons use
@@ -304,15 +316,17 @@ scans 83/B (verified locally and over MCP).
 ```bash
 npm run test:scanner     # synthetic fixture with FAKE planted secrets only
                          # (tests/fixtures/fake-repo + fake-repo-tier2) —
-                         # 56 checks: detection, redaction, Tier 1 + Tier 2
-                         # fingerprinting, and the Phase 4 full report
+                         # 68 checks: detection, redaction, Tier 1 + Tier 2
+                         # fingerprinting, the Phase 4 full report, Phase 5
+                         # 150-finding no-cap proof + score floor + nav links
 npm run test:history     # full-history regression: a fake secret planted in
                          # an old commit of a throwaway local repo, removed
                          # from HEAD — 9 checks, clone + log + detect
 npm run test:public-full # Phase 4: no login flow, no owner gate, no
                          # "Honest limits" copy anywhere in src; no file-count
                          # cap in the scanner; full detail + redaction —
-                         # 32 checks, no network
+                         # 56 checks, no network (incl. Phase 5 no-cap and
+                         # navigation source checks)
 npm run test:techdirect  # live scan of the real public repo Squ1zM0/TechDirect
                          # (score 83/B, 62 history commits, filesScanned =
                          # full scannable tree — 2,802, ~12 s via tarball)
@@ -320,9 +334,9 @@ npm run test:mcp         # MCP end-to-end: needs a running production server
                          # (npm run build && npm start) — real SDK-client
                          # handshake, tools/list, live scan_repo calls for
                          # TechDirect (83/B, full detail) and GitSecure
-                         # (0/F, full detail, no full fake secret), error
-                         # cases, snippet JSON validity — 49 checks.
-                         # Set MCP_BASE_URL to test another server.
+                         # (0/F, 8 secrets, full detail, no full fake
+                         # secret), error cases, snippet JSON validity —
+                         # 51 checks. Set MCP_BASE_URL to test another server.
 ```
 
 The fixture uses invented credentials only (including the official AWS example
@@ -379,6 +393,71 @@ NOT 250, and NOT a higher cap either. No file-count cap at all.
   independent tree-API count), whole scan ~12 s via the tarball path;
   `test:mcp` 49/49 against a local production server. Pushed to main;
   live checks below in GITSECURE.md.
+
+## Phase 5 — no result-count caps + navigation for huge reports (built 2026-11-25)
+
+Freddy's word, from a live DefinitelyTyped report (61,814 files, 9,401
+dependencies, grade F, "100 possible leaked secrets"): "Shouldn't be
+capped at 100." So no result list is capped any more, and the report
+page grew real navigation for lists with hundreds to thousands of
+findings.
+
+- **Secrets: no cap.** Removed the `slice(0, 100)` on the deduped
+  findings in `src/lib/scan.ts` (extracted as exported `dedupeSecrets`,
+  so the test proves a 150-finding set comes back whole). HEAD and
+  history findings are all listed, with file, line, type, and redacted
+  fragment; `counts.secrets` is the true total. Same for the history
+  path — history findings were only ever truncated by that same slice.
+- **Advisories: no cap.** Removed `VULN_CAP = 100` in `src/lib/osv.ts` —
+  every advisory OSV returns is listed.
+- **Dependencies: no cap.** Removed the `deps.slice(0, 200)` in the
+  report assembly — all dependencies are listed (and the report page
+  now has a Dependencies section, which it did not before).
+- **Posture / frameworks:** were never capped; verified by grep, still
+  are not. The only remaining `slice(0, 5)` anywhere is inside one
+  VITE_ posture detail string, which lists the first 5 variable names
+  and says "+N more" — an honest inline summary, not a findings cap.
+- **OSV fetch budgets (not caps).** The old 60-dep query slice and the
+  fixed 50-detail cap are gone. Queries now run in batches of 1,000
+  (measured: ~3 s per 1,000-query batch vs ~1.5 s per 100-query batch)
+  inside a 15 s budget; detail fetches run in batches of 8 inside a
+  12 s budget for every unique advisory ID. A budget can leave an
+  advisory ID-only or a dep unchecked for flaws, but it never drops a
+  finding, and the report says plainly how many deps were checked and
+  how many advisories got full detail. Consequence, measured: the
+  GitSecure dogfood scan now finds 196 vulnerabilities (was a handful)
+  because all 202 pinned deps are checked, including the Tier 2
+  fixtures with deliberately old versions — and the dogfood score moved
+  1/F → 0/F, honestly.
+- **Score:** `computeScore` already clamped 0–100; verified with 150
+  critical secrets → 0/F, never negative, never NaN. DefinitelyTyped
+  stays 0/F, now with everything listed.
+- **Report-page navigation** (`src/components/ReportLists.tsx`,
+  link helpers in `src/lib/links.ts`): collapsible groups by secret
+  type / advisory / file (counts shown, collapsed by default when the
+  list is large); dropdown filters for type and severity plus text
+  search by file / advisory / package / name (counts shown are always
+  the true filtered and total counts); a Map view — an SVG spider of
+  the top 24 files by finding count around the repo node, plus a paged
+  chip list of all files with secrets (one node per file, never one per
+  finding, so it stays fast at phone width); every secret row links to
+  the exact file and line on GitHub (`blob/{branch or commit}/{file}
+  #L{line}`, history findings link to their commit), every
+  vulnerability links to its OSV.dev advisory page, and every finding
+  has an in-page anchor (`#secret-12`, …) with a copy-link button — a
+  shared anchor link opens the page with that finding expanded and
+  scrolled into view, even past the first 100.
+- **Redaction unchanged and re-tested:** fragments only, including in
+  map tooltips and link labels (tooltips carry file + count only).
+  Proved by `test:scanner` (150-finding report, no full fake secret),
+  `test:public-full`, `test:mcp` (dogfood over MCP, no full fake
+  secret), and a render-to-string check of the map.
+- **Verification (2026-11-25):** `npm run build` exit 0;
+  `test:scanner` 68/68, `test:history` 9/9, `test:public-full` 56/56,
+  `test:techdirect` 83/B with filesScanned = 2,802, `test:mcp` 51/51
+  against a local production server. Live checks (after push) in
+  GITSECURE.md — DefinitelyTyped secrets count above 100, TechDirect
+  still 83/B.
 
 ## Project notes
 

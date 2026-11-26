@@ -4,6 +4,7 @@
 import { scanRepoWithTimeout, ScanError } from "@/lib/scan";
 import { explainScore } from "@/lib/score";
 import McpSection from "@/components/McpSection";
+import { DependenciesList, FrameworksList, PostureList, SecretsList, VulnerabilitiesList } from "@/components/ReportLists";
 import type { FullReport } from "@/lib/types";
 
 // Scan-on-demand page: never prerendered — each visit runs a live scan.
@@ -130,14 +131,7 @@ export default async function ReportPage({
             {full.secrets.length === 0 ? (
               <p>No leaked secrets were found in the files and recent history scanned.</p>
             ) : (
-              full.secrets.map((s) => (
-                <div className="finding" key={s.id}>
-                  <p><span className={`pill ${s.severity}`}>{s.severity}</span><b>{s.title}</b> <span className="muted">· {s.confidence} confidence</span></p>
-                  <p>{s.plainEnglish}</p>
-                  <p className="small"><code className="inline">{s.file}:{s.line}</code> · commit <code className="inline">{s.commit ?? "HEAD"}</code> · fragment <code className="inline">{s.fragment}</code> (redacted — never the full secret)</p>
-                  <p><b>Fix:</b> {s.fix}</p>
-                </div>
-              ))
+              <SecretsList secrets={full.secrets} owner={full.owner} repo={full.repo} branch={full.branch} />
             )}
           </div>
 
@@ -146,14 +140,16 @@ export default async function ReportPage({
             {full.frameworks.length === 0 ? (
               <p>No frameworks were fingerprinted in this repo (Tiers 1–2: JS/TS, Python, Rust, Go, Ruby, PHP, Java/Kotlin, .NET).</p>
             ) : (
-              <ul>
-                {full.frameworks.map((f) => (
-                  <li key={`${f.name}-${f.sourceFile}`}>
-                    <b>{f.name}</b> — {f.version ?? "version could not be determined"} ({f.versionSource})
-                    {f.unpinned ? " · unpinned version" : ""} · <code className="inline">{f.sourceFile}</code>
-                  </li>
-                ))}
-              </ul>
+              <FrameworksList frameworks={full.frameworks} />
+            )}
+          </div>
+
+          <div className="card">
+            <h2>Dependencies ({full.dependencies.length})</h2>
+            {full.dependencies.length === 0 ? (
+              <p>No dependencies were found in this repo.</p>
+            ) : (
+              <DependenciesList dependencies={full.dependencies} />
             )}
           </div>
 
@@ -162,13 +158,7 @@ export default async function ReportPage({
             {full.vulnerabilities.length === 0 ? (
               <p>No known vulnerabilities were found in the dependencies checked.</p>
             ) : (
-              full.vulnerabilities.map((v) => (
-                <div className="finding" key={`${v.id}-${v.packageName}`}>
-                  <p><span className={`pill ${v.severity}`}>{v.severity}</span><b>{v.id}</b> — {v.packageName} {v.installedVersion ?? ""}</p>
-                  <p>{v.plainEnglish}</p>
-                  <p><b>Fix:</b> {v.upgrade}</p>
-                </div>
-              ))
+              <VulnerabilitiesList vulnerabilities={full.vulnerabilities} />
             )}
           </div>
 
@@ -177,13 +167,7 @@ export default async function ReportPage({
             {full.posture.length === 0 ? (
               <p>No posture issues were found in the basic MVP checks.</p>
             ) : (
-              full.posture.map((p) => (
-                <div className="finding" key={p.id}>
-                  <p><span className={`pill ${p.severity}`}>{p.severity}</span><b>{p.title}</b></p>
-                  <p>{p.detail}</p>
-                  <p><b>Fix:</b> {p.fix}</p>
-                </div>
-              ))
+              <PostureList posture={full.posture} />
             )}
           </div>
         </>

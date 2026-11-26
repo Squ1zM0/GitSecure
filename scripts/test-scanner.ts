@@ -10,9 +10,12 @@
 import { readFileSync, readdirSync } from "node:fs";
 import { join } from "node:path";
 import { envFileFinding, scanTextForSecrets } from "../src/lib/secrets";
+import { dedupeSecrets } from "../src/lib/scan";
+import { computeScore } from "../src/lib/score";
+import { findingAnchorId, githubBlobUrl, osvAdvisoryUrl } from "../src/lib/links";
 import { fingerprintFrameworks, parseCargoToml, parseComposerJson, parseComposerLock, parseCsproj, parseGemfile, parseGemfileLock, parseGoMod, parseGradle, parsePackageJson, parsePomXml, parseRequirements } from "../src/lib/frameworks";
 import { leaksSecret } from "../src/lib/redact";
-import type { Dependency, FullReport } from "../src/lib/types";
+import type { Dependency, FullReport, SecretFinding } from "../src/lib/types";
 
 const FIXTURE = join(process.cwd(), "tests/fixtures/fake-repo");
 
@@ -147,6 +150,71 @@ check("full report includes redacted secret fragments (never full)", findings.ev
 for (const secret of FAKE_SECRETS) {
   check(`full report never contains the full fake secret (${secret.slice(0, 18)}…)`, !leaksSecret(fullJson, secret));
 }
+
+// --- Phase 5: no result-count caps ---
+// 150 fake findings generated in memory (distinct lines, distinct
+// redacted fragments) — the old code truncated at 100. The dedupe step
+// is the exact code path scanRepo runs on HEAD + history findings, so
+// this proves a >100-finding report comes back whole, not sampled.
+const manyFindings: SecretFinding[] = Array.from({ length: 150 }, (_, i) => ({
+  id: `test-secret-${i}`,
+  type: "discord-webhook",
+  title: "Discord webhook URL",
+  severity: "high",
+  confidence: "high",
+  file: "config.js",
+  line: i + 1,
+  commit: "HEAD",
+  fragment: `FAKE…${String(i).padStart(2, "0")}`,
+  fix: "Rotate the webhook URL and remove it from the repo.",
+  plainEnglish: "A test finding.",
+}));
+const dedupedMany = dedupeSecrets(manyFindings);
+check("Phase 5: 150 findings stay 150 through dedupe (no 100 cap)", dedupedMany.length === 150, `${dedupedMany.length} kept`);
+const manyReport: FullReport = {
+  ...full,
+  secrets: dedupedMany,
+  counts: { ...full.counts, secrets: dedupedMany.length },
+  limits: [],
+};
+const manyJson = JSON.stringify(manyReport);
+const parsedMany = JSON.parse(manyJson) as FullReport;
+check("Phase 5: report lists all 150 secret findings", parsedMany.secrets.length === 150, `${parsedMany.secrets.length} listed`);
+check("Phase 5: count is the true total (150, not 100)", parsedMany.counts.secrets === 150, `${parsedMany.counts.secrets}`);
+check("Phase 5: no truncation message in the report", !parsedMany.limits.some((l) => /capped at 100|more were found/i.test(l)));
+check("Phase 5: every fragment in the 150 is still redacted", parsedMany.secrets.every((s) => s.fragment.length < 12));
+// Score with a very large secret count: floors at 0, grade F, never
+// negative, never NaN — DefinitelyTyped stays 0/F with everything listed.
+const bigScore = computeScore({
+  secrets: manyFindings.map((s) => ({ ...s, severity: "critical" as const })),
+  vulnerabilities: [],
+  posture: [],
+  unpinnedCount: 0,
+});
+check("Phase 5: score floors at 0 with 150 critical secrets", bigScore.score === 0 && bigScore.grade === "F", `${bigScore.score}/${bigScore.grade}`);
+check("Phase 5: score is never NaN with a huge finding count", Number.isFinite(bigScore.score));
+
+// --- Phase 5 navigation: direct links + anchors (pure helpers) ---
+check(
+  "nav: HEAD finding links to branch blob + line",
+  githubBlobUrl("Squ1zM0", "TechDirect", "main", "src/index.js", 42, "HEAD") ===
+    "https://github.com/Squ1zM0/TechDirect/blob/main/src/index.js#L42",
+  githubBlobUrl("Squ1zM0", "TechDirect", "main", "src/index.js", 42, "HEAD"),
+);
+check(
+  "nav: history finding links to its commit, not the branch",
+  githubBlobUrl("Squ1zM0", "TechDirect", "main", "src/index.js", 42, "abc1234") ===
+    "https://github.com/Squ1zM0/TechDirect/blob/abc1234/src/index.js#L42",
+  githubBlobUrl("Squ1zM0", "TechDirect", "main", "src/index.js", 42, "abc1234"),
+);
+check(
+  "nav: file path segments are URL-encoded",
+  githubBlobUrl("o", "r", "main", "my folder/a b.js", 1, "HEAD") ===
+    "https://github.com/o/r/blob/main/my%20folder/a%20b.js#L1",
+  githubBlobUrl("o", "r", "main", "my folder/a b.js", 1, "HEAD"),
+);
+check("nav: anchor ids are stable per kind + index", findingAnchorId("secret", 12) === "secret-12" && findingAnchorId("vuln", 3) === "vuln-3");
+check("nav: advisory links go to OSV.dev", osvAdvisoryUrl("GHSA-test-1234") === "https://osv.dev/vulnerability/GHSA-test-1234");
 
 console.log(failures === 0 ? "\nAll fixture tests passed." : `\n${failures} test(s) FAILED.`);
 process.exit(failures === 0 ? 0 : 1);

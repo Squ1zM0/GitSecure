@@ -75,6 +75,38 @@ check("scanner mentions no '200 KB' / '3 MB' cap", !/200 KB|3 MB/.test(scanSrc))
 // --- 2. No file-count cap: scan.ts fetches the whole chosen tree ---
 check("scanner fetches the whole tree (no slice cap on chosen)", /const chosen = sorted;/.test(scanSrc));
 
+// --- 2b. Phase 5: no result-count caps anywhere ---
+check("Phase 5: scanner has no 100-secret slice", !/slice\(0, 100\)/.test(scanSrc));
+check("Phase 5: scanner has no secretOverflow / truncation bookkeeping", !/secretOverflow/.test(scanSrc));
+check("Phase 5: scanner has no secret-findings cap copy", !/Secret findings capped/i.test(scanSrc));
+check("Phase 5: scanner lists every dependency (no 200 slice)", !/slice\(0, 200\)/.test(scanSrc));
+const osvSrc = src("src/lib/osv.ts");
+check("Phase 5: OSV has no advisory list cap (VULN_CAP)", !/VULN_CAP/.test(osvSrc));
+check("Phase 5: OSV has no fixed 50-detail cap constant (DETAIL_CAP)", !/DETAIL_CAP/.test(osvSrc));
+check("Phase 5: OSV queries every pinned dep (no 60 slice)", !/slice\(0, 60\)/.test(osvSrc));
+const mcpSrc = src("src/lib/mcp.ts");
+check("Phase 5: MCP notes state no 100-finding cap", !/At most 100 secret findings/.test(mcpSrc));
+check("Phase 5: MCP notes state no 50-detail cap", !/up to 50 advisories per scan/i.test(mcpSrc));
+check("Phase 5: report page renders lists progressively (Show more)", /Show more/.test(reportPage) || /ReportLists/.test(reportPage));
+check("Phase 5: report page lists dependencies, not just counts", /DependenciesList/.test(reportPage));
+check("Phase 5: report page passes owner/repo/branch to the secrets list (GitHub links)", /SecretsList secrets=\{full\.secrets\} owner=\{full\.owner\} repo=\{full\.repo\} branch=\{full\.branch\}/.test(reportPage));
+
+// --- 2c. Phase 5 navigation: groups, filters, map, anchors, GitHub links ---
+const listsSrc = src("src/components/ReportLists.tsx");
+const linksSrc = src("src/lib/links.ts");
+check("nav: secrets list groups by type and file", /Group by/.test(listsSrc) && /Secret type/.test(listsSrc) && /File/.test(listsSrc));
+check("nav: secrets list filters by type, severity, and file name", /Filter by secret type/.test(listsSrc) && /Filter by severity/.test(listsSrc) && /Filter by file name/.test(listsSrc));
+check("nav: vulnerabilities group by advisory/package with severity filter", /Group vulnerabilities by/.test(listsSrc) && /Advisory/.test(listsSrc));
+check("nav: posture groups + filters exist", /Group posture issues by/.test(listsSrc));
+check("nav: dependencies filter by ecosystem and name", /Filter by ecosystem/.test(listsSrc) && /Filter by dependency name/.test(listsSrc));
+check("nav: file map view exists (SVG spider, top files by count)", /FileMap/.test(listsSrc) && /MAP_NODES/.test(listsSrc) && /<svg/.test(listsSrc));
+check("nav: map aggregates by file (one node per file, no node per finding)", /byFile/.test(listsSrc) && !/findings\.map\(\(s, i\) => \(\s*<g/.test(listsSrc));
+check("nav: every secret row links to the exact GitHub file + line", /githubBlobUrl\(owner, repo, branch, s\.file, s\.line, s\.commit\)/.test(listsSrc) && /View on GitHub/.test(listsSrc));
+check("nav: every finding has an in-page anchor + copy-link button", /findingAnchorId\("secret", entry\.idx\)/.test(listsSrc) && /CopyLinkButton/.test(listsSrc) && /findingAnchorId\("vuln", entry\.idx\)/.test(listsSrc));
+check("nav: link helper builds blob URLs with file + line", /blob\//.test(linksSrc) && /#L\$\{line\}/.test(linksSrc));
+check("nav: link helper uses the commit for history findings", /commit !== "HEAD"/.test(linksSrc));
+check("nav: map tooltips carry only file + count, never a fragment", /\$\{f\.file\} — \$\{f\.count\} finding/.test(listsSrc));
+
 // --- 3. Full report carries detail AND redaction still holds ---
 // Fake secrets assembled from fragments at runtime (never literal —
 // GitHub push protection blocks literal secret-pattern values).

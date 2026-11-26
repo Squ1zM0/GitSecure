@@ -13,18 +13,25 @@
 //   4. tools/call scan_repo Squ1zM0/TechDirect returns the known FULL
 //      result (83/B, 0 secrets, 4 vulns) — with the full detail present
 //      (vulnerability IDs, js-yaml, fixed versions)
-//   5. tools/call scan_repo Squ1zM0/GitSecure returns 1/F with 6 secrets
+//   5. tools/call scan_repo Squ1zM0/GitSecure returns 0/F with 8 secrets
 //      counted — and the response DOES carry the full detail (file names,
 //      line numbers, redacted fragments) while containing NO full fake
 //      secret anywhere (redaction rule, proved on a repo WITH findings).
 //      NOTE: the repo scored 3/F in the MVP era, then 0/F after the
 //      Phase 2 push (remote main d6a7e13) added package-lock.json (119
 //      deps fingerprinted), Tier 2 fixtures and a fake vite.config.ts.
-//      It is 1/F now: deductions are 76 (secrets) + 19 (posture) + 4
-//      (2 unpinned deps) = 99. The 0/F was measured at remote d6a7e136;
-//      the Phase 3 push (5d8da890) changed the repo's contents and the
-//      unpinned count. Secrets are still the same 6 known-fake ones.
-//      The change is in the remote repo's contents, not the scanner.
+//      It was 1/F in Phase 4: deductions 76 (secrets) + 19 (posture) + 4
+//      (2 unpinned deps) = 99, with 6 secrets counted. It is 0/F in
+//      Phase 5, for two honest reasons, both measured 2026-11-25 against
+//      remote head e99ab65b: (a) 8 secrets, not 6 — the fake database URL
+//      in the test scripts is now found at HEAD *and* in the older
+//      commits that introduced it (same line, different commit = a
+//      distinct finding; dedupe keys on commit); (b) 196 vulnerabilities,
+//      not a handful — Phase 5 removed the 60-dep OSV query cap, so all
+//      202 pinned deps are now checked, including the Tier 2 fixture
+//      files with deliberately old versions (Django 4.2.0, Laravel,
+//      Echo, Fiber…), which carry many real advisories. The change is
+//      the scanner now reporting everything it finds, not a regression.
 //   6. bad owner/repo format and a missing repo return plain-English
 //      errors, never a stack trace
 //   7. the config snippets shown on the human pages are valid JSON
@@ -159,15 +166,16 @@ async function main() {
     gsReport = null;
   }
   check("scan_repo GitSecure returns parseable JSON", gsReport !== null);
-  // Score moved 0 → 1 in Phase 4: the deductions are 76 (secrets: 4 high
-  // + 2 medium) + 19 (posture) + 4 (2 unpinned deps × 2) = 99, so the
-  // score is 1. The 0/F was measured when remote head was d6a7e136
-  // (Phase 2); the Phase 3 push (5d8da890) changed the repo's contents
-  // and the unpinned count, so the total dropped below the 100-point
-  // clamp. The scanner change cannot affect this repo: 53 files, so the
-  // old 250-file cap never bound. 6 secrets counted, unchanged.
-  check("scan_repo GitSecure score 1 / grade F (see note above: 0/F was at remote d6a7e136, before the Phase 3 push)", gsReport?.score === 1 && gsReport?.grade === "F", `got ${gsReport?.score}/${gsReport?.grade}`);
-  check("scan_repo GitSecure counts 6 secrets", gsReport?.counts?.secrets === 6, `got ${gsReport?.counts?.secrets}`);
+  // Score is 0/F in Phase 5 (was 1/F in Phase 4): 8 secrets, not 6 —
+  // the fake database URL in the test scripts is now found at HEAD and
+  // in the older commits that introduced it (same line, different
+  // commit = a distinct finding) — plus 196 vulnerabilities, because
+  // Phase 5 removed the 60-dep OSV query cap and all 202 pinned deps
+  // are now checked, including the Tier 2 fixtures with deliberately
+  // old versions. Deductions far exceed 100, so the score floors at 0.
+  // The scanner change cannot affect this repo's file count: 51 files.
+  check("scan_repo GitSecure score 0 / grade F (Phase 5: 8 secrets + 196 vulns, see header note)", gsReport?.score === 0 && gsReport?.grade === "F", `got ${gsReport?.score}/${gsReport?.grade}`);
+  check("scan_repo GitSecure counts 8 secrets", gsReport?.counts?.secrets === 8, `got ${gsReport?.counts?.secrets}`);
   check("scan_repo GitSecure kind is full", gsReport?.kind === "full");
   // Full detail IS present now: file names, line numbers, fragments.
   check("scan_repo GitSecure response carries file names (full detail)", gsText.includes("tests/fixtures"));

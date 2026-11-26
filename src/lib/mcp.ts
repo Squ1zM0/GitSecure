@@ -65,8 +65,8 @@ What you get back from a scan is the FULL report: a score from 0 to 100, a lette
 
 Scan notes:
 - History is scanned newest-first via an ephemeral clone, capped at 1,000 commits / 50 MB of patches / 45 seconds. A secret in a very old commit of a huge repo may still be missed, and the report says when a cap was hit. If the runtime has no git binary, the scan falls back to the 5 most recent commits and says so.
-- Every file in the repo tree is scanned, manifests and configs first (binary, dist, node_modules and .next skipped — generated/vendored paths, not source files). At most 100 secret findings and 100 advisories listed per report.
-- Dependency detail is fetched for up to 50 advisories per scan; any beyond that are listed with their advisory ID only.
+- Every file in the repo tree is scanned, manifests and configs first (binary, dist, node_modules and .next skipped — generated/vendored paths, not source files). Every secret finding and every advisory found is listed — there is no cap on the number of results in a report.
+- Full advisory detail (a plain summary, a severity score, and the version that fixes it) is fetched for every advisory found, in batches and inside a time budget; any advisory past the budget is still listed, with its advisory ID only, and the report says how many got full detail. The flaw check itself covers as many pinned dependencies as the scan's time budget allows, and the report says how many were checked.
 - Unauthenticated GitHub API is 60 requests/hour; a scan uses roughly 7 API calls plus raw file fetches. If GitHub's request limit is hit, scans fail with a plain-English rate-limit error — try again in a few minutes.
 - GitSecure is not a replacement for GitHub Advanced Security.`;
 

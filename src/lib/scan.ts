@@ -1,6 +1,17 @@
 // GitSecure scanner — public repos only, no auth required (optional
 // GITHUB_TOKEN env raises the GitHub API rate limit; it is never logged).
 //
+// PHASE 5 (2026-11-25): NO result-count caps anywhere. Every secret
+// finding is listed (the old 100 cap is gone), every dependency is
+// listed (the old 200 slice is gone), every advisory OSV returns is
+// listed (the old 100 cap is gone), and posture / framework findings
+// were never capped. The OSV query + detail fetches are time-budgeted
+// (see osv.ts) — a budget can leave an advisory ID-only or a dep
+// unchecked for flaws, but it never drops a finding from the list, and
+// the report says plainly how many got full detail / were checked.
+// Score still floors at 0 (see score.ts) however many findings there
+// are — DefinitelyTyped stays 0/F, it just lists everything now.
+//
 // HISTORY DEPTH (Phase 2): full history via an ephemeral git clone into
 // /tmp, streaming `git log -p --all` newest-first through the same secret
 // detectors as the HEAD scan, capped at 1000 commits / 50 MB of patches /
@@ -283,6 +294,19 @@ async function fetchHeadFiles(
   return files;
 }
 
+/** Dedupe secret findings (same type/file/line/fragment/commit).
+ *  Phase 5: NO cap — every finding is kept, however many there are.
+ *  Exported so tests can prove a 150-finding set comes back whole. */
+export function dedupeSecrets(secrets: SecretFinding[]): SecretFinding[] {
+  const seen = new Set<string>();
+  return secrets.filter((s) => {
+    const key = `${s.type}:${s.file}:${s.line}:${s.fragment}:${s.commit}`;
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+}
+
 export async function scanRepo(owner: string, repo: string, options: ScanOptions = {}): Promise<FullReport> {
   validateOwnerRepo(owner, repo);
   const progressKey = `${owner}/${repo}`;
@@ -365,18 +389,11 @@ export async function scanRepo(owner: string, repo: string, options: ScanOptions
   }
   const historyMs = Date.now() - historyStarted;
   // Dedupe secrets (same type/file/line/fragment, HEAD vs history).
-  const seenSecrets = new Set<string>();
-  const dedupedAll = secrets.filter((s) => {
-    const key = `${s.type}:${s.file}:${s.line}:${s.fragment}:${s.commit}`;
-    if (seenSecrets.has(key)) return false;
-    seenSecrets.add(key);
-    return true;
-  });
-  const secretOverflow = Math.max(0, dedupedAll.length - 100);
-  const dedupedSecrets = dedupedAll.slice(0, 100);
+  // Phase 5: no cap — HEAD + history findings are ALL listed.
+  const dedupedSecrets = dedupeSecrets(secrets);
 
-  // Frameworks + dependencies (Tier 1 + Tier 2) — priority order, so the
-  // OSV 60-dep cap always covers the same manifests run to run.
+  // Frameworks + dependencies (Tier 1 + Tier 2) — priority order, so
+  // the OSV query covers the same manifests run to run.
   const deps: Dependency[] = [];
   for (const entry of chosen) {
     const content = files.get(entry.path);
@@ -420,7 +437,7 @@ export async function scanRepo(owner: string, repo: string, options: ScanOptions
   const frameworks: Framework[] = fingerprintFrameworks(deps, files);
   const unpinnedCount = deps.filter((d) => d.direct && (!d.version || d.version === "*" || d.version.toLowerCase() === "latest")).length;
 
-  const { vulnerabilities, unavailable: osvUnavailable, advisoriesFound, detailCapped } = await checkDependencies(deps);
+  const { vulnerabilities, unavailable: osvUnavailable, detailCapped, depsChecked, depsQueryable } = await checkDependencies(deps);
 
   // Posture.
   const posture: PostureIssue[] = [];
@@ -457,9 +474,12 @@ export async function scanRepo(owner: string, repo: string, options: ScanOptions
   if (history.ok) limits.push(`History scan: ${history.commitsScanned} commits, ${(history.patchBytes / 1_000_000).toFixed(1)} MB of patches, ${(history.ms / 1000).toFixed(1)}s (caps: ${MAX_HISTORY_COMMITS} commits / ${MAX_HISTORY_PATCH_BYTES / 1_000_000} MB / ${HISTORY_TIMEOUT_MS / 1000}s, newest-first).`);
   else limits.push(`History scan took ${(historyMs / 1000).toFixed(1)}s (clone path unavailable; API fallback scanned ${historyScanned} commits).`);
   if (historyNote) limits.push(historyNote);
-  if (secretOverflow > 0) limits.push(`Secret findings capped at 100 in this report — ${secretOverflow} more were found.`);
-  if (advisoriesFound > vulnerabilities.length) limits.push(`The flaw database (OSV.dev) returned ${advisoriesFound} advisories; ${vulnerabilities.length} listed (cap 100 per scan).`);
-  if (detailCapped > 0) limits.push(`Full advisory detail (a plain summary, a severity score, and the version that fixes it) fetched for ${vulnerabilities.length - detailCapped} of ${vulnerabilities.length} listed advisories; ${detailCapped} listed with advisory ID only (detail cap 50 per scan).`);
+  // Phase 5: no result list is capped, so there is no truncation line
+  // any more. What the time budgets could not cover is stated plainly
+  // instead: advisories are all listed, but some may be ID-only;
+  // dependencies are all listed, but some may not have been checked.
+  if (depsChecked < depsQueryable) limits.push(`Dependency flaw check: ${depsChecked} of ${depsQueryable} pinned dependencies were checked against the flaw database (OSV.dev) within the scan's time budget — the rest were not checked for flaws in this scan. All ${deps.length} dependencies are still listed in this report.`);
+  if (detailCapped > 0) limits.push(`Full advisory detail (a plain summary, a severity score, and the version that fixes it) fetched for ${vulnerabilities.length - detailCapped} of ${vulnerabilities.length} listed advisories; ${detailCapped} listed with advisory ID only (detail fetch ran past its time budget).`);
   if (tree.truncated) limits.push("GitHub returned a truncated file tree — some files were not scanned. The tree was too large for GitHub to return in one response.");
   if (tarballFallback) limits.push("Tarball download was unavailable, so files were fetched one by one instead — same files, just slower.");
   if (files.size < allFiles.length) limits.push(`Fetched ${files.size} of ${allFiles.length} files in the tree — ${allFiles.length - files.size} could not be fetched from GitHub, so they were not scanned.`);
@@ -490,6 +510,8 @@ export async function scanRepo(owner: string, repo: string, options: ScanOptions
   // Phase 4: every caller gets the full report — the repo is public, so
   // the detail is information already public in the repo. Secrets are
   // still redacted fragments only (see secrets.ts / redact.ts).
-  const full: FullReport = { kind: "full", ...base, secrets: dedupedSecrets, frameworks, dependencies: deps.slice(0, 200), vulnerabilities, posture };
+  // Phase 5: the full report lists EVERYTHING — all secrets, all
+  // dependencies, all advisories. No slice, no cap.
+  const full: FullReport = { kind: "full", ...base, secrets: dedupedSecrets, frameworks, dependencies: deps, vulnerabilities, posture };
   return full;
 }

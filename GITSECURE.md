@@ -33,6 +33,13 @@ No install, no config — swap the URL, get a security report.
   helper left behind), verified live: home 200 with no Honest limits,
   live scan API TechDirect full 83/B with filesScanned 2,802, live MCP
   scan_repo full with redacted detail.
+- PHASE 5 (Freddy, 2026-11-25, "Shouldn't be capped at 100."): no
+  result-count caps anywhere (secrets, advisories, dependencies — the
+  DefinitelyTyped proof case), OSV query/detail as time budgets that
+  never drop a finding, plus real navigation on the report page for
+  huge lists: collapsible groups, type/severity/file filters, a file
+  map, a GitHub blob link on every secret and an in-page anchor per
+  finding. See "Phase 5 status" below.
 - DEPLOYED 2026-11-25 by Freddy: live at https://gitsecure.vercel.app/,
   verified live by Cobalt (home page + live TechDirect scan 83/B, matching
   the local test). Vercel MCP still returns 403 on team scope
@@ -381,6 +388,86 @@ No scanner logic, scores, or public/full split changed. TechDirect still
   fallback only scans the 5 most recent commits, so the AWS example
   key in the old README commit is out of the window — the known live
   history caveat, not a scanner change.
+
+## Phase 5 status — no result-count caps + navigation for huge reports (built 2026-11-25, Freddy's word: "Shouldn't be capped at 100.")
+
+- **Trigger.** Freddy's screenshot of a live DefinitelyTyped report:
+  61,814 files, 9,401 dependencies, grade F, "100 possible leaked
+  secrets". The 100 was the cap, not the count.
+- **Caps removed.**
+  - Secrets: `dedupedAll.slice(0, 100)` in `src/lib/scan.ts` is gone —
+    the dedupe is now exported `dedupeSecrets()` with no cap. HEAD +
+    history findings are ALL listed (history was only ever truncated
+    by that same slice; `src/lib/history.ts` itself never capped
+    findings). `counts.secrets` is the true total.
+  - Dependencies: `deps.slice(0, 200)` in the report assembly is gone
+    — all dependencies listed. The report page gained a Dependencies
+    section (it had none).
+  - Advisories: `VULN_CAP = 100` in `src/lib/osv.ts` is gone — every
+    advisory OSV returns is listed.
+  - Posture / frameworks: never capped; grep-verified still uncapped.
+    The only remaining `slice(0, 5)` is inside one VITE_ posture
+    detail string (first 5 variable names + "+N more") — an honest
+    inline summary, not a findings cap.
+  - OSV query/detail: the hidden `slice(0, 60)` on queryable deps and
+    the fixed `DETAIL_CAP = 50` are gone. Queries run in batches of
+    1,000 inside a 15 s budget (measured: 1,000-query batch ~2.9 s,
+    100-query batch ~1.5 s — big batches are far more efficient);
+    detail fetches run in batches of 8 inside a 12 s budget for every
+    unique advisory ID. A budget can leave an advisory ID-only or a
+    dep unchecked for flaws, but never drops a finding, and the report
+    says plainly how many deps were checked (`depsChecked` /
+    `depsQueryable`) and how many advisories got full detail.
+    `checkDependencies` returns the new counts; `scan.ts` reports them
+    in `limits`.
+- **Score.** `computeScore` already clamped 0–100; verified with 150
+  critical secrets → exactly 0, grade F, never negative, never NaN.
+  DefinitelyTyped stays 0/F with everything listed.
+- **Report-page navigation** (`src/components/ReportLists.tsx`, link
+  helpers in `src/lib/links.ts`, styles in `src/app/globals.css`):
+  - Collapsible groups by secret type / file, advisory / package,
+    posture title / severity — counts on every group, collapsed by
+    default when the filtered list is large (>50).
+  - Filters: dropdowns for type and severity, text search by file
+    name (secrets), advisory/package (vulns), title/detail (posture),
+    ecosystem + direct/transitive + name (dependencies). Every count
+    line shows the true filtered count of the true total.
+  - Map view (secrets): an SVG spider — repo node in the centre, the
+    top 24 files by finding count around it, node size ∝ count, plus a
+    paged chip list of every file with secrets. One node per file,
+    never one per finding; works at phone width (SVG scales,
+    `overflow-x: auto`, min-width 320px). Clicking a file filters the
+    list to it. Tooltips carry file + count only — never a fragment.
+  - Direct links: every secret row links to the exact file and line on
+    GitHub (`github.com/{owner}/{repo}/blob/{branch|commit}/{file}
+    #L{line}` — HEAD findings use the branch, history findings use
+    their commit sha); every vulnerability links to its OSV.dev
+    advisory page; every finding has an in-page anchor (`#secret-12`,
+    `#vuln-3`, `#posture-2`, `#dep-5`) plus a copy-link button
+    (clipboard API with textarea fallback, same as the MCP copy
+    buttons). A shared anchor link clears the filters, forces the flat
+    list open past the linked finding, and scrolls it into view.
+  - Progressive rendering stays: 100 findings per chunk with "Show
+    more" / "Show all", per list and per group.
+- **Redaction unchanged and re-tested.** Fragments only, including in
+  map tooltips and link labels. Proved by `test:scanner` (150-finding
+  report, no full fake secret), `test:public-full`, `test:mcp`
+  (dogfood over MCP, no full fake secret), a render-to-string check of
+  the map (7/7), and a live blob-link check (200, real file content).
+- **Verification (2026-11-25):** `npm run build` exit 0;
+  `test:scanner` 68/68, `test:history` 9/9, `test:public-full` 56/56,
+  `test:techdirect` 83/B with filesScanned = 2,802 (13.3 s),
+  `test:mcp` 51/51 against a local production server. Dogfood moved
+  1/F (6 secrets) → 0/F (8 secrets, 196 vulns) — honest: the fake
+  database URL is now found at HEAD and in its introducing commits,
+  and all 202 pinned deps are now OSV-checked (Tier 2 fixtures carry
+  many real advisories). Test assertions updated with the measured
+  values and the reason; see `scripts/test-mcp.ts` header.
+- **Pushed 2026-11-25, commit [SHA — filled after push].**
+- **Live verification (2026-11-25, after push):** [filled after push —
+  home 200, TechDirect API 83/B, DefinitelyTyped API secrets count /
+  filesScanned / 0/F with full list, DT report page navigation, live
+  MCP initialize].
 
 ## Phase 2 status — built and pushed 2026-11-25, commit 870f889f, live at https://gitsecure.vercel.app/ (verified serving: home 200, live TechDirect scan 200, 83/B)
 - Next.js 16 / React 19 / TypeScript + Auth.js (NextAuth 5.0.0-beta.32,
