@@ -1,0 +1,25 @@
+resume-proof harness — repo vinta/awesome-python — base https://git-secure.com — mode chunk
+out: /home/hatch/workspace/gitsecure/test-results/phase18/live-awesome-python
+Path A (chunk accumulation: POST /api/scan/start + POST /api/scan/chunk) …
+  [chunk #1] POST /api/scan/start http=200 1632ms stage=history scanned=0 chunkFindings=0 cumulative=0
+  [chunk #2] POST /api/scan/chunk http=200 27572ms stage=history scanned=200 chunkFindings=0 cumulative=0
+  [chunk #3] POST /api/scan/chunk http=200 26249ms stage=history scanned=400 chunkFindings=0 cumulative=0
+  [chunk #4] POST /api/scan/chunk http=200 25849ms stage=history scanned=600 chunkFindings=0 cumulative=0
+  [chunk #5] POST /api/scan/chunk http=200 28191ms stage=history scanned=800 chunkFindings=0 cumulative=0
+  [chunk #6] POST /api/scan/chunk http=200 28455ms stage=history scanned=1000 chunkFindings=0 cumulative=0
+  [chunk #7] POST /api/scan/chunk http=200 28276ms stage=history scanned=1200 chunkFindings=0 cumulative=0
+  [chunk #8] POST /api/scan/chunk http=200 26180ms stage=history scanned=1400 chunkFindings=0 cumulative=0
+  [chunk #9] POST /api/scan/chunk http=200 27958ms stage=history scanned=1600 chunkFindings=0 cumulative=0
+  [chunk #10] POST /api/scan/chunk http=200 27410ms stage=history scanned=1800 chunkFindings=0 cumulative=0
+  [chunk #11] POST /api/scan/chunk http=200 28571ms stage=history scanned=2000 chunkFindings=0 cumulative=0
+  [chunk #12] POST /api/scan/chunk http=200 28310ms stage=history scanned=2200 chunkFindings=0 cumulative=0
+  [chunk #13] POST /api/scan/chunk http=200 26156ms stage=history scanned=2400 chunkFindings=0 cumulative=0
+  [chunk #14] POST /api/scan/chunk http=200 29482ms stage=history scanned=2600 chunkFindings=0 cumulative=0
+  [chunk #15] POST /api/scan/chunk http=200 26001ms stage=history scanned=2800 chunkFindings=0 cumulative=0
+  [chunk #16] POST /api/scan/chunk http=200 27907ms stage=history scanned=3000 chunkFindings=0 cumulative=0
+  [chunk #17] POST /api/scan/chunk http=200 25860ms stage=history scanned=3200 chunkFindings=0 cumulative=0
+  [chunk #18] POST /api/scan/chunk http=200 27461ms stage=assemble scanned=3350 chunkFindings=0 cumulative=0
+  [chunk #19] POST /api/scan/chunk (assemble) http=200 652ms stage=done scanned=3350 chunkFindings=0 cumulative=0
+Path A done: 19 calls, 17 history chunks, 468.2s wall, 0 accumulated history+HEAD-dedupe findings in hand (final report secrets: 0)
+ERROR: no comparison produced — at least one path has no final report in this out dir.
+VERDICT: ERROR / INCONCLUSIVE — see error above (exit 2)
