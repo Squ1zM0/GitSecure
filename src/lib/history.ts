@@ -948,10 +948,106 @@ async function readHeadUsageCorpus(
   return corpus;
 }
 
+/** Split a file into lines the way jsdiff's diffLines counts them: a
+ *  trailing newline ends the last line, it does not start an empty
+ *  one; "" has zero lines. */
+function splitDiffLines(text: string): string[] {
+  if (text === "") return [];
+  const parts = text.split("\n");
+  if (parts[parts.length - 1] === "") parts.pop();
+  return parts;
+}
+
+/** Count lines the way splitDiffLines would (no allocation — the
+ *  dispatcher below needs only the count to pick a path). */
+function countDiffLines(text: string): number {
+  if (text === "") return 0;
+  let n = 1;
+  for (let i = 0; i < text.length; i++) if (text.charCodeAt(i) === 10) n++;
+  if (text.endsWith("\n")) n--;
+  return n;
+}
+
+/** Max lines (on either side) for the jsdiff path — see addedLinesFast.
+ *  Measured knee on this VM (lockfile-like lines, 5%/50%/90% churn):
+ *  jsdiff costs <= ~25 ms at 500 lines, <= ~95 ms at 1,000 lines,
+ *  ~260 ms at 2,000 lines (819 ms fully reversed), ~1.9 s at 5,000
+ *  lines — and tens of seconds on real 10k-line lockfiles. At or
+ *  under 1,000 lines jsdiff is always cheap, so small files keep the
+ *  exact Myers attribution; above it the fast path takes over before
+ *  jsdiff can run away. */
+export const ADDED_LINES_JSDIFF_MAX_LINES = 1000;
+
+/** Fast added-lines computation for large files: multiset difference
+ *  on line hashes (a Map keyed by line content) between old and new
+ *  text, attributed to new-file positions in order — O(n) in the
+ *  number of lines, where jsdiff's Myers diffLines is O(ND) in the
+ *  edit distance and explodes on regenerated lockfiles (profiled
+ *  2026-11-26: one package-lock.json diff with only 75 added lines
+ *  took 43.8 s; two lockfiles in one commit took 51.5 s + 46.4 s).
+ *  The fast path costs ~1 ms per 1,000 lines at every size (55 ms
+ *  at 50k lines, 90 ms at 100k).
+ *
+ *  HONEST DIVERGENCE from jsdiff — same added lines for normal
+ *  diffs, different attribution when a line text repeats:
+ *  (1) For diffs with no moved lines, the multiset of added line
+ *  texts is identical to jsdiff's (proved by the equivalence test
+ *  in scripts/test-phase17-worker-f.ts), and a line whose text is
+ *  unique in the new file is reported at the identical line number
+ *  by both. (2) When an added line's text also occurs elsewhere in
+ *  the file, jsdiff pins it to its minimal-edit-script position
+ *  while the fast path pins it to the first unmatched occurrence
+ *  in new-file order — the reported line number can differ (e.g.
+ *  an inserted `},` closing line in a lockfile). Secret lines are
+ *  unique by nature (a token value appears once), so findings are
+ *  identical for normal files; only the reported line of an added
+ *  line whose text repeats can shift. (3) A line deleted and
+ *  re-added in the same commit at equal count (a move) is reported
+ *  as added by jsdiff but is invisible to the multiset — its counts
+ *  balance, so it is missing from the added multiset too. That
+ *  cannot hide a secret from the full walk: the line's first
+ *  introduction in history always raises its count and is reported
+ *  there. It only changes attribution: a moved secret is reported
+ *  at its introduction commit, not again at the move.
+ *
+ *  Lines are keyed by content in a hash map — no lossy hashing, so
+ *  there is no collision risk: two different lines can never cancel
+ *  each other out. */
+export function addedLinesFast(oldText: string, newText: string): ScannedLine[] {
+  // jsdiff treats a final line without a trailing newline as a
+  // different line from the same text WITH one ("b" vs "b\n" are
+  // different tokens), so a commit that only gains a trailing
+  // newline re-reports its last line as added. The multiset keys
+  // an unterminated final line with a NUL marker so the two paths
+  // agree exactly there too (the marker never reaches the output,
+  // and scanned text never contains NUL — readBlobText rejects
+  // binary content before any diff runs).
+  const EOL_MARK = "\0";
+  const oldLines = splitDiffLines(oldText);
+  const newLines = splitDiffLines(newText);
+  const oldNoEol = oldText !== "" && !oldText.endsWith("\n");
+  const newNoEol = newText !== "" && !newText.endsWith("\n");
+  const oldCounts = new Map<string, number>();
+  oldLines.forEach((line, i) => {
+    const key = i === oldLines.length - 1 && oldNoEol ? line + EOL_MARK : line;
+    oldCounts.set(key, (oldCounts.get(key) ?? 0) + 1);
+  });
+  const out: ScannedLine[] = [];
+  newLines.forEach((line, i) => {
+    const key = i === newLines.length - 1 && newNoEol ? line + EOL_MARK : line;
+    const remaining = oldCounts.get(key) ?? 0;
+    if (remaining > 0) oldCounts.set(key, remaining - 1);
+    else out.push({ line: i + 1, text: line });
+  });
+  return out;
+}
+
 /** jsdiff added lines of newText vs oldText, with new-file line numbers.
  *  Removed and context lines are not returned — only added lines are
- *  ever scanned, exactly like the clone path's `git log -p` parsing. */
-function addedLines(oldText: string, newText: string): ScannedLine[] {
+ *  ever scanned, exactly like the clone path's `git log -p` parsing.
+ *  Kept for small files (exact Myers attribution); large files go
+ *  through addedLinesFast above. */
+function addedLinesJsDiff(oldText: string, newText: string): ScannedLine[] {
   const out: ScannedLine[] = [];
   let newLine = 1;
   for (const part of diffLines(oldText, newText)) {
@@ -965,6 +1061,23 @@ function addedLines(oldText: string, newText: string): ScannedLine[] {
     if (!part.removed) newLine += count;
   }
   return out;
+}
+
+/** Added lines of newText vs oldText, with new-file line numbers.
+ *  Small files take the jsdiff path (exact Myers attribution);
+ *  files over ADDED_LINES_JSDIFF_MAX_LINES on either side take the
+ *  O(n) multiset path (addedLinesFast) — jsdiff's cost on a
+ *  regenerated lockfile is unbounded (tens of seconds per file),
+ *  and a single such file blew past every walk budget and Vercel's
+ *  60 s ceiling. */
+export function addedLines(oldText: string, newText: string): ScannedLine[] {
+  if (
+    countDiffLines(oldText) > ADDED_LINES_JSDIFF_MAX_LINES ||
+    countDiffLines(newText) > ADDED_LINES_JSDIFF_MAX_LINES
+  ) {
+    return addedLinesFast(oldText, newText);
+  }
+  return addedLinesJsDiff(oldText, newText);
 }
 
 /** Read one blob as text. Returns "" for a missing side (added/deleted
@@ -1213,6 +1326,18 @@ export async function scanHistoryViaGit(
     let pastResumePoint = !opts.resumeAfterSha;
     let chunkStopped = false;
     const progressBase = opts.progressBase ?? 0;
+    // Phase 17 (Worker F): file-granularity walk budget. The checks
+    // above run every 16/64 commits, so a single commit whose files
+    // each cost tens of seconds (a lockfile diff took 43.8 s for 75
+    // added lines; two in one commit took 100 s) blows straight past
+    // every deadline and Vercel's 60 s ceiling. The per-file check
+    // inside the loop below stops the chunk at the first file past
+    // the budget instead. Same bound as the 16-commit check
+    // (budgetMs from walk start), plus the absolute loop deadline
+    // when one was passed.
+    const walkOverBudget = (): boolean =>
+      (opts.budgetMs != null && Date.now() - started > opts.budgetMs) ||
+      (opts.deadlineMs != null && Date.now() > opts.deadlineMs);
 
     for (const entry of commits) {
       const oid = entry.oid;
@@ -1260,8 +1385,20 @@ export async function scanHistoryViaGit(
       }
       const commitFindings: SecretFinding[] = [];
       let commitBytes = 0;
+      // Stopping mid-commit discards this commit whole (rolled back
+      // below, same as the memory guard): the cursor resumes from the
+      // last fully scanned commit, findings kept.
+      let midCommitStop = false;
       for (const [newOid, oldOid, filepath] of changes) {
         if (truncated) break;
+        // Phase 17 (Worker F): check the walk budget before EACH
+        // file's diff+scan — a single slow file must end the chunk,
+        // not the next 16-commit checkpoint. A chunk that stops here
+        // keeps every fully scanned commit and resumes cleanly.
+        if (walkOverBudget()) {
+          midCommitStop = true;
+          break;
+        }
         if (!filepath || isSkippablePath(filepath)) continue;
         let oldText: string | null;
         let newText: string | null;
@@ -1294,9 +1431,13 @@ export async function scanHistoryViaGit(
           commitFindings.push(...found);
         }
       }
-      if (truncated) {
+      if (truncated || midCommitStop) {
         newOrder.pop();
         pendingTriage.length = pendingBefore;
+        // A mid-commit budget stop is a chunk boundary, not a
+        // truncation: complete=false, and the next chunk resumes from
+        // the last fully scanned commit.
+        if (midCommitStop) chunkStopped = true;
         break;
       }
       newBySha.set(oid, commitFindings);

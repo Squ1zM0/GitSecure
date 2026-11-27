@@ -1,0 +1,12 @@
+{
+  "startedAt": "2026-11-27T00:08:02.531Z",
+  "finishedAt": "2026-11-27T00:08:02.538Z",
+  "repo": "docker/awesome-compose",
+  "base": "https://git-secure.com",
+  "mode": "diff",
+  "chunkPath": null,
+  "getPath": null,
+  "diff": null,
+  "exitCode": 2,
+  "verdict": "ERROR / INCONCLUSIVE — see error above"
+}

@@ -1,0 +1,10 @@
+resume-proof harness — repo docker/awesome-compose — base https://git-secure.com — mode get
+out: test-results/phase17/resume-proof/live-awesome-compose-get
+Path B (GET resume: GET /api/scan/[owner]/[repo], fresh each call) …
+  retrying GET https://git-secure.com/api/scan/docker/awesome-compose after HTTP 504
+HARNESS ERROR: GET call 1 failed: http=504 body=An error occurred with your deployment
+
+FUNCTION_INVOCATION_TIMEOUT
+
+iad1::nhm5w-1795738022747-6c49875cf812
+

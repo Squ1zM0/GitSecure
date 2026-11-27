@@ -1,0 +1,7 @@
+{
+  "startedAt": "2026-11-27T00:03:57.005Z",
+  "repo": "docker/awesome-compose",
+  "base": "https://git-secure.com",
+  "mode": "chunk",
+  "error": "chunk call 2 failed: http=504 body=\"An error occurred with your deployment\\n\\nFUNCTION_INVOCATION_TIMEOUT\\n\\niad1::8dpcw-1795737900986-cc6b6560d084\\n\""
+}

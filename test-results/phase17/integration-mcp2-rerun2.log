@@ -1,0 +1,75 @@
+
+> gitsecure@0.1.0 test:mcp
+> tsx scripts/test-mcp.ts
+
+MCP test against http://localhost:3100/mcp
+  (start the production server first: npm run build && npm start)
+  PASS server reachable (home page 200)
+  PASS initialize handshake
+  PASS tools/list returns scan_repo, get_report, resume_scan, list_checks
+  PASS tool scan_repo has a plain-English description
+  PASS tool get_report has a plain-English description
+  PASS tool resume_scan has a plain-English description
+  PASS tool list_checks has a plain-English description
+  PASS no tool accepts a `full` gate parameter (full detail is the default)
+  PASS list_checks mentions leaked secrets
+  PASS list_checks mentions frameworks
+  PASS list_checks mentions dependency flaws
+  PASS list_checks mentions posture
+  PASS list_checks states the scan notes
+  PASS list_checks names the secret usage check (in use vs dead end)
+  PASS list_checks does not scan (no report JSON / score field)
+  calling scan_repo Squ1zM0/TechDirect (live scan, ~15 s)...
+  PASS scan_repo TechDirect is not an error
+  PASS scan_repo TechDirect returns parseable JSON
+  PASS scan_repo TechDirect kind is full
+  PASS scan_repo TechDirect score 83 / grade B
+  PASS scan_repo TechDirect 0 secrets, 4 vulns
+  PASS scan_repo TechDirect response HAS the "secrets" field (full detail)
+  PASS scan_repo TechDirect response HAS the "frameworks" field (full detail)
+  PASS scan_repo TechDirect response HAS the "vulnerabilities" field (full detail)
+  PASS scan_repo TechDirect response HAS the "posture" field (full detail)
+  PASS scan_repo TechDirect response HAS the "dependencies" field (full detail)
+  PASS scan_repo TechDirect response names the vulnerable package (js-yaml)
+  PASS scan_repo TechDirect response includes fixed versions
+  PASS scan_repo TechDirect scanned the whole tree (>250 files)
+  calling scan_repo Squ1zM0/GitSecure (live scan, has known-fake findings)...
+  PASS scan_repo GitSecure is not an error
+  scan_repo still running — resuming via resume_scan (attempt 1)...
+  scan_repo still running — resuming via resume_scan (attempt 2)...
+  PASS scan_repo GitSecure still-running cursor resumes to a full report (Phase 16)
+  PASS scan_repo GitSecure returns parseable JSON
+  PASS scan_repo GitSecure score 100 / grade A (Phase 14 post-push: 37 secrets, all test keys, 0 vulns, 0 posture — see header note)
+  PASS scan_repo GitSecure counts 37 secrets
+  PASS scan_repo GitSecure counts 0 vulnerabilities (Phase 14: was 73)
+  PASS scan_repo GitSecure: all 37 secrets triage likely-test-key, 0 uncertain (Phase 14)
+  PASS scan_repo GitSecure: counts.testKeySecrets is 37
+  PASS scan_repo GitSecure: scoreDetail carries the Phase 14 breakdown (secrets 0, vulns 0, posture 0, unpinned 0, wouldBe 0, excluded 37, half 0)
+  FAIL scan_repo GitSecure: every secret carries a usage annotation — usage on 18 of 37 secrets
+  PASS scan_repo GitSecure kind is full
+  PASS scan_repo GitSecure response carries file names (full detail)
+  PASS scan_repo GitSecure response carries redacted fragments
+  PASS scan_repo GitSecure response contains no full fake secret (https://discord.co…)
+  PASS scan_repo GitSecure response contains no full fake secret (AKIAIOSFODNN7EXAMP…)
+  PASS scan_repo GitSecure response contains no full fake secret (ghp_FAKEFAKEFAKEFA…)
+  PASS scan_repo GitSecure response contains no full fake secret (sk_live_FAKEFAKEFA…)
+  PASS scan_repo GitSecure response contains no full fake secret (sk-proj-FAKEFAKEFA…)
+  PASS scan_repo GitSecure response contains no full fake secret (hunter2hunter2…)
+  PASS get_report TechDirect returns the full report (83/B)
+  PASS resume_scan with a bogus cursor is a tool error
+  PASS resume_scan bogus-cursor error is plain English
+  PASS resume_scan bogus-cursor error has no stack trace
+  PASS resume_scan takes a cursor input
+  PASS bad owner/repo format is a tool error
+  PASS bad owner/repo error is plain English
+  PASS bad owner/repo error has no stack trace
+  PASS missing repo is a tool error
+  PASS missing repo error is plain English (not found / private)
+  PASS missing repo error has no stack trace
+  PASS config snippet for Claude is valid JSON pointing at /mcp
+  PASS config snippet for Cursor is valid JSON pointing at /mcp
+  PASS config snippet for VS Code is valid JSON pointing at /mcp
+  PASS config snippet for Windsurf / Cline is valid JSON pointing at /mcp
+  PASS GET /mcp answers 4xx (stateless, no SSE stream)
+
+MCP test: 62 checks passed (FAILURES above).

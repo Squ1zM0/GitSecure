@@ -1,0 +1,6 @@
+resume-proof harness — repo docker/awesome-compose — base https://git-secure.com — mode chunk
+out: test-results/phase17/resume-proof/live-awesome-compose-chunk
+Path A (chunk accumulation: POST /api/scan/start + POST /api/scan/chunk) …
+  [chunk #1] POST /api/scan/start http=200 2402ms stage=history scanned=0 chunkFindings=0 cumulative=0
+  retrying POST https://git-secure.com/api/scan/chunk after HTTP 504
+HARNESS ERROR: chunk call 2 failed: http=504 body="An error occurred with your deployment\n\nFUNCTION_INVOCATION_TIMEOUT\n\niad1::8dpcw-1795737900986-cc6b6560d084\n"

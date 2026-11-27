@@ -1,0 +1,4 @@
+resume-proof harness — repo docker/awesome-compose — base https://git-secure.com — mode diff
+out: test-results/phase17/resume-proof/live-awesome-compose-diff
+ERROR: no comparison produced — at least one path has no final report in this out dir.
+VERDICT: ERROR / INCONCLUSIVE — see error above (exit 2)
