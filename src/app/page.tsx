@@ -113,7 +113,7 @@ export default function Home() {
           repo is public — the detail is information already public in the repo.
         </p>
         <p>
-          Secrets are never shown in full, never stored, and never live-validated. A scan looks at
+          Secrets are never shown in full, never stored after the scan finishes, and never live-validated. A scan looks at
           public files only.
         </p>
       </div>

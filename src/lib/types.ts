@@ -3,7 +3,7 @@
 // public repos, so the detail is information already public in the
 // repo. There is no public-only report shape and no login flow.
 // Hard rule (unchanged): a secret is never shown in full — redacted
-// fragment only, never stored, never live-validated.
+// fragment only, never stored after the scan finishes, never live-validated.
 
 export type Severity = "critical" | "high" | "medium" | "low" | "info";
 

@@ -1,6 +1,6 @@
 # Copy that must change once the scan-state store is provisioned
 
-**Status: NOT YET DONE — the store is not provisioned.** Phase 17 Part 1
+**Status: DONE 2026-11-27 — the store is provisioned (Upstash Redis gitsecure-scan-state, Free, us-east-1) and every location in the table below was updated in the same commit that auto-deployed the env vars. The provisional.ts limits line (same string as scan.ts buildLimits) was missed by this table and caught by grep.** Phase 17 Part 1
 (Worker C) ships the store code inert: with no env vars set the scan
 behaves exactly as today, plus the honest limits line when earlier
 history findings could not be recovered. The public "never stored"

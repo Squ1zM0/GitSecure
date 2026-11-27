@@ -1,6 +1,6 @@
 // Browser progress persistence (Phase 9) — client-safe, imports nothing.
 //
-// The server holds no scan state, so the BROWSER is where a scan's
+// The server holds no scan job, so the BROWSER is where a scan's
 // partial results live between requests: the cursor, the HEAD partial,
 // and the history findings accumulated so far are saved in
 // sessionStorage after every chunk. A page reload, a closed tab, or a

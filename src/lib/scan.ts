@@ -483,7 +483,7 @@ export function buildLimits(input: BuildLimitsInput): string[] {
   if (input.treeTruncated) limits.push("GitHub returned a truncated file tree — some files were not scanned. The tree was too large for GitHub to return in one response.");
   if (input.tarballFallback) limits.push("Tarball download was unavailable, so files were fetched one by one instead — same files, just slower.");
   if (input.historyUsageFromHead) limits.push("For secrets found in history, usage (whether anything still references the key) was checked against the current files only — the old commit's files are gone, so a reference that existed then but not now is not counted.");
-  limits.push("Public repos only. No secret is ever stored, logged, or shown in full.");
+  limits.push("Public repos only. No secret is ever stored after the scan finishes, logged, or shown in full.");
   return limits;
 }
 

@@ -50,7 +50,7 @@ export function buildProvisionalReport(
       ? `History checked: ${historyScanned} commit${historyScanned === 1 ? "" : "s"}, newest first.`
       : `History still scanning: ${historyScanned} commit${historyScanned === 1 ? "" : "s"} checked so far, newest first — older commits are still being checked.`,
     "Dependency flaws are still being checked — no vulnerability count yet.",
-    "Public repos only. No secret is ever stored, logged, or shown in full.",
+    "Public repos only. No secret is ever stored after the scan finishes, logged, or shown in full.",
   ];
   // Phase 11: usage is plain data on the finding, so passing it
   // through needs no import — and the history-only note is a pure

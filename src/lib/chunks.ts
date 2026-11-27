@@ -13,7 +13,7 @@
 //   assemble — merge HEAD + history, run the OSV flaw check, score.
 //              Idempotent: safe to retry with the same inputs.
 //
-// The server holds NO state between chunks. The caller holds the
+// The server holds no scan job between chunks; in-progress findings live in the short-lived store (see scan-state.ts). The caller holds the
 // partial results (the browser: sessionStorage, see resume.ts; an API
 // caller: its own memory) and passes the accumulated history findings
 // back with the assemble call. A server restart, cold start, redeploy,
@@ -503,10 +503,11 @@ export interface LoopResult {
  *  silently claim a clean history. Worded as a possibility ("may
  *  be missing"): when the walked commits held no secrets, nothing
  *  was lost — the line only records that the scan cannot prove it.
- *  This is the ONLY copy change Phase 17 Part 1 makes: the public
- *  "never stored" promise (mcp.ts, README, page.tsx, layout.tsx)
- *  stays untouched until the store is actually provisioned (see
- *  test-results/phase17/copy-after-provisioning.md). */
+ *  The public "never stored" promise (mcp.ts, README, page.tsx,
+ *  layout.tsx) was updated when the store was provisioned on 2026-11-27
+ *  (see test-results/phase17/copy-after-provisioning.md): in-progress
+ *  findings now live in the short-lived store; finished reports are
+ *  still never stored. */
 export function historyFindingsMissingLine(commits: number): string {
   return `History findings from earlier parts of this scan could not be recovered, so this report may be missing secrets from the first ${commits} commit${commits === 1 ? "" : "s"} checked — the history count above is how far the scan walked, not how many findings survived.`;
 }

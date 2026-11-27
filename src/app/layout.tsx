@@ -56,7 +56,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         />
         <footer className="footer">
           <p>
-            GitSecure scans public repos only. Secrets are never shown in full, never stored, and never
+            GitSecure scans public repos only. Secrets are never shown in full, never stored after the scan finishes, and never
             live-validated. It is not a replacement for GitHub Advanced Security.
           </p>
           <p>

@@ -3,7 +3,7 @@
 // WHY: Phase 8 stored scans as in-memory jobs. A job does not survive a
 // cold start, a redeploy, or a poll landing on a different serverless
 // instance — the client got a 404 and had to start over. Phase 9
-// holds NO scan state on the server at all.
+// holds no scan job on the server — in-progress findings live in the short-lived store (see scan-state.ts).
 // Instead, every chunk response returns a CURSOR: a small, self-contained,
 // base64url-encoded JSON object that says exactly where the scan got to.
 // The client passes the cursor back with the next request and the scan

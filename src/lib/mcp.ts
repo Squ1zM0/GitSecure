@@ -186,7 +186,7 @@ What you get back from a scan is the FULL report: a score from 0 to 100, a lette
 Scan notes:
 - History is scanned newest-first via the git protocol, or via the GitHub API when the repo is too large to clone. The report says which path was used and exactly how many commits were checked.
 - Every file in the repo tree is scanned, manifests and configs first (binary, dist, node_modules and .next skipped — generated/vendored paths, not source files). Every secret finding and every advisory found is listed — there is no cap on the number of results in a report.
-- Full advisory detail (a plain summary, a severity score, and the version that fixes it) is fetched for every advisory found, and the flaw check covers every pinned dependency. A scan runs as stateless chunks: small repos answer in one call, about 15 seconds; a large repo keeps running and the tool says so with its live progress and a cursor — call resume_scan with that cursor to continue it from the last finished chunk. The server holds no scan state, so a restart never loses a scan; GitSecure never stores reports on disk or in a database.
+- Full advisory detail (a plain summary, a severity score, and the version that fixes it) is fetched for every advisory found, and the flaw check covers every pinned dependency. A scan runs as stateless chunks: small repos answer in one call, about 15 seconds; a large repo keeps running and the tool says so with its live progress and a cursor — call resume_scan with that cursor to continue it from the last finished chunk. A scan in progress keeps its partial findings in a short-lived server store (redacted fragments only), deleted when the scan finishes or after 7 days; a restart never loses a scan. Finished reports are never stored.
 - Unauthenticated GitHub API is 60 requests/hour; a scan uses roughly 7 API calls plus raw file fetches. If GitHub's request limit is hit, scans fail with a plain-English rate-limit error — try again in a few minutes.
 - GitSecure is not a replacement for GitHub Advanced Security.`;
 
@@ -224,7 +224,7 @@ export function createMcpServer(): McpServer {
       description:
         "Read (or refresh) the full security report for a public GitHub repo. " +
         "Use this when someone asks for the current score or report for a repo that may already have been scanned, or to check the latest result. " +
-        "It runs a fresh live scan — GitSecure never stores reports on disk or in a database, so the result is always current. If a scan is already running, resume it with resume_scan and the cursor instead of starting over. " +
+        "It runs a fresh live scan — finished reports are never stored, so the result is always current. If a scan is already running, resume it with resume_scan and the cursor instead of starting over. " +
         "Returns the same full report as scan_repo: score, grade, counts, summary, limits, and the full detail " +
         "(file names, line numbers, redacted secret fragments, framework versions, vulnerability IDs). " +
         "Secrets are never shown in full.",
