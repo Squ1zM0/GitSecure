@@ -53,15 +53,15 @@ const CW = 640;
 const CH = 420;
 
 // --- 0. Constants ---
-check("Constants: MIN_ZOOM 0.5, MAX_ZOOM 4, WORLD 400x380", MIN_ZOOM === 0.5 && MAX_ZOOM === 4 && WORLD_W === 400 && WORLD_H === 380);
+check("Constants: MIN_ZOOM 0.5, MAX_ZOOM 4, WORLD 480x440", MIN_ZOOM === 0.5 && MAX_ZOOM === 4 && WORLD_W === 480 && WORLD_H === 440);
 
 // --- 1. fitView ---
 const fit = fitView(CW, CH);
-const fitK = Math.min((CW - 16) / 400, (CH - 16) / 380);
-check("fitView: k = min((640-16)/400, (420-16)/380)", approx(fit.k, fitK), `k=${fit.k} expected=${fitK}`);
+const fitK = Math.min((CW - 16) / WORLD_W, (CH - 16) / WORLD_H);
+check("fitView: k = min((640-16)/WORLD_W, (420-16)/WORLD_H)", approx(fit.k, fitK), `k=${fit.k} expected=${fitK}`);
 check("fitView: centres the world (x)", approx(fit.x, (CW - WORLD_W * fit.k) / 2), `x=${fit.x}`);
-check("fitView: centres the world (y = 8, since 380*k = 404)", approx(fit.y, 8), `y=${fit.y}`);
-check("fitView: custom padding 0 gives k = min(640/400, 420/380)", approx(fitView(CW, CH, 0).k, Math.min(640 / 400, 420 / 380)), `k=${fitView(CW, CH, 0).k}`);
+check("fitView: centres the world (y = 8, since 440*k = 404)", approx(fit.y, 8), `y=${fit.y}`);
+check("fitView: custom padding 0 gives k = min(640/WORLD_W, 420/WORLD_H)", approx(fitView(CW, CH, 0).k, Math.min(640 / WORLD_W, 420 / WORLD_H)), `k=${fitView(CW, CH, 0).k}`);
 check("fitView: zero container returns identity (k=1, x=y=0)", JSON.stringify(fitView(0, CH)) === JSON.stringify({ x: 0, y: 0, k: 1 }), JSON.stringify(fitView(0, CH)));
 check("fitView: negative container returns identity", JSON.stringify(fitView(-5, -5)) === JSON.stringify({ x: 0, y: 0, k: 1 }));
 
@@ -85,7 +85,7 @@ const zoomedCentre = zoomByFactor(fit, 2, CW, CH);
 check("zoomByFactor: world point at container centre stays fixed", ptApprox(screenToWorld({ x: CW / 2, y: CH / 2 }, zoomedCentre), centreBefore));
 
 // --- 5. panBy clamps so the world cannot leave the viewport ---
-// fit.k ≈ 1.0632: x in [40 - 400k, 600] ≈ [-385.26, 600], y in [40 - 380k, 380] = [-364, 380].
+// fit.k ≈ 0.9182: x in [40 - 480k, 600] ≈ [-400.73, 600], y in [40 - 440k, 380] = [-364, 380].
 const panRight = panBy(fit, 10000, 0, CW, CH);
 check("panBy: far-right pan clamps x to containerW - 40", approx(panRight.x, CW - 40), `x=${panRight.x}`);
 const panLeft = panBy(fit, -10000, 0, CW, CH);
@@ -125,7 +125,7 @@ const toNodeSmall = zoomToNode(fit, node, CW, CH, 0.5);
 check("zoomToNode: explicit targetK below fitK clamps up to fitK", approx(toNodeSmall.k, fitK) && ptApprox(worldToScreen(node, toNodeSmall), { x: CW / 2, y: CH / 2 }), `k=${toNodeSmall.k} fitK=${fitK}`);
 check("zoomToNode: default targetK is still 2", zoomToNode(fit, node, CW, CH).k === 2, `k=${zoomToNode(fit, node, CW, CH).k}`);
 // The component's responsive target on a 360px-wide plane:
-// min(2, fitK * 1.75) with fitK = min((360-16)/400, (380-16)/380).
+// min(2, fitK * 1.75) with fitK = min((360-16)/480, (380-16)/440).
 const fit360 = fitView(360, 380);
 const target360 = Math.min(2, fit360.k * 1.75);
 const toNode360 = zoomToNode(fit360, node, 360, 380, target360);
@@ -335,7 +335,7 @@ const twoLabels = resolveLabelCollisions(
 );
 check("resolveLabelCollisions: two overlapping labels separate to zero overlap", rectOverlap(labelBox(twoLabels[0]), labelBox(twoLabels[1])) === 0, JSON.stringify(twoLabels.map((c) => [c.x, c.y])));
 const atEdge = resolveLabelCollisions([cluster(395, 190, "code", 1, "e1")], [blocker(395, 190, 60, 60)], new Map([["e1", { x: 1, y: 0 }]]));
-check("resolveLabelCollisions: nudged label stays inside the 400x380 world", atEdge[0].x + (clusterLabelText("code", 1).length * 4 + 8) / 2 <= 400 && atEdge[0].x >= 0, `x=${atEdge[0].x}`);
+check("resolveLabelCollisions: nudged label stays inside the world", atEdge[0].x + (clusterLabelText("code", 1).length * 4 + 8) / 2 <= WORLD_W && atEdge[0].x >= 0, `x=${atEdge[0].x}`);
 
 // --- 21. No literal secret-pattern values in this file ---
 import { readFileSync } from "node:fs";

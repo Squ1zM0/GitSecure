@@ -738,19 +738,19 @@ export function UsageMap({
     if (id.startsWith("file:")) return shortLabel(id.slice("file:".length));
     return id;
   };
-  // Sector tree is the STARTING arrangement (world 400x380, centre
-  // (200,190)): the circle is divided into leaf slots, one per file
+  // Sector tree is the STARTING arrangement (world 480x440, centre
+  // (240,220)): the circle is divided into leaf slots, one per file
   // plus one per childless finding or posture issue. Each finding or
   // posture issue owns the sector covering its files and sits at the
-  // sector centre on its ring (findings r=100, posture r=140); its
-  // files sit in their slots on the outer ring (r=170), inside that
+  // sector centre on its ring (findings r=125, posture r=165); its
+  // files sit in their slots on the outer ring (r=205), inside that
   // sector, so no two parents fan into the same space. Files no
   // drawn finding or visible posture issue references get slots of
   // their own at the end. Overrides win for dragged/pinned nodes.
   // The posture ring sits between the findings and the files so its
   // short "found in" edges never cross the findings ring.
-  const cx = 200;
-  const cy = 190;
+  const cx = 240;
+  const cy = 220;
   const basePositions = useMemo(() => {
     const base = new Map<string, { x: number; y: number }>();
     base.set("repo", { x: cx, y: cy });
@@ -774,8 +774,8 @@ export function UsageMap({
     }
     for (const e of visiblePosture) claimFile(e.item.file, nodeIdOfPosture(e.idx));
     const level1: { id: string; radius: number; files: string[] }[] = [];
-    for (const e of drawn) level1.push({ id: nodeIdOfFinding(e.idx), radius: 100, files: fanOf.get(nodeIdOfFinding(e.idx)) ?? [] });
-    for (const e of visiblePosture) level1.push({ id: nodeIdOfPosture(e.idx), radius: 140, files: fanOf.get(nodeIdOfPosture(e.idx)) ?? [] });
+    for (const e of drawn) level1.push({ id: nodeIdOfFinding(e.idx), radius: 125, files: fanOf.get(nodeIdOfFinding(e.idx)) ?? [] });
+    for (const e of visiblePosture) level1.push({ id: nodeIdOfPosture(e.idx), radius: 165, files: fanOf.get(nodeIdOfPosture(e.idx)) ?? [] });
     const unparented: string[] = [];
     for (const f of fileNodes) {
       let claimed = false;
@@ -789,14 +789,30 @@ export function UsageMap({
     for (const p of level1) {
       const count = Math.max(1, p.files.length);
       base.set(p.id, place(cursor + (slot * count) / 2, p.radius));
-      p.files.forEach((file, j) => base.set(nodeIdOfFile(file), place(cursor + slot * (j + 0.5), 170)));
+      p.files.forEach((file, j) => base.set(nodeIdOfFile(file), place(cursor + slot * (j + 0.5), 205)));
       cursor += slot * count;
     }
-    unparented.forEach((file, j) => base.set(nodeIdOfFile(file), place(cursor + slot * (j + 0.5), 170)));
+    unparented.forEach((file, j) => base.set(nodeIdOfFile(file), place(cursor + slot * (j + 0.5), 205)));
     return base;
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [drawn, visiblePosture, fileNodes]);
   const positions = useMemo(() => resolveNodePositions(basePositions, overrides), [basePositions, overrides]);
+  // File-label stagger follows the ANGULAR order, not the list
+  // order: neighbouring files on the plane sit on two label rings
+  // (r+14 and r+42) so adjacent labels never share a line. The
+  // placement order is sorted by angle from the top, so sorting by
+  // wrapped angle recovers it.
+  const fileLabelParity = useMemo(() => {
+    const wrapped = (a: number) => (((a + Math.PI / 2) % (2 * Math.PI)) + 2 * Math.PI) % (2 * Math.PI);
+    const ranked = fileNodes
+      .map((f) => {
+        const p = positions.get(nodeIdOfFile(f.file)) ?? { x: cx, y: cy };
+        return { id: nodeIdOfFile(f.file), angle: wrapped(Math.atan2(p.y - cy, p.x - cx)) };
+      })
+      .sort((a, b) => a.angle - b.angle);
+    return new Map(ranked.map((e, i) => [e.id, i % 2]));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [positions, fileNodes]);
   const drawnIds = useMemo(
     () => new Set(["repo", ...drawn.map((e) => nodeIdOfFinding(e.idx)), ...visiblePosture.map((e) => nodeIdOfPosture(e.idx)), ...fileNodes.map((f) => nodeIdOfFile(f.file))]),
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -1031,13 +1047,13 @@ export function UsageMap({
         if (!entry) return 11;
         const u = usageOf(entry);
         const refs = u && !u.deadEnd ? u.referencedByTotal + u.referencedByTestsTotal : 0;
-        return 11 + Math.min(7, Math.round(Math.sqrt(refs) * 1.2));
+        return 11 + Math.min(3, Math.round(Math.sqrt(refs) * 0.7));
       }
       // Phase 19: posture nodes are fixed-size polygons, radius 12.
       if (id.startsWith("posture:")) return 12;
       if (id.startsWith("file:")) {
         const f = fileNodes.find((file) => nodeIdOfFile(file.file) === id);
-        return 9 + Math.min(15, Math.sqrt(Math.max(f?.count ?? 1, 1)) * 2.2);
+        return 9 + Math.min(4, Math.sqrt(Math.max(f?.count ?? 1, 1)) * 1.2);
       }
       return 11;
     };
@@ -1091,8 +1107,9 @@ export function UsageMap({
       const r = radiusOf(nodeIdOfFile(f.file));
       blockers.push({ x: pos.x, y: pos.y, w: r * 2, h: r * 2 });
       const angle = Math.atan2(pos.y - cy, pos.x - cx);
-      const lx = Math.max(42, Math.min(358, pos.x + Math.cos(angle) * (r + 14)));
-      const ly = Math.max(8, Math.min(372, pos.y + Math.sin(angle) * (r + 14)));
+      const lo = r + 14 + ((fileLabelParity.get(nodeIdOfFile(f.file)) ?? 0) === 1 ? 28 : 0);
+      const lx = Math.max(42, Math.min(438, pos.x + Math.cos(angle) * lo));
+      const ly = Math.max(8, Math.min(432, pos.y + Math.sin(angle) * lo));
       blockers.push({ x: lx, y: ly, w: shortLabel(f.file).length * 4 + 8, h: 14 });
     }
     drawn.forEach((e, i) => {
@@ -1527,6 +1544,14 @@ export function UsageMap({
           <g transform={viewTransformString(view)} className={reducedMotion ? undefined : "map-animated"}>
             {edges.map((e) => {
               const active = edgeActive(e);
+              // Test connections (one test file referencing many
+              // secrets) bundle into a thicket at fit zoom, so they
+              // stay hidden until zoomed in, like edge labels, or
+              // on the selected track. Own, code, and found edges
+              // always render.
+              const onSelectedTrack =
+                (activeNodeId != null && activeNodeId !== "repo" && (e.fromId === activeNodeId || e.toId === activeNodeId)) || (selected?.type === "edge" && e.key === selected.id);
+              if (e.kind === "test" && view.k < EDGE_LABEL_MIN_ZOOM && !onSelectedTrack) return null;
               // Fix round 3 (2026-11-27): no per-edge label here
               // any more - labels render as clusters below (see
               // labelClusters). The line itself (solid/dashed/thin)
@@ -1578,10 +1603,10 @@ export function UsageMap({
               <circle className="map-centre" cx={cx} cy={cy} r={30} />
               <text className="map-centre-text" x={cx} y={cy + 4} textAnchor="middle" fontSize={10} fontWeight={700}>This repo</text>
             </g>
-            {fileNodes.map((f, i) => {
+            {fileNodes.map((f) => {
               const pos = positions.get(nodeIdOfFile(f.file)) ?? { x: cx, y: cy };
               const { x, y } = pos;
-              const r = 9 + Math.min(15, Math.sqrt(Math.max(f.count, 1)) * 2.2);
+              const r = 9 + Math.min(4, Math.sqrt(Math.max(f.count, 1)) * 1.2);
               const dimmed = dimNode(nodeIdOfFile(f.file));
               const isNeighbour = neighbours.some((n) => n.id === nodeIdOfFile(f.file));
               const pinned = pins.has(nodeIdOfFile(f.file));
@@ -1593,8 +1618,9 @@ export function UsageMap({
               // the top node's label stays inside it now the outer
               // ring is wider (2026-11-27).
               const angle = Math.atan2(y - cy, x - cx);
-              const lx = Math.max(42, Math.min(358, x + Math.cos(angle) * (r + 14)));
-              const ly = Math.max(8, Math.min(372, y + Math.sin(angle) * (r + 14)));
+              const lo = r + 14 + ((fileLabelParity.get(nodeIdOfFile(f.file)) ?? 0) === 1 ? 28 : 0);
+              const lx = Math.max(42, Math.min(438, x + Math.cos(angle) * lo));
+              const ly = Math.max(8, Math.min(432, y + Math.sin(angle) * lo));
               return (
                 <g
                   key={f.file}
@@ -1634,10 +1660,11 @@ export function UsageMap({
               const isNeighbour = neighbours.some((n) => n.id === nodeIdOfFinding(e.idx));
               const pinned = pins.has(nodeIdOfFinding(e.idx));
               const label = `secret ${e.idx + 1}`;
-              // The node grows with its reference count (like file
-              // nodes grow with finding count), so the most-used
-              // findings read biggest at a glance.
-              const fr = 11 + Math.min(7, Math.round(Math.sqrt(refs) * 1.2));
+              // The node grows slightly with its reference count, so
+              // the most-used findings read a touch bigger at a
+              // glance - capped tight (max 14) so neighbours on the
+              // ring can never touch.
+              const fr = 11 + Math.min(3, Math.round(Math.sqrt(refs) * 0.7));
               // The caption steps sideways, alternating per node, so
               // neighbours' captions stop stacking on one another;
               // the halo keeps it readable where an edge passes
@@ -1648,6 +1675,11 @@ export function UsageMap({
               // at fit zoom.
               const captionX = x + (i % 2 === 0 ? 20 : -20);
               const captionY = y + fr + 14;
+              // Captions stay hidden at fit zoom, like edge labels:
+              // twenty-four "0 uses" captions in a small ring read as
+              // soup. They appear once zoomed in, or for the selected
+              // node, where they have room.
+              const showCaption = view.k >= EDGE_LABEL_MIN_ZOOM || activeNodeId === nodeIdOfFinding(e.idx);
               return (
                 <g
                   key={e.idx}
@@ -1674,7 +1706,7 @@ export function UsageMap({
                   <circle className="map-hit" cx={x} cy={y} r={24} />
                   <circle cx={x} cy={y} r={fr} />
                   <text x={x} y={y + 4} textAnchor="middle" fontWeight={700}>{`S${e.idx + 1}`}</text>
-                  <text className="map-label" x={captionX} y={captionY} textAnchor="middle">{dead ? "dead end" : u ? `${refs} use${refs === 1 ? "" : "s"}` : ""}</text>
+                  {showCaption ? <text className="map-label" x={captionX} y={captionY} textAnchor="middle">{dead ? "dead end" : u ? `${refs} use${refs === 1 ? "" : "s"}` : ""}</text> : null}
                   {pinned ? pinGlyph(x, y, fr) : null}
                 </g>
               );
@@ -1697,6 +1729,7 @@ export function UsageMap({
               const pinned = pins.has(nodeIdOfPosture(e.idx));
               const captionX = x + (i % 2 === 0 ? 20 : -20);
               const captionY = y + r + 14;
+              const showCaption = view.k >= EDGE_LABEL_MIN_ZOOM || activeNodeId === nodeIdOfPosture(e.idx);
               const fileLoc = typeof e.item.file === "string" && e.item.file.length > 0
                 ? `${e.item.file}${typeof e.item.line === "number" && e.item.line > 0 ? `:${e.item.line}` : ""}`
                 : "no single file";
@@ -1723,7 +1756,7 @@ export function UsageMap({
                     style={{ fill: "var(--surface)", stroke: isSelected || isNeighbour ? "var(--focus)" : "var(--accent)", strokeWidth: isSelected || isNeighbour ? 3 : 2 }}
                   />
                   <text x={x} y={y + 3} textAnchor="middle" fontWeight={700} fontSize={8}>{postureDisplayLabel.get(e.idx)}</text>
-                  <text className="map-label" x={captionX} y={captionY} textAnchor="middle">{e.item.severity}</text>
+                  {showCaption ? <text className="map-label" x={captionX} y={captionY} textAnchor="middle">{e.item.severity}</text> : null}
                   {pinned ? pinGlyph(x, y, r) : null}
                 </g>
               );
@@ -1764,7 +1797,7 @@ export function UsageMap({
         </svg>
       </div>
       <p className="small map-hint">
-        Click a node to zoom to it. Drag the background to pan, drag a node to move it, pinch to zoom. Edge labels appear as you zoom in, and always for the selected track. Press p to pin a node, [ and ] to step between neighbours, 0 to reset the view, Esc to deselect.
+        Click a node to zoom to it. Drag the background to pan, drag a node to move it, pinch to zoom. Node captions, edge labels, and test connections appear as you zoom in, and always for the selected track. Press p to pin a node, [ and ] to step between neighbours, 0 to reset the view, Esc to deselect.
       </p>
       {categoriesPresent.length > 1 ? (
         <p className="small map-hint">Category buttons above the plane show or hide each category; the lists below never change.</p>
@@ -1893,10 +1926,10 @@ export function SecretsList({ secrets, owner, repo, branch, posture = [], defaul
   const [sevFilter, setSevFilter] = useState("all");
   const [triageFilter, setTriageFilter] = useState("all");
   const [fileQuery, setFileQuery] = useState("");
-  // The map view exists on every report, even with no secrets
-  // (2026-11-27, Freddy): a clean repo opens on the map, showing
-  // just the repo node, instead of hiding the map entirely.
-  const [view, setView] = useState<"list" | "map">(secrets.length === 0 ? "map" : "list");
+  // The map is the default view on every report (2026-11-27, Freddy):
+  // a report opens on the plane, with the list one tap away. A clean
+  // repo opens on the map too, showing just the repo node.
+  const [view, setView] = useState<"list" | "map">("map");
   // Phase 11 verdict sections. Genuine leaks and uncertain findings
   // are open by default - they are the ones that need a human. Likely
   // test keys are collapsed by default: still listed, still counted,

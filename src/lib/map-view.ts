@@ -24,8 +24,8 @@ export interface ViewTransform {
 
 export const MIN_ZOOM = 0.5;
 export const MAX_ZOOM = 4;
-export const WORLD_W = 400;
-export const WORLD_H = 380;
+export const WORLD_W = 480;
+export const WORLD_H = 440;
 
 /** Pixels of the world that must stay visible on every side. */
 const OVERLAP_PX = 40;
