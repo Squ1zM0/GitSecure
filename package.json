@@ -50,7 +50,8 @@
     "test:code-risks-phase19": "tsx scripts/test-code-risks-phase19.ts",
     "test:posture-phase19": "tsx scripts/test-posture-phase19.ts",
     "test:map-phase19": "tsx scripts/test-map-phase19.ts",
-    "test:assemble-head-validation": "tsx scripts/test-assemble-head-validation.ts"
+    "test:assemble-head-validation": "tsx scripts/test-assemble-head-validation.ts",
+    "test:phase20": "tsx scripts/test-phase20.ts"
   },
   "version": "0.1.0"
 }

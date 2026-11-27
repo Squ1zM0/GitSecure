@@ -86,6 +86,7 @@ import { isSkippablePath } from "./paths";
 import { computeScore, plainSummary } from "./score";
 import { envFileFinding, scanTextForSecrets, type ScannedFile } from "./secrets";
 import { scanTextForCodeRisks } from "./code-risks";
+import { scanTextForCiRisks } from "./ci-risks";
 import { fingerprintFrameworks, parseCargoLock, parseCargoToml, parseComposerJson, parseComposerLock, parseCsproj, parseGemfile, parseGemfileLock, parseGoMod, parseGradle, parsePackagesConfig, parsePackageJson, parsePackageLock, parsePoetryLock, parsePomXml, parsePubspecLock, parsePubspecYaml, parsePyprojectToml, parseRequirements, parseYamlLock, viteFindings } from "./frameworks";
 import { collectPublicKeyIdentities, ensureTriage, triageFindings } from "./triage";
 import { computeUsageForFindings } from "./usage";
@@ -867,6 +868,22 @@ export function buildPosture(files: Map<string, string>): PostureIssue[] {
       }
     });
     if (stepIndent !== null) flushStep();
+    // Phase 20: deeper Actions risks, file level.
+    if (/actions\/download-artifact/.test(content) && /pull_request/.test(content)) posture.push({ id: "actions-artifact-poisoning", title: "Workflow downloads an artifact on pull requests", severity: "medium", detail: `${path} downloads an artifact in a workflow that runs on pull requests, so code built from a fork can run in a later step.`, fix: "Do not execute code from a downloaded artifact in a pull request workflow, or verify its contents first.", category: "actions", file: path });
+    if (/actions\/cache/.test(content) && /key\s*:.*github\.(event\.pull_request|head_ref)/.test(content)) posture.push({ id: "actions-cache-poisoning", title: "Cache key can be poisoned from a pull request", severity: "high", detail: `${path} builds a cache key from a pull request value, so a fork author can poison the cache that later runs restore.`, fix: "Do not put pull request controlled values in a cache key, or scope the cache to the base branch.", category: "actions", file: path });
+    // Reusable workflow calls are job level `uses:` lines, not
+    // step level `- uses:` lines, so parseWorkflowUses does not see
+    // them; scan the lines directly. A branch or tag ref can change
+    // under the caller; only a full SHA is pinned.
+    for (const line of content.split("\n")) {
+      const m = /^\s*uses:\s*["']?([^\s"']+)/.exec(line);
+      if (!m || !m[1].includes(".github/workflows/")) continue;
+      const spec = m[1];
+      const at = spec.lastIndexOf("@");
+      const ref = at >= 0 ? spec.slice(at + 1) : null;
+      if (!ref || !/^[0-9a-f]{40}$/.test(ref)) posture.push({ id: "actions-reusable-unpinned", title: "Reusable workflow pinned to a branch", severity: "medium", detail: `${path} calls the reusable workflow ${spec} at ${ref ?? "no ref"}, which can change under the caller.`, fix: "Pin the reusable workflow to a full commit SHA.", category: "actions", file: path });
+    }
+    if (/runs-on\s*:\s*\[?[^\]\n]*self-hosted/.test(content)) posture.push({ id: "actions-self-hosted", title: "Workflow runs on a self-hosted runner", severity: "medium", detail: `${path} runs on a self-hosted runner, which keeps state between runs and can carry a compromise from one run to the next.`, fix: "Use GitHub hosted runners for pull request workflows, or isolate self-hosted runners per repo and wipe them between runs.", category: "actions", file: path });
   }
   // Phase 19: exposed files. .env is already flagged above and is
   // never re-flagged here.
@@ -1023,6 +1040,8 @@ export async function scanHead(
   // Phase 19: code risks are scanned the same way, in the same pass,
   // so every language is covered even when its files are not retained.
   const headCodeRisks: PostureIssue[] = [];
+  // Phase 20: CI configs are scanned the same way, in the same pass.
+  const headCiRisks: PostureIssue[] = [];
   const files = new Map<string, string>();
   let retainedBytes = 0;
   let retainedIncomplete = false;
@@ -1052,6 +1071,7 @@ export async function scanHead(
     }
     headSecrets.push(...scanTextForSecrets({ path, content, commit: "HEAD" }));
     headCodeRisks.push(...scanTextForCodeRisks({ path, content }));
+    headCiRisks.push(...scanTextForCiRisks({ path, content }));
     // Keep the content only for files under 1 MB: triage needs the
     // file text for its content/crypto signals, and a multi-MB file
     // with one finding must not defeat the streaming path's bounded
@@ -1296,7 +1316,7 @@ export async function scanHead(
     secrets: headSecrets,
     frameworks,
     dependencies: dedupedDeps,
-    posture: [...buildPosture(files), ...headCodeRisks],
+    posture: [...buildPosture(files), ...headCodeRisks, ...headCiRisks],
     unpinnedCount,
     // Phase 15 (worker D): optimistic "git" - the git history path
     // is bounded while it runs, and the chunked driver flips the

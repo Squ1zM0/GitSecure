@@ -476,6 +476,10 @@ export type PostureCategory =
   | "exposed-file"
   | "install-script"
   | "web-config"
+  | "ci"
+  | "tls"
+  | "xss"
+  | "logging"
   | "hygiene";
 
 export type MapCategory = "secrets" | PostureCategory;
@@ -499,11 +503,15 @@ export const MAP_CATEGORY_META: Record<MapCategory, MapCategoryMeta> = {
   "exposed-file": { label: "Exposed files", shortLabel: "exposed file", code: "EX", sides: 3, rotation: 0 },
   "install-script": { label: "Install scripts", shortLabel: "install script", code: "IS", sides: 5, rotation: 0 },
   "web-config": { label: "Web config", shortLabel: "web config", code: "WB", sides: 8, rotation: 22.5 },
+  ci: { label: "CI pipelines", shortLabel: "CI", code: "CI", sides: 7, rotation: 0 },
+  tls: { label: "TLS and network", shortLabel: "TLS", code: "TL", sides: 9, rotation: 20 },
+  xss: { label: "XSS sinks", shortLabel: "XSS", code: "XS", sides: 5, rotation: 36 },
+  logging: { label: "Logs and errors", shortLabel: "logging", code: "LG", sides: 6, rotation: 30 },
   hygiene: { label: "Hygiene", shortLabel: "hygiene", code: "HY", sides: 3, rotation: 180 },
 };
 
 /** Display order of the categories on the plane: secrets first,
- *  then the new Phase 19 categories, hygiene last. */
+ *  then the new Phase 19 categories, Phase 20 after them, hygiene last. */
 export const MAP_CATEGORY_ORDER: MapCategory[] = [
   "secrets",
   "code-risk",
@@ -512,6 +520,10 @@ export const MAP_CATEGORY_ORDER: MapCategory[] = [
   "exposed-file",
   "install-script",
   "web-config",
+  "ci",
+  "tls",
+  "xss",
+  "logging",
   "hygiene",
 ];
 
@@ -522,6 +534,10 @@ const POSTURE_CATEGORIES: PostureCategory[] = [
   "exposed-file",
   "install-script",
   "web-config",
+  "ci",
+  "tls",
+  "xss",
+  "logging",
   "hygiene",
 ];
 

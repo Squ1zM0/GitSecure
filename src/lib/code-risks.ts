@@ -6,7 +6,7 @@
 
 import type { PostureIssue, Severity } from "./types";
 
-type CodeRiskCategory = "code-risk" | "web-config";
+type CodeRiskCategory = "code-risk" | "web-config" | "tls" | "xss" | "logging";
 
 interface Lang {
   code: boolean;
@@ -465,6 +465,147 @@ const RULES: Rule[] = [
       if (/algorithms?\s*[:=]\s*["']none["']/.test(line)) return { sink: "algorithm none" };
       if (/algorithms?\s*[:=]\s*\[[^\]]*["']none["']/.test(line)) return { sink: "algorithms none" };
       if (/\balg\s*[:=]\s*["']none["']/.test(line)) return { sink: "alg none" };
+      return null;
+    },
+  },
+  {
+    id: "tls-verify-off",
+    title: "TLS certificate validation disabled",
+    severity: "high",
+    category: "tls",
+    fix: "Leave certificate validation on. If a private CA is involved, trust that CA instead of disabling checks.",
+    detail: () => "Certificate validation is disabled, so a man in the middle can read or alter the traffic.",
+    match: (line, lang) => {
+      if (!lang.code) return null;
+      if (lang.js && /rejectUnauthorized\s*:\s*false/.test(line)) return { sink: "rejectUnauthorized false" };
+      if (lang.py && /verify\s*=\s*False/.test(line)) return { sink: "verify False" };
+      if (lang.py && /_create_unverified_context\s*\(/.test(line)) return { sink: "unverified context" };
+      if (lang.go && /InsecureSkipVerify\s*:\s*true/.test(line)) return { sink: "InsecureSkipVerify" };
+      return null;
+    },
+  },
+  {
+    id: "tls-plain-http",
+    title: "Plain HTTP used for a network call",
+    severity: "medium",
+    category: "tls",
+    fix: "Use HTTPS for every network call outside localhost.",
+    detail: () => "A network call uses plain HTTP, so the traffic is readable and alterable in transit.",
+    match: (line, lang) => {
+      if (!lang.code) return null;
+      const m = /["'`]http:\/\/([^/"'`\s]+)/.exec(line);
+      if (!m) return null;
+      const host = m[1].toLowerCase().split(":")[0];
+      if (host === "localhost" || host === "127.0.0.1" || host.endsWith(".local")) return null;
+      if (!/(fetch|axios|requests?|http\.|urlopen|get|post)\b/i.test(line)) return null;
+      return { sink: `http://${host}` };
+    },
+  },
+  {
+    id: "tls-weak-version",
+    title: "Weak TLS version allowed",
+    severity: "medium",
+    category: "tls",
+    fix: "Require TLS 1.2 or newer and drop older versions.",
+    detail: () => "An old TLS version is allowed, and old versions have known attacks.",
+    match: (line, lang) => {
+      if (!lang.code) return null;
+      // Built from parts so this file itself never holds the literal
+      // pattern next to its match, which would trip the detector.
+      const weakTls1 = new RegExp("PROTOCOL_TLS" + "v1(?![23_])");
+      if (weakTls1.test(line)) return { sink: "TLSv1" };
+      if (/TLSv1_[01]\b/.test(line)) return { sink: "TLSv1.0/1.1" };
+      if (lang.go && /TLSVersion10|TLSVersion11/.test(line)) return { sink: "old TLS version" };
+      return null;
+    },
+  },
+  {
+    id: "log-secret",
+    title: "Secret logged in plain text",
+    severity: "medium",
+    category: "logging",
+    fix: "Never log secrets. Log a redacted label or a hash instead.",
+    detail: () => "A secret value is written to the logs, where anyone with log access can read it.",
+    match: (line, lang) => {
+      if (!lang.code) return null;
+      const call = /(console\.log|print|logger?\.(?:info|debug|warn|error)|log\.(?:info|debug|warn|error)|fmt\.Print)\s*\(/.exec(line);
+      if (!call) return null;
+      // Only the log call's own arguments count: a secret named
+      // elsewhere on the line (a comment, another statement) is not
+      // being logged. String literals are stripped, so a message that
+      // merely names a secret is clean; a secret variable is not.
+      const args = stripStrings(line.slice(call.index + call[0].length));
+      if (/\b(secret|password|passwd|api[_-]?key|access[_-]?key|private[_-]?key|auth[_-]?token|bearer)\b/i.test(args)) return { sink: "secret in log call" };
+      return null;
+    },
+  },
+  {
+    id: "error-stack-leak",
+    title: "Error or stack trace sent in a response",
+    severity: "medium",
+    category: "logging",
+    fix: "Return a generic error message and keep the stack trace in the server logs only.",
+    detail: () => "An error or stack trace is sent back in an HTTP response, which hands an attacker internals to work with.",
+    match: (line, lang) => {
+      if (!lang.code) return null;
+      if (/\.\s*(send|json)\s*\(\s*(err|error|e)\b/.test(line)) return { sink: "error in response" };
+      if (/status\s*\(\s*500\s*\)\s*\.\s*(send|json)\s*\(/.test(line)) return { sink: "500 with body" };
+      if (lang.py && /return[^#\n]*traceback/.test(line)) return { sink: "traceback in response" };
+      return null;
+    },
+  },
+  {
+    id: "debug-mode",
+    title: "Debug mode left on",
+    severity: "medium",
+    category: "logging",
+    fix: "Turn debug off in production. Debug mode can expose an interactive debugger and stack traces.",
+    detail: () => "Debug mode is left on, which can expose an interactive debugger and full stack traces to anyone who triggers an error.",
+    match: (line, lang) => {
+      if (!lang.code) return null;
+      if (lang.py && /^\s*DEBUG\s*=\s*True\b/.test(line)) return { sink: "DEBUG True" };
+      if (/debug\s*=\s*True\b/.test(line)) return { sink: "debug True" };
+      if (lang.js && /\.debug\s*=\s*true\b/.test(line)) return { sink: "debug true" };
+      return null;
+    },
+  },
+  {
+    id: "xss-inner-html",
+    title: "Untrusted value written as HTML",
+    severity: "high",
+    category: "xss",
+    fix: "Render the value as text, or sanitise it with a trusted HTML sanitiser first.",
+    detail: () => "An untrusted value is written straight into the page as HTML, so an attacker can inject script.",
+    match: (line, lang) => {
+      if (!lang.code) return null;
+      const m = /dangerouslySetInnerHTML\s*=\s*\{\s*\{\s*__html\s*:\s*([^}]+)\}\s*\}/.exec(line);
+      if (m) {
+        // Serialising a named constant is the standard safe pattern
+        // (the JSON-LD blocks in layout.tsx): the value is data, not
+        // markup. Anything else tainted is flagged. Limitation: a
+        // bare identifier that itself holds user input is treated as
+        // clean, which this line based check cannot tell apart.
+        if (/^\s*JSON\.stringify\s*\(\s*[A-Za-z_$][A-Za-z0-9_$]*\s*\)\s*$/.test(m[1])) return null;
+        if (isTainted(m[1])) return { sink: "dangerouslySetInnerHTML" };
+      }
+      const inner = /\.innerHTML\s*=\s*(.+)$/.exec(line);
+      if (inner && isTainted(inner[1])) return { sink: "innerHTML" };
+      const doc = /document\.write\s*\(\s*(.+)\)/.exec(line);
+      if (doc && isTainted(doc[1])) return { sink: "document.write" };
+      return null;
+    },
+  },
+  {
+    id: "xss-eval",
+    title: "Untrusted value passed to eval",
+    severity: "high",
+    category: "xss",
+    fix: "Do not eval untrusted input. Parse the data with JSON.parse or a proper parser instead.",
+    detail: () => "An untrusted value is passed to eval, so an attacker can run arbitrary code in the page.",
+    match: (line, lang) => {
+      if (!lang.code) return null;
+      const m = /\beval\s*\(\s*(.+)\)/.exec(line);
+      if (m && isTainted(m[1])) return { sink: "eval" };
       return null;
     },
   },

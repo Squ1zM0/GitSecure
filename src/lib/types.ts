@@ -111,7 +111,7 @@ export interface PostureIssue {
   detail: string;
   fix: string;
   /** Phase 19: which check family produced this issue. */
-  category?: "code-risk" | "actions" | "container" | "exposed-file" | "install-script" | "web-config" | "hygiene";
+  category?: "code-risk" | "actions" | "container" | "exposed-file" | "install-script" | "web-config" | "hygiene" | "ci" | "tls" | "xss" | "logging";
   /** Phase 19: file the issue was found in, when it comes from a file. */
   file?: string;
   /** Phase 19: 1-based line in that file, when known. */

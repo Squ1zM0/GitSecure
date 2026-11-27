@@ -107,8 +107,8 @@ for (const [cat, label] of Object.entries(expectedLabels) as [MapCategory, strin
   check(`categoryLabel: '${cat}' -> '${label}'`, categoryLabel(cat) === label);
 }
 check(
-  "MAP_CATEGORY_ORDER: secrets first, hygiene last, all 8 present",
-  MAP_CATEGORY_ORDER.length === 8 && MAP_CATEGORY_ORDER[0] === "secrets" && MAP_CATEGORY_ORDER[7] === "hygiene" && new Set(MAP_CATEGORY_ORDER).size === 8,
+  "MAP_CATEGORY_ORDER: secrets first, hygiene last, all 12 present",
+  MAP_CATEGORY_ORDER.length === 12 && MAP_CATEGORY_ORDER[0] === "secrets" && MAP_CATEGORY_ORDER[11] === "hygiene" && new Set(MAP_CATEGORY_ORDER).size === 12,
 );
 // Every category has a distinct node shape (sides + rotation), so
 // the category never rides on colour alone. Secrets are the circle
@@ -116,8 +116,9 @@ check(
 const shapeKeys = (Object.entries(MAP_CATEGORY_META) as [MapCategory, { sides: number; rotation: number }][]).map(
   ([, m]) => `${m.sides}/${m.rotation}`,
 );
-check("MAP_CATEGORY_META: all 8 shapes distinct by sides/rotation", new Set(shapeKeys).size === 8, shapeKeys.join(", "));
+check("MAP_CATEGORY_META: all 12 shapes distinct by sides/rotation", new Set(shapeKeys).size === 12, shapeKeys.join(", "));
 check("MAP_CATEGORY_META: secrets is the circle (sides 0)", MAP_CATEGORY_META.secrets.sides === 0);
+check("MAP_CATEGORY_META: Phase 20 categories present with their own shapes", MAP_CATEGORY_META.ci.sides === 7 && MAP_CATEGORY_META.tls.sides === 9 && MAP_CATEGORY_META.xss.sides === 5 && MAP_CATEGORY_META.logging.sides === 6);
 check("MAP_CATEGORY_META: code-risk is the diamond (4 sides, rotation 0)", MAP_CATEGORY_META["code-risk"].sides === 4 && MAP_CATEGORY_META["code-risk"].rotation === 0);
 check("MAP_CATEGORY_META: actions is the square (4 sides, rotation 45)", MAP_CATEGORY_META.actions.sides === 4 && MAP_CATEGORY_META.actions.rotation === 45);
 check("MAP_CATEGORY_META: hygiene triangle points down (3 sides, rotation 180)", MAP_CATEGORY_META.hygiene.sides === 3 && MAP_CATEGORY_META.hygiene.rotation === 180);
