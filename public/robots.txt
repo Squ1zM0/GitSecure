@@ -1,0 +1,9 @@
+# GitSecure — https://git-secure.com
+# Allow all crawlers; the only inventory is the sitemap below.
+# NOTE: report pages are dynamic (/owner/repo) and cannot all be listed;
+# the sitemap carries the home page, the MCP endpoint, and verified
+# example reports. See sitemap.xml for the explicit limits.
+User-agent: *
+Allow: /
+
+Sitemap: https://git-secure.com/sitemap.xml

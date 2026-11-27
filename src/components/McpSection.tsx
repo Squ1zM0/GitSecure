@@ -86,9 +86,10 @@ export default function McpSection({ compact = false }: { compact?: boolean }) {
       </div>
       <p>{MCP_PLAIN_LINE}</p>
       <p>
-        Paste one of these into your assistant&apos;s MCP config. It gets three tools:{" "}
+        Paste one of these into your assistant&apos;s MCP config. It gets four tools:{" "}
         <code className="inline">scan_repo</code> (run a live scan),{" "}
-        <code className="inline">get_report</code> (read or refresh a report), and{" "}
+        <code className="inline">get_report</code> (read or refresh a report),{" "}
+        <code className="inline">resume_scan</code> (resume a long scan), and{" "}
         <code className="inline">list_checks</code> (what a scan covers).
       </p>
       <details className="group">

@@ -1,0 +1,74 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- GitSecure sitemap — applied 2026-11-27 (see gitsecure-presence/seo/APPLY-MANIFEST.md).
+     lastmod 2026-11-27 on home + example reports (metadata added 2026-11-27);
+     /mcp keeps 2026-11-26 (unchanged). Every URL below returned HTTP 200
+     when checked live on 2026-11-26.
+
+     WHAT THIS SITEMAP CAN AND CANNOT LIST — read before applying:
+     - CAN list: the two static routes (home, /mcp) and a small number of
+       REAL report URLs that exist and were verified live (below).
+     - CANNOT list: all report URLs. Reports live at /{owner}/{repo} for
+       ANY public GitHub repo — the URL space is effectively unbounded
+       (every public repo on GitHub is a potential report), so no sitemap
+       can enumerate it. Do not generate a sitemap of "popular repos" from
+       guesses; only add a report URL after verifying it returns 200.
+     - /mcp is the MCP server ENDPOINT, not an HTML page: a plain browser
+       GET returns 406 JSON ("Not Acceptable: Client must accept
+       text/event-stream") by design — MCP clients use POST. It is listed
+       here because it is a real, stable, public route (the canonical MCP
+       URL, https://git-secure.com/mcp), but if Phase 17 prefers a
+       sitemap of HTML pages only, delete the /mcp entry. It must NOT be
+       presented as a human-readable page.
+     - API routes (/api/scan/..., /api/mcp) are NOT listed: they are not
+       pages and should not be crawled as content.
+     - The home page links to no report URLs, so crawlers cannot discover
+       reports by following links; these examples are the only discovery
+       path the sitemap provides. -->
+<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
+  <url>
+    <loc>https://git-secure.com/</loc>
+    <lastmod>2026-11-27</lastmod>
+    <changefreq>weekly</changefreq>
+    <priority>1.0</priority>
+  </url>
+  <url>
+    <loc>https://git-secure.com/mcp</loc>
+    <lastmod>2026-11-26</lastmod>
+    <changefreq>monthly</changefreq>
+    <priority>0.6</priority>
+  </url>
+  <!-- Verified example reports (all returned 200 live on 2026-11-26).
+       Squ1zM0/GitSecure is the project's own repo; Squ1zM0/TechDirect is
+       the long-standing live test case (83/B in the README); the other
+       three are well-known public repos used in the project's own docs. -->
+  <url>
+    <loc>https://git-secure.com/Squ1zM0/GitSecure</loc>
+    <lastmod>2026-11-27</lastmod>
+    <changefreq>weekly</changefreq>
+    <priority>0.8</priority>
+  </url>
+  <url>
+    <loc>https://git-secure.com/Squ1zM0/TechDirect</loc>
+    <lastmod>2026-11-27</lastmod>
+    <changefreq>weekly</changefreq>
+    <priority>0.8</priority>
+  </url>
+  <url>
+    <loc>https://git-secure.com/DefinitelyTyped/DefinitelyTyped</loc>
+    <lastmod>2026-11-27</lastmod>
+    <changefreq>weekly</changefreq>
+    <priority>0.7</priority>
+  </url>
+  <url>
+    <loc>https://git-secure.com/actions/checkout</loc>
+    <lastmod>2026-11-27</lastmod>
+    <changefreq>monthly</changefreq>
+    <priority>0.7</priority>
+  </url>
+  <url>
+    <loc>https://git-secure.com/torvalds/linux</loc>
+    <lastmod>2026-11-27</lastmod>
+    <changefreq>monthly</changefreq>
+    <priority>0.7</priority>
+  </url>
+</urlset>

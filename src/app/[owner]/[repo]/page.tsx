@@ -21,11 +21,53 @@
 // server-side is a malformed owner/repo name, which keeps its error
 // page here; every other failure surfaces in the client driver with
 // the same words (see src/lib/scan-error-copy.ts).
+import type { Metadata } from "next";
 import { validateOwnerRepo, ScanError } from "@/lib/scan";
 import { scanErrorCopy, scanErrorRetryLabel } from "@/lib/scan-error-copy";
 import { emptyProgress } from "@/lib/progress";
 import RetryScanButton from "@/components/RetryScanButton";
 import ScanProgress from "@/components/ScanProgress";
+
+// Per-report metadata (presence SEO): a report page gets its own title
+// and canonical instead of inheriting the home title. No score/grade
+// here — the score is computed live after render, so a cached score in
+// a crawler would be stale the moment the repo changes.
+export async function generateMetadata({
+  params,
+}: {
+  params: Promise<{ owner: string; repo: string }>;
+}): Promise<Metadata> {
+  const { owner, repo } = await params;
+  // Reuse the page's own validation; a bad name keeps the error page
+  // and falls back to the root metadata (do not emit a canonical for
+  // a URL that is not a real report).
+  try {
+    validateOwnerRepo(owner, repo);
+  } catch {
+    return {};
+  }
+  const title = `${owner}/${repo} — GitSecure security report`;
+  const description = `Is ${owner}/${repo} safe? GitSecure scans the public repo for leaked secrets, framework flaws, dependency vulnerabilities, and posture — plain-English report, no sign-up.`;
+  const url = `https://git-secure.com/${owner}/${repo}`;
+  return {
+    title,
+    description,
+    alternates: { canonical: url },
+    openGraph: {
+      type: "website",
+      siteName: "GitSecure",
+      title,
+      description,
+      url,
+      locale: "en_US",
+    },
+    twitter: {
+      card: "summary",
+      title,
+      description,
+    },
+  };
+}
 
 // Scan-on-demand page: never prerendered — each visit runs a live scan.
 // (No `dynamic` export: it is incompatible with cacheComponents, and

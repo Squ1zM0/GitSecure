@@ -1962,6 +1962,16 @@ The live resume proof run failed on both paths with HTTP 504 FUNCTION_INVOCATION
 - Honest mechanism note — read this before claiming the hole is closed: the live GET scan completed in a SINGLE invocation (41.6 s), so no resume occurred and the store was not exercised. The MATCH proves the walk-budget fix (a 274-commit lockfile-heavy history now fits inside one serverless invocation), not the accumulation store. The store is still unprovisioned (NoopStore in production), and a repo whose history genuinely spans invocations would still lose findings on GET/MCP resume until it is.
 - Still owed after Freddy provisions Upstash: the live multi-invocation GET/MCP resume proof (design §4.6 step 9 — DefinitelyTyped-scale scan returning the identical finding set via GET/MCP as via POST-chunk accumulation), plus the copy updates in test-results/phase17/copy-after-provisioning.md.
 
+## Presence SEO apply — on-site package staged 2026-11-26, applied 2026-11-27 (Phase 17 head)
+
+The presence audit found the site in 0 of 27 search results with no OG tags, no JSON-LD, no canonical, and robots.txt/sitemap.xml/llms.txt all 404. The staged package in gitsecure-presence/seo/ (APPLY-MANIFEST.md) is now applied on top of Phase 17's head:
+- Static files copied to public/: robots.txt, sitemap.xml (7 URLs — home, /mcp, 5 verified example reports; lastmod 2026-11-27 for home + reports, /mcp keeps 2026-11-26), llms.txt. Sitemap header comment updated from "STAGED, NOT APPLIED" to applied date.
+- Root layout (src/app/layout.tsx): metadataBase https://git-secure.com, canonical "/", openGraph + twitter (card "summary", no og:image — public/og.png does not exist yet, per manifest item 0), both JSON-LD blocks inlined verbatim from the staged files (SoftwareApplication + WebSite), rendered in the body.
+- Per-report metadata (src/app/[owner]/[repo]/page.tsx): generateMetadata with the page's own validateOwnerRepo; per-repo title + canonical; no score/grade (computed live after render).
+- Copy fix in the same change (audit item 6): home MCP copy said "three tools" — now "four tools" with resume_scan listed (live tools/list returns four).
+- Verified locally first against a fresh production server (build exit 0; robots 200 + Sitemap pointer, sitemap 200 + 7 urls, llms 200, home canonical + OG + Twitter + 2 JSON-LD parsing OK, no og:image, report title + canonical per-repo, home/report 200, "four tools" present). Lesson from this apply: killing `npm start`'s wrapper PID leaves the child next-server on :3000 — the first local check ran against that stale server (EADDRINUSE) and gave mixed results; kill the next-server itself (fuser -k 3000/tcp) and never rebuild under a running server.
+- Still open, not part of this apply: public/og.png (1200×630, needed for summary_large_image + link previews); GitHub repo polish (description/homepage/topics — needs a suitably scoped token or doing by hand; the Contents-only push token 403s on it); Search Console submission + re-running the audit searches after a few days.
+
 ## Phase 2 status — built and pushed 2026-11-25, commit 870f889f, live at https://gitsecure.vercel.app/ (verified serving: home 200, live TechDirect scan 200, 83/B)
 - Next.js 16 / React 19 / TypeScript + Auth.js (NextAuth 5.0.0-beta.32,
   GitHub provider), in ~/workspace/gitsecure/.
