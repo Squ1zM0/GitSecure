@@ -1,0 +1,178 @@
+[
+  {
+    "identity": "database-url|wasmedge-kafka-mysql/.docker/docker-compose.yml|27|mysq…ql",
+    "commitQualified": "database-url|wasmedge-kafka-mysql/.docker/docker-compose.yml|27|mysq…ql|e6b1d27",
+    "type": "database-url",
+    "file": "wasmedge-kafka-mysql/.docker/docker-compose.yml",
+    "line": 27,
+    "fragment": "mysq…ql",
+    "commit": "e6b1d27",
+    "commitFull": "e6b1d27",
+    "triage": "likely-genuine-leak"
+  },
+  {
+    "identity": "database-url|wasmedge-kafka-mysql/README.md|63|mysq…ql",
+    "commitQualified": "database-url|wasmedge-kafka-mysql/README.md|63|mysq…ql|e6b1d27",
+    "type": "database-url",
+    "file": "wasmedge-kafka-mysql/README.md",
+    "line": 63,
+    "fragment": "mysq…ql",
+    "commit": "e6b1d27",
+    "commitFull": "e6b1d27",
+    "triage": "uncertain"
+  },
+  {
+    "identity": "database-url|wasmedge-kafka-mysql/compose.yml|27|mysq…ql",
+    "commitQualified": "database-url|wasmedge-kafka-mysql/compose.yml|27|mysq…ql|e6b1d27",
+    "type": "database-url",
+    "file": "wasmedge-kafka-mysql/compose.yml",
+    "line": 27,
+    "fragment": "mysq…ql",
+    "commit": "e6b1d27",
+    "commitFull": "e6b1d27",
+    "triage": "likely-genuine-leak"
+  },
+  {
+    "identity": "database-url|wasmedge-mysql-nginx/.docker/docker-compose.yml|17|mysq…ql",
+    "commitQualified": "database-url|wasmedge-mysql-nginx/.docker/docker-compose.yml|17|mysq…ql|e6b1d27",
+    "type": "database-url",
+    "file": "wasmedge-mysql-nginx/.docker/docker-compose.yml",
+    "line": 17,
+    "fragment": "mysq…ql",
+    "commit": "e6b1d27",
+    "commitFull": "e6b1d27",
+    "triage": "likely-genuine-leak"
+  },
+  {
+    "identity": "database-url|wasmedge-mysql-nginx/README.md|55|mysq…ql",
+    "commitQualified": "database-url|wasmedge-mysql-nginx/README.md|55|mysq…ql|e6b1d27",
+    "type": "database-url",
+    "file": "wasmedge-mysql-nginx/README.md",
+    "line": 55,
+    "fragment": "mysq…ql",
+    "commit": "e6b1d27",
+    "commitFull": "e6b1d27",
+    "triage": "uncertain"
+  },
+  {
+    "identity": "database-url|wasmedge-mysql-nginx/backend/src/main.rs|23|mysq…ql",
+    "commitQualified": "database-url|wasmedge-mysql-nginx/backend/src/main.rs|23|mysq…ql|e6b1d27",
+    "type": "database-url",
+    "file": "wasmedge-mysql-nginx/backend/src/main.rs",
+    "line": 23,
+    "fragment": "mysq…ql",
+    "commit": "e6b1d27",
+    "commitFull": "e6b1d27",
+    "triage": "likely-genuine-leak"
+  },
+  {
+    "identity": "database-url|wasmedge-mysql-nginx/compose.yml|17|mysq…ql",
+    "commitQualified": "database-url|wasmedge-mysql-nginx/compose.yml|17|mysq…ql|e6b1d27",
+    "type": "database-url",
+    "file": "wasmedge-mysql-nginx/compose.yml",
+    "line": 17,
+    "fragment": "mysq…ql",
+    "commit": "e6b1d27",
+    "commitFull": "e6b1d27",
+    "triage": "likely-genuine-leak"
+  },
+  {
+    "identity": "hardcoded-password|nginx-golang-mysql/compose.yaml|20|pass…)\"",
+    "commitQualified": "hardcoded-password|nginx-golang-mysql/compose.yaml|20|pass…)\"|f329300",
+    "type": "hardcoded-password",
+    "file": "nginx-golang-mysql/compose.yaml",
+    "line": 20,
+    "fragment": "pass…)\"",
+    "commit": "f329300",
+    "commitFull": "f329300",
+    "triage": "uncertain"
+  },
+  {
+    "identity": "hardcoded-password|nginx-flask-mysql/compose.yaml|10|pass…)\"",
+    "commitQualified": "hardcoded-password|nginx-flask-mysql/compose.yaml|10|pass…)\"|111c55d",
+    "type": "hardcoded-password",
+    "file": "nginx-flask-mysql/compose.yaml",
+    "line": 10,
+    "fragment": "pass…)\"",
+    "commit": "111c55d",
+    "commitFull": "111c55d",
+    "triage": "uncertain"
+  },
+  {
+    "identity": "hardcoded-password|nginx-aspnet-mysql/compose.yaml|22|pass…)\"",
+    "commitQualified": "hardcoded-password|nginx-aspnet-mysql/compose.yaml|22|pass…)\"|9f4f9d8",
+    "type": "hardcoded-password",
+    "file": "nginx-aspnet-mysql/compose.yaml",
+    "line": 22,
+    "fragment": "pass…)\"",
+    "commit": "9f4f9d8",
+    "commitFull": "9f4f9d8",
+    "triage": "uncertain"
+  },
+  {
+    "identity": "database-url|react-rust-postgres/docker-compose.yaml|18|post…es",
+    "commitQualified": "database-url|react-rust-postgres/docker-compose.yaml|18|post…es|b73e252",
+    "type": "database-url",
+    "file": "react-rust-postgres/docker-compose.yaml",
+    "line": 18,
+    "fragment": "post…es",
+    "commit": "b73e252",
+    "commitFull": "b73e252",
+    "triage": "likely-genuine-leak"
+  },
+  {
+    "identity": "generic-high-entropy-secret|aspnet-mssql/app/aspnetapp/wwwroot/lib/jquery-validation-unobtrusive/jquery.validate.unobtrusive.js|100|key …t'",
+    "commitQualified": "generic-high-entropy-secret|aspnet-mssql/app/aspnetapp/wwwroot/lib/jquery-validation-unobtrusive/jquery.validate.unobtrusive.js|100|key …t'|f1e4cca",
+    "type": "generic-high-entropy-secret",
+    "file": "aspnet-mssql/app/aspnetapp/wwwroot/lib/jquery-validation-unobtrusive/jquery.validate.unobtrusive.js",
+    "line": 100,
+    "fragment": "key …t'",
+    "commit": "f1e4cca",
+    "commitFull": "f1e4cca",
+    "triage": "uncertain"
+  },
+  {
+    "identity": "database-url|nginx-golang-postgres/backend/main.go|23|post…le",
+    "commitQualified": "database-url|nginx-golang-postgres/backend/main.go|23|post…le|f1e4cca",
+    "type": "database-url",
+    "file": "nginx-golang-postgres/backend/main.go",
+    "line": 23,
+    "fragment": "post…le",
+    "commit": "f1e4cca",
+    "commitFull": "f1e4cca",
+    "triage": "uncertain"
+  },
+  {
+    "identity": "generic-high-entropy-secret|samples/aspnet-mssql/app/aspnetapp/wwwroot/lib/jquery-validation-unobtrusive/jquery.validate.unobtrusive.js|100|key …t'",
+    "commitQualified": "generic-high-entropy-secret|samples/aspnet-mssql/app/aspnetapp/wwwroot/lib/jquery-validation-unobtrusive/jquery.validate.unobtrusive.js|100|key …t'|9c829ac",
+    "type": "generic-high-entropy-secret",
+    "file": "samples/aspnet-mssql/app/aspnetapp/wwwroot/lib/jquery-validation-unobtrusive/jquery.validate.unobtrusive.js",
+    "line": 100,
+    "fragment": "key …t'",
+    "commit": "9c829ac",
+    "commitFull": "9c829ac",
+    "triage": "likely-test-key"
+  },
+  {
+    "identity": "generic-high-entropy-secret|samples/aspnet-mssql/backend/aspnetapp/wwwroot/lib/jquery-validation-unobtrusive/jquery.validate.unobtrusive.js|100|key …t'",
+    "commitQualified": "generic-high-entropy-secret|samples/aspnet-mssql/backend/aspnetapp/wwwroot/lib/jquery-validation-unobtrusive/jquery.validate.unobtrusive.js|100|key …t'|5417ecf",
+    "type": "generic-high-entropy-secret",
+    "file": "samples/aspnet-mssql/backend/aspnetapp/wwwroot/lib/jquery-validation-unobtrusive/jquery.validate.unobtrusive.js",
+    "line": 100,
+    "fragment": "key …t'",
+    "commit": "5417ecf",
+    "commitFull": "5417ecf",
+    "triage": "likely-test-key"
+  },
+  {
+    "identity": "database-url|samples/nginx-golang-postgres/backend/main.go|23|post…le",
+    "commitQualified": "database-url|samples/nginx-golang-postgres/backend/main.go|23|post…le|0d06c37",
+    "type": "database-url",
+    "file": "samples/nginx-golang-postgres/backend/main.go",
+    "line": 23,
+    "fragment": "post…le",
+    "commit": "0d06c37",
+    "commitFull": "0d06c37",
+    "triage": "likely-test-key"
+  }
+]

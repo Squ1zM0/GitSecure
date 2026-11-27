@@ -1,0 +1,66 @@
+{
+  "startedAt": "2026-11-27T01:26:35.315Z",
+  "finishedAt": "2026-11-27T01:26:35.406Z",
+  "repo": "docker/awesome-compose",
+  "base": "https://git-secure.com",
+  "mode": "diff",
+  "chunkPath": {
+    "calls": 4,
+    "historyChunks": 2,
+    "wallMs": 53419,
+    "wallSeconds": 53.4,
+    "accumulatedFindings": 16,
+    "finalReportSecrets": 30,
+    "headSha": "503c0dcef31b07fb77b2d4c5556bfafdf86f4f1a",
+    "probeOnly": false,
+    "loadedFromDisk": true
+  },
+  "getPath": {
+    "calls": 1,
+    "wallMs": 41577,
+    "wallSeconds": 41.6,
+    "finalReportSecrets": 30,
+    "headSha": "503c0dcef31b07fb77b2d4c5556bfafdf86f4f1a",
+    "loadedFromDisk": true
+  },
+  "diff": {
+    "repo": "docker/awesome-compose",
+    "chunkReport": {
+      "secrets": 30,
+      "historySecrets": 16,
+      "headSecrets": 14,
+      "score": 0,
+      "grade": "F",
+      "historyCommitsScanned": 274,
+      "filesScanned": 429,
+      "commit": "503c0dcef31b07fb77b2d4c5556bfafdf86f4f1a"
+    },
+    "getReport": {
+      "secrets": 30,
+      "historySecrets": 16,
+      "headSecrets": 14,
+      "score": 0,
+      "grade": "F",
+      "historyCommitsScanned": 274,
+      "filesScanned": 429,
+      "commit": "503c0dcef31b07fb77b2d4c5556bfafdf86f4f1a"
+    },
+    "headShaMatch": true,
+    "historyDepthMatch": true,
+    "historyDepthNote": "both reports scanned the same number of history commits",
+    "identityDiff": {
+      "lostCount": 0,
+      "gainedCount": 0,
+      "lost": [],
+      "gained": []
+    },
+    "commitQualifiedDiff": {
+      "lostCount": 0,
+      "gainedCount": 0,
+      "lost": [],
+      "gained": []
+    }
+  },
+  "exitCode": 0,
+  "verdict": "MATCH — the two finding sets are identical (hole closed, or vacuous: see evidence.md for whether the repo had any history findings to lose)"
+}

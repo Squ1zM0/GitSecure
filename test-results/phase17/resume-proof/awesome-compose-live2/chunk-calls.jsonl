@@ -1,0 +1,4 @@
+{"call":1,"endpoint":"POST /api/scan/start","http":200,"ms":2227,"stage":"history","historyScanned":0,"chunkFindings":0,"cumulativeFindings":0,"headSha":"503c0dcef31b07fb77b2d4c5556bfafdf86f4f1a"}
+{"call":2,"endpoint":"POST /api/scan/chunk","http":200,"ms":18681,"stage":"history","historyScanned":200,"chunkFindings":11,"cumulativeFindings":11,"headSha":"503c0dcef31b07fb77b2d4c5556bfafdf86f4f1a"}
+{"call":3,"endpoint":"POST /api/scan/chunk","http":200,"ms":15664,"stage":"assemble","historyScanned":274,"chunkFindings":5,"cumulativeFindings":16,"headSha":"503c0dcef31b07fb77b2d4c5556bfafdf86f4f1a"}
+{"call":4,"endpoint":"POST /api/scan/chunk (assemble)","http":200,"ms":16826,"stage":"done","historyScanned":274,"chunkFindings":0,"cumulativeFindings":16,"headSha":"503c0dcef31b07fb77b2d4c5556bfafdf86f4f1a"}
