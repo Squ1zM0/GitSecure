@@ -1,0 +1,112 @@
+[
+  {
+    "identity": "database-url|wasmedge-kafka-mysql/.docker/docker-compose.yml|27|mysq…ql",
+    "commitQualified": "database-url|wasmedge-kafka-mysql/.docker/docker-compose.yml|27|mysq…ql|e6b1d27",
+    "type": "database-url",
+    "file": "wasmedge-kafka-mysql/.docker/docker-compose.yml",
+    "line": 27,
+    "fragment": "mysq…ql",
+    "commit": "e6b1d27",
+    "commitFull": "e6b1d27",
+    "triage": "likely-genuine-leak"
+  },
+  {
+    "identity": "database-url|wasmedge-kafka-mysql/README.md|63|mysq…ql",
+    "commitQualified": "database-url|wasmedge-kafka-mysql/README.md|63|mysq…ql|e6b1d27",
+    "type": "database-url",
+    "file": "wasmedge-kafka-mysql/README.md",
+    "line": 63,
+    "fragment": "mysq…ql",
+    "commit": "e6b1d27",
+    "commitFull": "e6b1d27",
+    "triage": "uncertain"
+  },
+  {
+    "identity": "database-url|wasmedge-kafka-mysql/compose.yml|27|mysq…ql",
+    "commitQualified": "database-url|wasmedge-kafka-mysql/compose.yml|27|mysq…ql|e6b1d27",
+    "type": "database-url",
+    "file": "wasmedge-kafka-mysql/compose.yml",
+    "line": 27,
+    "fragment": "mysq…ql",
+    "commit": "e6b1d27",
+    "commitFull": "e6b1d27",
+    "triage": "likely-genuine-leak"
+  },
+  {
+    "identity": "database-url|wasmedge-mysql-nginx/.docker/docker-compose.yml|17|mysq…ql",
+    "commitQualified": "database-url|wasmedge-mysql-nginx/.docker/docker-compose.yml|17|mysq…ql|e6b1d27",
+    "type": "database-url",
+    "file": "wasmedge-mysql-nginx/.docker/docker-compose.yml",
+    "line": 17,
+    "fragment": "mysq…ql",
+    "commit": "e6b1d27",
+    "commitFull": "e6b1d27",
+    "triage": "likely-genuine-leak"
+  },
+  {
+    "identity": "database-url|wasmedge-mysql-nginx/README.md|55|mysq…ql",
+    "commitQualified": "database-url|wasmedge-mysql-nginx/README.md|55|mysq…ql|e6b1d27",
+    "type": "database-url",
+    "file": "wasmedge-mysql-nginx/README.md",
+    "line": 55,
+    "fragment": "mysq…ql",
+    "commit": "e6b1d27",
+    "commitFull": "e6b1d27",
+    "triage": "uncertain"
+  },
+  {
+    "identity": "database-url|wasmedge-mysql-nginx/backend/src/main.rs|23|mysq…ql",
+    "commitQualified": "database-url|wasmedge-mysql-nginx/backend/src/main.rs|23|mysq…ql|e6b1d27",
+    "type": "database-url",
+    "file": "wasmedge-mysql-nginx/backend/src/main.rs",
+    "line": 23,
+    "fragment": "mysq…ql",
+    "commit": "e6b1d27",
+    "commitFull": "e6b1d27",
+    "triage": "likely-genuine-leak"
+  },
+  {
+    "identity": "database-url|wasmedge-mysql-nginx/compose.yml|17|mysq…ql",
+    "commitQualified": "database-url|wasmedge-mysql-nginx/compose.yml|17|mysq…ql|e6b1d27",
+    "type": "database-url",
+    "file": "wasmedge-mysql-nginx/compose.yml",
+    "line": 17,
+    "fragment": "mysq…ql",
+    "commit": "e6b1d27",
+    "commitFull": "e6b1d27",
+    "triage": "likely-genuine-leak"
+  },
+  {
+    "identity": "hardcoded-password|nginx-golang-mysql/compose.yaml|20|pass…)\"",
+    "commitQualified": "hardcoded-password|nginx-golang-mysql/compose.yaml|20|pass…)\"|f329300",
+    "type": "hardcoded-password",
+    "file": "nginx-golang-mysql/compose.yaml",
+    "line": 20,
+    "fragment": "pass…)\"",
+    "commit": "f329300",
+    "commitFull": "f329300",
+    "triage": "uncertain"
+  },
+  {
+    "identity": "hardcoded-password|nginx-flask-mysql/compose.yaml|10|pass…)\"",
+    "commitQualified": "hardcoded-password|nginx-flask-mysql/compose.yaml|10|pass…)\"|111c55d",
+    "type": "hardcoded-password",
+    "file": "nginx-flask-mysql/compose.yaml",
+    "line": 10,
+    "fragment": "pass…)\"",
+    "commit": "111c55d",
+    "commitFull": "111c55d",
+    "triage": "uncertain"
+  },
+  {
+    "identity": "hardcoded-password|nginx-aspnet-mysql/compose.yaml|22|pass…)\"",
+    "commitQualified": "hardcoded-password|nginx-aspnet-mysql/compose.yaml|22|pass…)\"|9f4f9d8",
+    "type": "hardcoded-password",
+    "file": "nginx-aspnet-mysql/compose.yaml",
+    "line": 22,
+    "fragment": "pass…)\"",
+    "commit": "9f4f9d8",
+    "commitFull": "9f4f9d8",
+    "triage": "uncertain"
+  }
+]

@@ -1,0 +1,7 @@
+▲ Next.js 16.4.6
+- Local:         http://localhost:3100
+- Network:       http://198.19.0.2:3100
+✓ Ready in 532ms
+✓ Running next.config.ts took 473ms
+(node:17000) [DEP0169] DeprecationWarning: `url.parse()` behavior is not standardized and prone to errors that have security implications. Use the WHATWG URL API instead. CVEs are not issued for `url.parse()` vulnerabilities.
+(Use `node --trace-deprecation ...` to show where the warning was created)

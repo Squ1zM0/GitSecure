@@ -22,8 +22,10 @@
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { WebStandardStreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/webStandardStreamableHttp.js";
 import { z } from "zod";
-import { API_FAST_PATH_WAIT_MS, runScanLoop } from "./chunks";
+import { API_FAST_PATH_WAIT_MS, runScanLoop, type LoopResult } from "./chunks";
+import { filterHistoryFindings } from "./scan-state";
 import { ScanError, validateOwnerRepo } from "./scan";
+import type { HeadPartial, SecretFinding } from "./types";
 
 const NAME_RE = /^[A-Za-z0-9_.-]+$/;
 const NAME_MESSAGE =
@@ -41,6 +43,33 @@ function toolError(message: string) {
     content: [{ type: "text" as const, text: message }],
     isError: true,
   };
+}
+
+/** Still-running text, shared by scan_repo / get_report /
+ *  resume_scan. Phase 17: when the loop has accumulated history
+ *  findings, they are echoed back (redacted fragments only, as in
+ *  a finished report) so the model can pass them back verbatim as
+ *  `historyFindings` on the next resume_scan call — the
+ *  caller-carried fallback (see scan-state.ts). Without the echo
+ *  the model has nothing to carry and the next invocation starts
+ *  from [] — the Phase 17 hole. The echo is a fallback, not a
+ *  replacement for the server store: it costs ~1 KB per finding per
+ *  round trip, and a model that summarises or retypes the array
+ *  corrupts it (the server can only shape-check it). Exported so
+ *  tests can prove the echo contract. */
+export function stillRunningText(owner: string, repo: string, result: LoopResult, resumeInstruction: string): string {
+  const p = result.progress;
+  const findings = result.historyFindings ?? [];
+  let text =
+    `The scan of ${owner}/${repo} is still running (cursor ${result.cursor}). ` +
+    `So far: ${p ? `${p.filesScanned} of ${p.filesTotal > 0 ? p.filesTotal : "the"} files scanned, ` : ""}` +
+    `${p ? `${p.commitsScanned} history commits checked. ` : ""}` +
+    resumeInstruction;
+  if (findings.length > 0) {
+    text +=
+      ` Accumulated history findings so far (${findings.length}): ${JSON.stringify(findings)} — pass these back verbatim as historyFindings on the next resume_scan call, without summarising, editing, or retyping them; they are redacted fragments only, never full secrets.`;
+  }
+  return text;
 }
 
 /** Run a live scan and return the FULL report as JSON text.
@@ -64,16 +93,16 @@ async function fullScan(owner: string, repo: string) {
         content: [{ type: "text" as const, text: JSON.stringify(result.report, null, 2) }],
       };
     }
-    const p = result.progress;
     return {
       content: [
         {
           type: "text" as const,
-          text:
-            `The scan of ${owner}/${repo} is still running (cursor ${result.cursor}). ` +
-            `So far: ${p ? `${p.filesScanned} of ${p.filesTotal > 0 ? p.filesTotal : "the"} files scanned, ` : ""}` +
-            `${p ? `${p.commitsScanned} history commits checked. ` : ""}` +
-            `Call resume_scan with this cursor to continue it from the last finished chunk — do not start a new scan.`,
+          text: stillRunningText(
+            owner,
+            repo,
+            result,
+            "Call resume_scan with this cursor to continue it from the last finished chunk — do not start a new scan.",
+          ),
         },
       ],
     };
@@ -85,8 +114,21 @@ async function fullScan(owner: string, repo: string) {
 
 /** Continue a scan from a cursor returned by scan_repo / get_report /
  *  resume_scan. The cursor pins the repo; its owner/repo are read out
- *  of it (leniently — strict validation happens inside the driver). */
-async function resumeScan(cursor: string) {
+ *  of it (leniently — strict validation happens inside the driver).
+ *  Phase 17: optional `historyFindings` — the accumulated findings
+ *  from the previous call's still-running text, passed back verbatim
+ *  (shape-filtered; malformed entries are dropped). This is the
+ *  caller-carried fallback: it narrows the Phase 17 hole for MCP
+ *  callers when the server store is absent or down, and is additive
+ *  to the store, not a replacement for it. `apiBase` and `head` are
+ *  test-only (mock GitHub API base and a pre-derived HEAD partial,
+ *  as in chunks.ts — the assemble stage re-derives the HEAD from
+ *  GitHub when `head` is absent). Exported so tests can drive the
+ *  fallback end-to-end offline. */
+export async function resumeScan(
+  cursor: string,
+  opts: { historyFindings?: unknown; apiBase?: string; head?: HeadPartial | null } = {},
+) {
   try {
     let owner = "";
     let repo = "";
@@ -100,22 +142,29 @@ async function resumeScan(cursor: string) {
     if (!owner || !repo) {
       return toolError("That scan link doesn't look right — it may be from an older scan or pasted wrong. Starting a fresh scan instead.");
     }
-    const result = await runScanLoop(owner, repo, { cursor, budgetMs: API_FAST_PATH_WAIT_MS });
+    const historyFindings: SecretFinding[] = filterHistoryFindings(opts.historyFindings);
+    const result = await runScanLoop(owner, repo, {
+      cursor,
+      budgetMs: API_FAST_PATH_WAIT_MS,
+      historyFindings,
+      head: opts.head ?? null,
+      apiBase: opts.apiBase,
+    });
     if (result.status === "done" && result.report) {
       return {
         content: [{ type: "text" as const, text: JSON.stringify(result.report, null, 2) }],
       };
     }
-    const p = result.progress;
     return {
       content: [
         {
           type: "text" as const,
-          text:
-            `The scan of ${owner}/${repo} is still running (cursor ${result.cursor}). ` +
-            `So far: ${p ? `${p.filesScanned} of ${p.filesTotal > 0 ? p.filesTotal : "the"} files scanned, ` : ""}` +
-            `${p ? `${p.commitsScanned} history commits checked. ` : ""}` +
-            `Call resume_scan again with this cursor to continue it from the last finished chunk.`,
+          text: stillRunningText(
+            owner,
+            repo,
+            result,
+            "Call resume_scan again with this cursor to continue it from the last finished chunk.",
+          ),
         },
       ],
     };
@@ -192,14 +241,22 @@ export function createMcpServer(): McpServer {
       description:
         "Continue a scan that is still running, from the cursor scan_repo or get_report returned. " +
         "Use this when a scan came back as still running instead of starting a new scan — the cursor carries the whole resume position, so the scan continues from the last finished chunk instead of starting over, even if the server restarted since. " +
+        "If the previous call's still-running message listed accumulated history findings, pass them back verbatim as historyFindings so findings from earlier chunks survive the resume — without them, a scan resumed from a cursor alone can lose earlier history findings when no server store is available. " +
         "Returns the full report when the scan finishes, or another still-running message with a fresh cursor when it needs more chunks. " +
         "If the cursor is bad or from an older scan, the tool returns a plain-English error instead of a result.",
       inputSchema: {
         cursor: z.string().describe("The cursor string a scan_repo or get_report call returned for the still-running scan."),
+        historyFindings: z
+          .array(z.unknown())
+          .optional()
+          .describe(
+            "Optional: the accumulated history findings from the previous call's still-running message, copied verbatim (an array of secret-finding objects with at least type, file and fragment — redacted fragments only, never full secrets). " +
+              "Pass them back unchanged so findings from earlier chunks survive the resume. Omit when the previous call listed none.",
+          ),
       },
       annotations: { readOnlyHint: true },
     },
-    async ({ cursor }) => resumeScan(cursor),
+    async ({ cursor, historyFindings }) => resumeScan(cursor, { historyFindings }),
   );
 
   server.registerTool(

@@ -42,6 +42,8 @@
     "test:phase16-worker-b": "tsx scripts/test-phase16-worker-b.ts",
     "test:resilience-phase15": "tsx scripts/test-resilience-phase15.ts",
     "test:fixtures-phase14": "tsx scripts/test-fixtures-phase14.ts",
+    "test:phase17-worker-b": "tsx scripts/test-phase17-worker-b.ts",
+    "test:phase17-worker-c": "tsx scripts/test-phase17-worker-c.ts",
     "test:zero-rest": "tsx scripts/test-zero-rest.ts"
   },
   "version": "0.1.0"

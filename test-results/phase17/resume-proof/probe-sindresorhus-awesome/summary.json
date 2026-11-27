@@ -1,0 +1,22 @@
+{
+  "startedAt": "2026-11-26T22:47:05.595Z",
+  "finishedAt": "2026-11-26T22:47:21.417Z",
+  "repo": "sindresorhus/awesome",
+  "base": "http://localhost:3100",
+  "mode": "chunk",
+  "chunkPath": {
+    "calls": 3,
+    "historyChunks": 2,
+    "wallMs": 15819,
+    "wallSeconds": 15.8,
+    "accumulatedFindings": 0,
+    "finalReportSecrets": null,
+    "headSha": "bc98e517ddca672f55f9857d714fc3ea3c3540b2",
+    "probeOnly": true,
+    "loadedFromDisk": false
+  },
+  "getPath": null,
+  "diff": null,
+  "exitCode": 0,
+  "verdict": "MATCH — the two finding sets are identical (hole closed, or vacuous: see evidence.md for whether the repo had any history findings to lose)"
+}

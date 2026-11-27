@@ -1,0 +1,8 @@
+resume-proof harness — repo docker/awesome-compose — base http://localhost:3100 — mode chunk
+out: test-results/phase17/resume-proof/probe2-docker-awesome-compose
+Path A (chunk accumulation: POST /api/scan/start + POST /api/scan/chunk) …
+  [chunk #1] POST /api/scan/start http=200 4330ms stage=history scanned=0 chunkFindings=0 cumulative=0
+  [chunk #2] POST /api/scan/chunk http=200 152647ms stage=assemble scanned=64 chunkFindings=10 cumulative=10
+  [chunk #3] POST /api/scan/chunk (assemble) http=200 13338ms stage=done scanned=64 chunkFindings=0 cumulative=10
+Path A done: 3 calls, 1 history chunks, 170.3s wall, 10 accumulated history+HEAD-dedupe findings in hand (final report secrets: 24)
+VERDICT: MATCH — the two finding sets are identical (hole closed, or vacuous: see evidence.md for whether the repo had any history findings to lose) (exit 0)

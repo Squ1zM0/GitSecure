@@ -1,0 +1,36 @@
+{
+  "repo": "vinta/awesome-python",
+  "chunkReport": {
+    "secrets": 0,
+    "historySecrets": 0,
+    "headSecrets": 0,
+    "score": 91,
+    "grade": "A",
+    "historyCommitsScanned": 3350,
+    "filesScanned": 126,
+    "commit": "4c3cb15dc695e95ae64add86b9994add8277f323"
+  },
+  "getReport": {
+    "secrets": 0,
+    "historySecrets": 0,
+    "headSecrets": 0,
+    "score": 91,
+    "grade": "A",
+    "historyCommitsScanned": 150,
+    "filesScanned": 126,
+    "commit": "4c3cb15dc695e95ae64add86b9994add8277f323"
+  },
+  "headShaMatch": true,
+  "identityDiff": {
+    "lostCount": 0,
+    "gainedCount": 0,
+    "lost": [],
+    "gained": []
+  },
+  "commitQualifiedDiff": {
+    "lostCount": 0,
+    "gainedCount": 0,
+    "lost": [],
+    "gained": []
+  }
+}

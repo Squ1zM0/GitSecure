@@ -1,0 +1,124 @@
+{
+  "repo": "testowner/testrepo (mock GitHub API server, localhost)",
+  "commits": 6,
+  "chunkCommits": 1,
+  "secretsPlanted": 3,
+  "planted": {
+    "A": "chunk 1 (newest commit)",
+    "B": "chunk 3",
+    "C": "chunk 5"
+  },
+  "productionBudgetMs": 40000,
+  "pathA": {
+    "caller": "POST /api/scan/chunk (advanceScan, caller accumulates chunkFindings)",
+    "chunks": 6,
+    "perChunkFindings": [
+      {
+        "chunk": 1,
+        "findings": [
+          "discord-webhook-app-js-1@3333333:http…56"
+        ]
+      },
+      {
+        "chunk": 2,
+        "findings": []
+      },
+      {
+        "chunk": 3,
+        "findings": [
+          "discord-webhook-config-js-1@4444444:http…56"
+        ]
+      },
+      {
+        "chunk": 4,
+        "findings": []
+      },
+      {
+        "chunk": 5,
+        "findings": [
+          "discord-webhook-keys-txt-1@6666666:http…56"
+        ]
+      },
+      {
+        "chunk": 6,
+        "findings": []
+      }
+    ],
+    "accumulatedCount": 3,
+    "accumulatedIds": [
+      "discord-webhook-app-js-1@3333333:http…56",
+      "discord-webhook-config-js-1@4444444:http…56",
+      "discord-webhook-keys-txt-1@6666666:http…56"
+    ],
+    "reportSecrets": 3,
+    "reportHistoryCommits": 6,
+    "reportScore": 23,
+    "reportGrade": "F",
+    "reportSecretIds": [
+      "discord-webhook-app-js-1@3333333",
+      "discord-webhook-config-js-1@4444444",
+      "discord-webhook-keys-txt-1@6666666"
+    ],
+    "historyLimitLine": "History checked: 6 commits, newest first (GitHub API — no git binary in this runtime)."
+  },
+  "pathB": {
+    "caller": "GET /api/scan/[owner]/[repo] and MCP resume_scan (runScanLoop fresh per invocation, no historyFindings)",
+    "invocation1": {
+      "driver": "genuine runScanLoop({ cursor, budgetMs: 40000, apiBase, chunkCommits: 1 }) — the exact GET-route / mcp.ts call shape",
+      "wallMs": 24021,
+      "chunksRun": 3,
+      "floorStopped": true,
+      "returnedHistoryFindings": [
+        "discord-webhook-app-js-1@3333333:http…56",
+        "discord-webhook-config-js-1@4444444:http…56"
+      ],
+      "note": "GET route returns only { cursor, partial, progress, note }; mcp.ts keeps only progress + cursor — these findings are discarded by the caller"
+    },
+    "invocation2": {
+      "driver": "fresh accumulation ([]) + advanceScan per chunk — the exact primitive runScanLoop calls",
+      "chunksRun": 3,
+      "findings": [
+        "discord-webhook-keys-txt-1@6666666:http…56"
+      ]
+    },
+    "assembleSuppliedCount": 1,
+    "assembleSuppliedIds": [
+      "discord-webhook-keys-txt-1@6666666:http…56"
+    ],
+    "reportSecrets": 1,
+    "reportHistoryCommits": 6,
+    "reportScore": 73,
+    "reportGrade": "C",
+    "reportSecretIds": [
+      "discord-webhook-keys-txt-1@6666666"
+    ],
+    "historyLimitLine": "History checked: 6 commits, newest first (GitHub API — no git binary in this runtime).",
+    "lostFindingIds": [
+      "discord-webhook-app-js-1@3333333:http…56",
+      "discord-webhook-config-js-1@4444444:http…56"
+    ]
+  },
+  "verdict": {
+    "lossReproduced": true,
+    "findingsLost": 2,
+    "lostIds": [
+      "discord-webhook-app-js-1@3333333:http…56",
+      "discord-webhook-config-js-1@4444444:http…56"
+    ],
+    "silentMisreport": "History checked: 6 commits, newest first (GitHub API — no git binary in this runtime).",
+    "scoreInflation": "73/C (B, 1 secret) vs 23/F (A, 3 secrets)",
+    "payloadBytes": {
+      "accumulatedFindingsJson": 2957,
+      "perFindingJsonApprox": 986
+    },
+    "mechanism": [
+      "runScanLoop() accumulates historyFindings in-process only (chunks.ts).",
+      "GET route (src/app/api/scan/[owner]/[repo]/route.ts) calls runScanLoop({cursor, budgetMs}) and its 202 body carries only cursor/partial/progress/note — result.historyFindings is never returned.",
+      "mcp.ts fullScan/resumeScan call runScanLoop the same way and keep only progress + cursor in the still-running text.",
+      "The next invocation starts with historyFindings = [] — earlier chunks' findings exist nowhere.",
+      "Phase 16 assemble exemption (chunks.ts ~line 547) only saves the case where history + assemble fit in ONE invocation.",
+      "Cursor must NEVER carry findings (cursor.ts) — so the findings have no ride across invocations today."
+    ]
+  },
+  "noFullSecretLeaked": true
+}

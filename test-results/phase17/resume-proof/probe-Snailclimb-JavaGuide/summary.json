@@ -1,0 +1,22 @@
+{
+  "startedAt": "2026-11-26T22:47:21.550Z",
+  "finishedAt": "2026-11-26T22:47:43.502Z",
+  "repo": "Snailclimb/JavaGuide",
+  "base": "http://localhost:3100",
+  "mode": "chunk",
+  "chunkPath": {
+    "calls": 3,
+    "historyChunks": 2,
+    "wallMs": 21950,
+    "wallSeconds": 21.9,
+    "accumulatedFindings": 0,
+    "finalReportSecrets": null,
+    "headSha": "992dae31eade2a34ba8dbbbcf5ed9de5511325ec",
+    "probeOnly": true,
+    "loadedFromDisk": false
+  },
+  "getPath": null,
+  "diff": null,
+  "exitCode": 0,
+  "verdict": "MATCH — the two finding sets are identical (hole closed, or vacuous: see evidence.md for whether the repo had any history findings to lose)"
+}

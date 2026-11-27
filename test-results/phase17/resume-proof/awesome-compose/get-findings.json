@@ -1,0 +1,156 @@
+[
+  {
+    "identity": "generic-high-entropy-secret|aspnet-mssql/app/aspnetapp/wwwroot/lib/jquery-validation-unobtrusive/jquery.validate.unobtrusive.js|100|key …t'",
+    "commitQualified": "generic-high-entropy-secret|aspnet-mssql/app/aspnetapp/wwwroot/lib/jquery-validation-unobtrusive/jquery.validate.unobtrusive.js|100|key …t'|HEAD",
+    "type": "generic-high-entropy-secret",
+    "file": "aspnet-mssql/app/aspnetapp/wwwroot/lib/jquery-validation-unobtrusive/jquery.validate.unobtrusive.js",
+    "line": 100,
+    "fragment": "key …t'",
+    "commit": "HEAD",
+    "commitFull": "HEAD",
+    "triage": "uncertain"
+  },
+  {
+    "identity": "hardcoded-password|nginx-aspnet-mysql/compose.yaml|22|pass…)\"",
+    "commitQualified": "hardcoded-password|nginx-aspnet-mysql/compose.yaml|22|pass…)\"|HEAD",
+    "type": "hardcoded-password",
+    "file": "nginx-aspnet-mysql/compose.yaml",
+    "line": 22,
+    "fragment": "pass…)\"",
+    "commit": "HEAD",
+    "commitFull": "HEAD",
+    "triage": "uncertain"
+  },
+  {
+    "identity": "hardcoded-password|nginx-flask-mysql/compose.yaml|10|pass…)\"",
+    "commitQualified": "hardcoded-password|nginx-flask-mysql/compose.yaml|10|pass…)\"|HEAD",
+    "type": "hardcoded-password",
+    "file": "nginx-flask-mysql/compose.yaml",
+    "line": 10,
+    "fragment": "pass…)\"",
+    "commit": "HEAD",
+    "commitFull": "HEAD",
+    "triage": "uncertain"
+  },
+  {
+    "identity": "hardcoded-password|nginx-golang-mysql/compose.yaml|20|pass…)\"",
+    "commitQualified": "hardcoded-password|nginx-golang-mysql/compose.yaml|20|pass…)\"|HEAD",
+    "type": "hardcoded-password",
+    "file": "nginx-golang-mysql/compose.yaml",
+    "line": 20,
+    "fragment": "pass…)\"",
+    "commit": "HEAD",
+    "commitFull": "HEAD",
+    "triage": "uncertain"
+  },
+  {
+    "identity": "database-url|nginx-golang-postgres/backend/main.go|23|post…le",
+    "commitQualified": "database-url|nginx-golang-postgres/backend/main.go|23|post…le|HEAD",
+    "type": "database-url",
+    "file": "nginx-golang-postgres/backend/main.go",
+    "line": 23,
+    "fragment": "post…le",
+    "commit": "HEAD",
+    "commitFull": "HEAD",
+    "triage": "uncertain"
+  },
+  {
+    "identity": "env-file|pihole-cloudflared-DoH/.env|1|••••••",
+    "commitQualified": "env-file|pihole-cloudflared-DoH/.env|1|••••••|HEAD",
+    "type": "env-file",
+    "file": "pihole-cloudflared-DoH/.env",
+    "line": 1,
+    "fragment": "••••••",
+    "commit": "HEAD",
+    "commitFull": "HEAD",
+    "triage": "likely-genuine-leak"
+  },
+  {
+    "identity": "env-file|plex/.env|1|••••••",
+    "commitQualified": "env-file|plex/.env|1|••••••|HEAD",
+    "type": "env-file",
+    "file": "plex/.env",
+    "line": 1,
+    "fragment": "••••••",
+    "commit": "HEAD",
+    "commitFull": "HEAD",
+    "triage": "likely-genuine-leak"
+  },
+  {
+    "identity": "env-file|postgresql-pgadmin/.env|1|••••••",
+    "commitQualified": "env-file|postgresql-pgadmin/.env|1|••••••|HEAD",
+    "type": "env-file",
+    "file": "postgresql-pgadmin/.env",
+    "line": 1,
+    "fragment": "••••••",
+    "commit": "HEAD",
+    "commitFull": "HEAD",
+    "triage": "likely-genuine-leak"
+  },
+  {
+    "identity": "database-url|wasmedge-kafka-mysql/README.md|56|mysq…ql",
+    "commitQualified": "database-url|wasmedge-kafka-mysql/README.md|56|mysq…ql|HEAD",
+    "type": "database-url",
+    "file": "wasmedge-kafka-mysql/README.md",
+    "line": 56,
+    "fragment": "mysq…ql",
+    "commit": "HEAD",
+    "commitFull": "HEAD",
+    "triage": "uncertain"
+  },
+  {
+    "identity": "database-url|wasmedge-kafka-mysql/compose.yml|27|mysq…ql",
+    "commitQualified": "database-url|wasmedge-kafka-mysql/compose.yml|27|mysq…ql|HEAD",
+    "type": "database-url",
+    "file": "wasmedge-kafka-mysql/compose.yml",
+    "line": 27,
+    "fragment": "mysq…ql",
+    "commit": "HEAD",
+    "commitFull": "HEAD",
+    "triage": "likely-genuine-leak"
+  },
+  {
+    "identity": "database-url|wasmedge-mysql-nginx/README.md|48|mysq…ql",
+    "commitQualified": "database-url|wasmedge-mysql-nginx/README.md|48|mysq…ql|HEAD",
+    "type": "database-url",
+    "file": "wasmedge-mysql-nginx/README.md",
+    "line": 48,
+    "fragment": "mysq…ql",
+    "commit": "HEAD",
+    "commitFull": "HEAD",
+    "triage": "uncertain"
+  },
+  {
+    "identity": "database-url|wasmedge-mysql-nginx/backend/src/main.rs|23|mysq…ql",
+    "commitQualified": "database-url|wasmedge-mysql-nginx/backend/src/main.rs|23|mysq…ql|HEAD",
+    "type": "database-url",
+    "file": "wasmedge-mysql-nginx/backend/src/main.rs",
+    "line": 23,
+    "fragment": "mysq…ql",
+    "commit": "HEAD",
+    "commitFull": "HEAD",
+    "triage": "likely-genuine-leak"
+  },
+  {
+    "identity": "database-url|wasmedge-mysql-nginx/compose.yml|17|mysq…ql",
+    "commitQualified": "database-url|wasmedge-mysql-nginx/compose.yml|17|mysq…ql|HEAD",
+    "type": "database-url",
+    "file": "wasmedge-mysql-nginx/compose.yml",
+    "line": 17,
+    "fragment": "mysq…ql",
+    "commit": "HEAD",
+    "commitFull": "HEAD",
+    "triage": "likely-genuine-leak"
+  },
+  {
+    "identity": "env-file|wireguard/.env|1|••••••",
+    "commitQualified": "env-file|wireguard/.env|1|••••••|HEAD",
+    "type": "env-file",
+    "file": "wireguard/.env",
+    "line": 1,
+    "fragment": "••••••",
+    "commit": "HEAD",
+    "commitFull": "HEAD",
+    "triage": "likely-genuine-leak"
+  }
+]

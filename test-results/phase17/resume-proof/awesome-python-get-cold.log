@@ -1,0 +1,30 @@
+resume-proof harness — repo vinta/awesome-python — base http://localhost:3100 — mode get
+out: test-results/phase17/resume-proof/awesome-python
+Path B (GET resume: GET /api/scan/[owner]/[repo], fresh each call) …
+  [get #1] GET /api/scan/... http=202 26534ms status=running scanned=200 cursorStage=history bodyHasHistoryFindings=false
+  [get #2] GET /api/scan/... http=202 22369ms status=running scanned=400 cursorStage=history bodyHasHistoryFindings=false
+  [get #3] GET /api/scan/... http=202 21421ms status=running scanned=600 cursorStage=history bodyHasHistoryFindings=false
+  [get #4] GET /api/scan/... http=202 43914ms status=running scanned=816 cursorStage=history bodyHasHistoryFindings=false
+  [get #5] GET /api/scan/... http=202 22091ms status=running scanned=1016 cursorStage=history bodyHasHistoryFindings=false
+  [get #6] GET /api/scan/... http=202 40231ms status=running scanned=1232 cursorStage=history bodyHasHistoryFindings=false
+  [get #7] GET /api/scan/... http=202 21462ms status=running scanned=1432 cursorStage=history bodyHasHistoryFindings=false
+  [get #8] GET /api/scan/... http=202 22647ms status=running scanned=1632 cursorStage=history bodyHasHistoryFindings=false
+  [get #9] GET /api/scan/... http=202 21209ms status=running scanned=1832 cursorStage=history bodyHasHistoryFindings=false
+  [get #10] GET /api/scan/... http=202 21558ms status=running scanned=2032 cursorStage=history bodyHasHistoryFindings=false
+  [get #11] GET /api/scan/... http=202 21889ms status=running scanned=2232 cursorStage=history bodyHasHistoryFindings=false
+  [get #12] GET /api/scan/... http=202 40220ms status=running scanned=2448 cursorStage=history bodyHasHistoryFindings=false
+  [get #13] GET /api/scan/... http=202 38327ms status=running scanned=2848 cursorStage=history bodyHasHistoryFindings=false
+  [get #14] GET /api/scan/... http=202 40109ms status=running scanned=3064 cursorStage=history bodyHasHistoryFindings=false
+  [get #15] GET /api/scan/... http=202 21716ms status=running scanned=3264 cursorStage=history bodyHasHistoryFindings=false
+  [get #16] GET /api/scan/... http=200 22723ms status=done scanned=3350 cursorStage=done bodyHasHistoryFindings=false
+Path B done: 16 calls, 448.5s wall, final report secrets: 0
+Path A report loaded from disk (earlier invocation).
+file:///home/hatch/workspace/gitsecure/test-results/phase17/resume-proof/run-resume-proof.mjs:480
+        diff.chunkReport.historyCommitsScanned === diff.getReport.historyCommitsScanned;
+             ^
+
+TypeError: Cannot read properties of null (reading 'chunkReport')
+    at file:///home/hatch/workspace/gitsecure/test-results/phase17/resume-proof/run-resume-proof.mjs:480:14
+    at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+
+Node.js v24.22.1

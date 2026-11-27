@@ -1,0 +1,94 @@
+{
+  "repo": "docker/awesome-compose",
+  "chunkReport": {
+    "secrets": 24,
+    "historySecrets": 10,
+    "headSecrets": 14,
+    "score": 0,
+    "grade": "F",
+    "historyCommitsScanned": 64,
+    "filesScanned": 429,
+    "commit": "503c0dcef31b07fb77b2d4c5556bfafdf86f4f1a"
+  },
+  "getReport": {
+    "secrets": 14,
+    "historySecrets": 0,
+    "headSecrets": 14,
+    "score": 0,
+    "grade": "F",
+    "historyCommitsScanned": 64,
+    "filesScanned": 429,
+    "commit": "503c0dcef31b07fb77b2d4c5556bfafdf86f4f1a"
+  },
+  "headShaMatch": true,
+  "historyDepthMatch": true,
+  "historyDepthNote": "both reports scanned the same number of history commits",
+  "identityDiff": {
+    "lostCount": 4,
+    "gainedCount": 0,
+    "lost": [
+      {
+        "identity": "database-url|wasmedge-kafka-mysql/.docker/docker-compose.yml|27|mysq…ql",
+        "type": "database-url",
+        "file": "wasmedge-kafka-mysql/.docker/docker-compose.yml",
+        "line": 27,
+        "fragment": "mysq…ql",
+        "commits": [
+          "e6b1d27"
+        ],
+        "historyOnly": true
+      },
+      {
+        "identity": "database-url|wasmedge-kafka-mysql/README.md|63|mysq…ql",
+        "type": "database-url",
+        "file": "wasmedge-kafka-mysql/README.md",
+        "line": 63,
+        "fragment": "mysq…ql",
+        "commits": [
+          "e6b1d27"
+        ],
+        "historyOnly": true
+      },
+      {
+        "identity": "database-url|wasmedge-mysql-nginx/.docker/docker-compose.yml|17|mysq…ql",
+        "type": "database-url",
+        "file": "wasmedge-mysql-nginx/.docker/docker-compose.yml",
+        "line": 17,
+        "fragment": "mysq…ql",
+        "commits": [
+          "e6b1d27"
+        ],
+        "historyOnly": true
+      },
+      {
+        "identity": "database-url|wasmedge-mysql-nginx/README.md|55|mysq…ql",
+        "type": "database-url",
+        "file": "wasmedge-mysql-nginx/README.md",
+        "line": 55,
+        "fragment": "mysq…ql",
+        "commits": [
+          "e6b1d27"
+        ],
+        "historyOnly": true
+      }
+    ],
+    "gained": []
+  },
+  "commitQualifiedDiff": {
+    "lostCount": 10,
+    "gainedCount": 0,
+    "lost": [
+      "database-url|wasmedge-kafka-mysql/.docker/docker-compose.yml|27|mysq…ql|e6b1d27",
+      "database-url|wasmedge-kafka-mysql/README.md|63|mysq…ql|e6b1d27",
+      "database-url|wasmedge-kafka-mysql/compose.yml|27|mysq…ql|e6b1d27",
+      "database-url|wasmedge-mysql-nginx/.docker/docker-compose.yml|17|mysq…ql|e6b1d27",
+      "database-url|wasmedge-mysql-nginx/README.md|55|mysq…ql|e6b1d27",
+      "database-url|wasmedge-mysql-nginx/backend/src/main.rs|23|mysq…ql|e6b1d27",
+      "database-url|wasmedge-mysql-nginx/compose.yml|17|mysq…ql|e6b1d27",
+      "hardcoded-password|nginx-golang-mysql/compose.yaml|20|pass…)\"|f329300",
+      "hardcoded-password|nginx-flask-mysql/compose.yaml|10|pass…)\"|111c55d",
+      "hardcoded-password|nginx-aspnet-mysql/compose.yaml|22|pass…)\"|9f4f9d8"
+    ],
+    "gained": []
+  }
+}

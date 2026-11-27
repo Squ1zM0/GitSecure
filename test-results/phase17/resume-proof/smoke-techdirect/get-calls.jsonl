@@ -1,0 +1,1 @@
+{"call":1,"endpoint":"GET /api/scan/[owner]/[repo]","http":200,"ms":3284,"status":"done","historyScanned":62,"stage":"done","bodyHasHistoryFindings":false,"headSha":"fd35814ad7d9553723bdb21e82b4e714f200e0d5"}

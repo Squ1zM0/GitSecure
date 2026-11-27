@@ -1,0 +1,22 @@
+{
+  "startedAt": "2026-11-26T23:20:05.931Z",
+  "finishedAt": "2026-11-26T23:22:07.766Z",
+  "repo": "OWASP/NodeGoat",
+  "base": "http://localhost:3100",
+  "mode": "chunk",
+  "chunkPath": {
+    "calls": 3,
+    "historyChunks": 2,
+    "wallMs": 121833,
+    "wallSeconds": 121.8,
+    "accumulatedFindings": 0,
+    "finalReportSecrets": null,
+    "headSha": "c5cb68a7084e4ae7dcc60e6a98768720a81841e8",
+    "probeOnly": true,
+    "loadedFromDisk": false
+  },
+  "getPath": null,
+  "diff": null,
+  "exitCode": 0,
+  "verdict": "MATCH — the two finding sets are identical (hole closed, or vacuous: see evidence.md for whether the repo had any history findings to lose)"
+}

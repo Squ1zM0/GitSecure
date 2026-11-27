@@ -1373,8 +1373,19 @@ export async function scanHistoryViaGit(
     // Caching a partial (chunk-stopped or truncated) order would make a
     // later scan mistake it for the whole history and silently miss the
     // older commits. A chunk that stops early simply does not write.
+    // Phase 17 (Worker E — cache poisoning): a RESUMED walk is partial
+    // too, even when it reaches the oldest commit. It skipped every
+    // commit newer than its resume point, so its merged order is only
+    // the tail — caching it as complete would make the next scan on
+    // this instance report the tail count as the whole history (live:
+    // awesome-python answered 150 commits instead of 3,350). Only a
+    // walk that started at the tip may write a complete entry; a
+    // resumed walk writes nothing and the next scan re-walks cold.
+    // `complete` itself is untouched: the chunk driver still needs it
+    // to know this scan finished (histDone / stage assemble).
     const complete = !truncated && !chunkStopped;
-    if (complete) {
+    const cacheable = complete && !opts.resumeAfterSha;
+    if (cacheable) {
       historyCache.set(cacheKey, { tip, order: mergedOrder, bySha: mergedBySha, bytesBySha: mergedBytes, patchBytes });
     }
 

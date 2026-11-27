@@ -1,0 +1,38 @@
+{
+  "repo": "Squ1zM0/TechDirect",
+  "chunkReport": {
+    "secrets": 0,
+    "historySecrets": 0,
+    "headSecrets": 0,
+    "score": 83,
+    "grade": "B",
+    "historyCommitsScanned": 62,
+    "filesScanned": 2802,
+    "commit": "fd35814ad7d9553723bdb21e82b4e714f200e0d5"
+  },
+  "getReport": {
+    "secrets": 0,
+    "historySecrets": 0,
+    "headSecrets": 0,
+    "score": 83,
+    "grade": "B",
+    "historyCommitsScanned": 62,
+    "filesScanned": 2802,
+    "commit": "fd35814ad7d9553723bdb21e82b4e714f200e0d5"
+  },
+  "headShaMatch": true,
+  "historyDepthMatch": true,
+  "historyDepthNote": "both reports scanned the same number of history commits",
+  "identityDiff": {
+    "lostCount": 0,
+    "gainedCount": 0,
+    "lost": [],
+    "gained": []
+  },
+  "commitQualifiedDiff": {
+    "lostCount": 0,
+    "gainedCount": 0,
+    "lost": [],
+    "gained": []
+  }
+}

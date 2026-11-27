@@ -1,0 +1,22 @@
+{
+  "startedAt": "2026-11-26T22:57:42.738Z",
+  "finishedAt": "2026-11-26T22:59:41.176Z",
+  "repo": "OWASP/wrongsecrets",
+  "base": "http://localhost:3100",
+  "mode": "chunk",
+  "chunkPath": {
+    "calls": 3,
+    "historyChunks": 2,
+    "wallMs": 118418,
+    "wallSeconds": 118.4,
+    "accumulatedFindings": 4,
+    "finalReportSecrets": null,
+    "headSha": "692b4750f139ede6cf5b870eb5cb81d2b0a7547d",
+    "probeOnly": true,
+    "loadedFromDisk": false
+  },
+  "getPath": null,
+  "diff": null,
+  "exitCode": 0,
+  "verdict": "MATCH — the two finding sets are identical (hole closed, or vacuous: see evidence.md for whether the repo had any history findings to lose)"
+}

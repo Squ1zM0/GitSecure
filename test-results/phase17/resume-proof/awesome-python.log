@@ -1,0 +1,29 @@
+resume-proof harness — repo vinta/awesome-python — base http://localhost:3100 — mode both
+out: test-results/phase17/resume-proof/awesome-python
+Path A (chunk accumulation: POST /api/scan/start + POST /api/scan/chunk) …
+  [chunk #1] POST /api/scan/start http=200 2371ms stage=history scanned=0 chunkFindings=0 cumulative=0
+  [chunk #2] POST /api/scan/chunk http=200 22594ms stage=history scanned=200 chunkFindings=0 cumulative=0
+  [chunk #3] POST /api/scan/chunk http=200 21179ms stage=history scanned=400 chunkFindings=0 cumulative=0
+  [chunk #4] POST /api/scan/chunk http=200 20033ms stage=history scanned=600 chunkFindings=0 cumulative=0
+  [chunk #5] POST /api/scan/chunk http=200 19096ms stage=history scanned=800 chunkFindings=0 cumulative=0
+  [chunk #6] POST /api/scan/chunk http=200 20643ms stage=history scanned=1000 chunkFindings=0 cumulative=0
+  [chunk #7] POST /api/scan/chunk http=200 21159ms stage=history scanned=1200 chunkFindings=0 cumulative=0
+  [chunk #8] POST /api/scan/chunk http=200 22592ms stage=history scanned=1400 chunkFindings=0 cumulative=0
+  [chunk #9] POST /api/scan/chunk http=200 21440ms stage=history scanned=1600 chunkFindings=0 cumulative=0
+  [chunk #10] POST /api/scan/chunk http=200 21318ms stage=history scanned=1800 chunkFindings=0 cumulative=0
+  [chunk #11] POST /api/scan/chunk http=200 21627ms stage=history scanned=2000 chunkFindings=0 cumulative=0
+  [chunk #12] POST /api/scan/chunk http=200 19782ms stage=history scanned=2200 chunkFindings=0 cumulative=0
+  [chunk #13] POST /api/scan/chunk http=200 22242ms stage=history scanned=2400 chunkFindings=0 cumulative=0
+  [chunk #14] POST /api/scan/chunk http=200 21162ms stage=history scanned=2600 chunkFindings=0 cumulative=0
+  [chunk #15] POST /api/scan/chunk http=200 21440ms stage=history scanned=2800 chunkFindings=0 cumulative=0
+  [chunk #16] POST /api/scan/chunk http=200 20842ms stage=history scanned=3000 chunkFindings=0 cumulative=0
+  [chunk #17] POST /api/scan/chunk http=200 19992ms stage=history scanned=3200 chunkFindings=0 cumulative=0
+  [chunk #18] POST /api/scan/chunk http=200 19197ms stage=assemble scanned=3350 chunkFindings=0 cumulative=0
+  [chunk #19] POST /api/scan/chunk (assemble) http=200 1433ms stage=done scanned=3350 chunkFindings=0 cumulative=0
+Path A done: 19 calls, 17 history chunks, 360.2s wall, 0 accumulated history+HEAD-dedupe findings in hand (final report secrets: 0)
+Path B (GET resume: GET /api/scan/[owner]/[repo], fresh each call) …
+  [get #1] GET /api/scan/... http=200 1702ms status=done scanned=150 cursorStage=done bodyHasHistoryFindings=false
+Path B done: 1 calls, 1.7s wall, final report secrets: 0
+DIFF: chunk=0 secrets (0 history) vs get=0 secrets (0 history)
+DIFF: lost on GET path (identity): 0; gained on GET path: 0; commit-qualified lost: 0
+VERDICT: MATCH — the two finding sets are identical (hole closed, or vacuous: see evidence.md for whether the repo had any history findings to lose) (exit 0)

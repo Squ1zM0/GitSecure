@@ -395,6 +395,22 @@ function dockerfileFindings(path: string, content: string): InfraFinding[] {
         severity: "high",
       });
     }
+    // ENV is worse than ARG in one way: the value is baked into the
+    // image config itself, visible to anyone with the image via
+    // `docker inspect`. Only secret-looking names are flagged — a
+    // plain ENV NODE_ENV never fires. One finding per line.
+    if (/^\s*ENV\s+/.test(line)) {
+      for (const m of line.matchAll(/([A-Za-z_][A-Za-z0-9_]*)\s*=/g)) {
+        if (/password|passwd|secret|token|private[_-]?key|api[_-]?key|access[_-]?key/i.test(m[1])) {
+          out.push({
+            title: "Possible secret baked into the image with ENV",
+            detail: `${path} sets ENV ${m[1]}, a name that looks like a secret. ENV values are stored in the image config and can be read back with docker inspect, so the value leaks to anyone who has the image. Fix: pass the value at run time instead (docker run -e ${m[1]}=... or a secrets manager), and never put it in an ENV.`,
+            severity: "high",
+          });
+          break;
+        }
+      }
+    }
     const add = /^\s*ADD\s+(https?:\/\/\S+)/i.exec(line);
     if (add) {
       out.push({
@@ -428,6 +444,20 @@ function k8sFindings(path: string, content: string): InfraFinding[] {
     out.push({
       title: "Kubernetes pod uses the host PID namespace",
       detail: `${path} sets hostPID: true, so the pod can see and signal processes on the host. Fix: remove hostPID: true.`,
+      severity: "high",
+    });
+  }
+  if (/^\s*hostIPC:\s*true\s*$/im.test(content)) {
+    out.push({
+      title: "Kubernetes pod uses the host IPC namespace",
+      detail: `${path} sets hostIPC: true, so the pod shares the host's inter-process communication namespace and can see host IPC objects. Fix: remove hostIPC: true.`,
+      severity: "high",
+    });
+  }
+  if (/^\s*allowPrivilegeEscalation:\s*true\s*$/im.test(content)) {
+    out.push({
+      title: "Kubernetes container allows privilege escalation",
+      detail: `${path} sets allowPrivilegeEscalation: true, so a process in the container can gain more privileges than the container started with. Fix: set allowPrivilegeEscalation: false.`,
       severity: "high",
     });
   }
@@ -476,6 +506,25 @@ function workflowFindings(path: string, content: string): InfraFinding[] {
   return out;
 }
 
+function composeFindings(path: string, content: string): InfraFinding[] {
+  const out: InfraFinding[] = [];
+  if (/^\s*privileged:\s*true\s*$/im.test(content)) {
+    out.push({
+      title: "Compose service runs privileged",
+      detail: `${path} sets privileged: true, giving the container full access to the host — effectively root on the machine. Fix: remove privileged: true and grant only the specific Linux capabilities the container needs.`,
+      severity: "high",
+    });
+  }
+  if (/^\s*network_mode:\s*["']?host["']?\s*$/im.test(content)) {
+    out.push({
+      title: "Compose service uses the host network",
+      detail: `${path} sets network_mode: host, so the container shares the host's network namespace and can see host network traffic and ports. Fix: remove network_mode: host and publish only the ports the service needs.`,
+      severity: "high",
+    });
+  }
+  return out;
+}
+
 function terraformFindings(path: string, content: string): InfraFinding[] {
   const out: InfraFinding[] = [];
   const { required, declared } = parseTerraformBlocks(content);
@@ -510,8 +559,12 @@ export function infraFindings(files: Map<string, string>): InfraFinding[] {
       out.push(...workflowFindings(path, content));
     } else if (/\.tf$/.test(path)) {
       out.push(...terraformFindings(path, content));
-    } else if (/\.ya?ml$/.test(path) && isK8sManifest(content)) {
-      out.push(...k8sFindings(path, content));
+    } else if (base === "docker-compose.yml" || base === "docker-compose.yaml" || base === "compose.yml" || base === "compose.yaml") {
+      out.push(...composeFindings(path, content));
+    } else if (/\.ya?ml$/.test(path)) {
+      // Oddly named YAML: a Kubernetes manifest or a compose file.
+      if (isK8sManifest(content)) out.push(...k8sFindings(path, content));
+      else if (/^\s*services:/m.test(content)) out.push(...composeFindings(path, content));
     }
   }
   return out;

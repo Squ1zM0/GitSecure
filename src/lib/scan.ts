@@ -85,7 +85,7 @@ import { detectInfraFrameworks, infraFindings, parseWorkflowActions } from "./in
 import { isSkippablePath } from "./paths";
 import { computeScore, plainSummary } from "./score";
 import { envFileFinding, scanTextForSecrets, type ScannedFile } from "./secrets";
-import { fingerprintFrameworks, parseCargoLock, parseCargoToml, parseComposerJson, parseComposerLock, parseCsproj, parseGemfile, parseGemfileLock, parseGoMod, parseGradle, parsePackagesConfig, parsePackageJson, parsePackageLock, parsePomXml, parseRequirements, parseYamlLock, viteFindings } from "./frameworks";
+import { fingerprintFrameworks, parseCargoLock, parseCargoToml, parseComposerJson, parseComposerLock, parseCsproj, parseGemfile, parseGemfileLock, parseGoMod, parseGradle, parsePackagesConfig, parsePackageJson, parsePackageLock, parsePoetryLock, parsePomXml, parsePubspecLock, parsePubspecYaml, parsePyprojectToml, parseRequirements, parseYamlLock, viteFindings } from "./frameworks";
 import { collectPublicKeyIdentities, ensureTriage, triageFindings } from "./triage";
 import { computeUsageForFindings } from "./usage";
 import { parseResetAtMs } from "./rate-limit";
@@ -204,7 +204,7 @@ function isSkippable(path: string): boolean {
  *  cap still covers the files that matter on a big repo like TechDirect. */
 function priority(path: string): number {
   const base = path.split("/").pop() ?? "";
-  if (["package.json", "package-lock.json", "pnpm-lock.yaml", "yarn.lock", "Cargo.toml", "Cargo.lock", "requirements.txt", "pyproject.toml", "Pipfile", "go.mod", "go.sum", "Gemfile", "Gemfile.lock", "composer.json", "composer.lock", "pom.xml", "build.gradle", "build.gradle.kts", "packages.config"].includes(base) || base.endsWith(".csproj")) return 0;
+  if (["package.json", "package-lock.json", "pnpm-lock.yaml", "yarn.lock", "Cargo.toml", "Cargo.lock", "requirements.txt", "pyproject.toml", "poetry.lock", "Pipfile", "go.mod", "go.sum", "Gemfile", "Gemfile.lock", "composer.json", "composer.lock", "pom.xml", "build.gradle", "build.gradle.kts", "packages.config", "pubspec.yaml", "pubspec.lock"].includes(base) || base.endsWith(".csproj")) return 0;
   if (path.startsWith(".github/")) return 1;
   if (/\.(env|config\.(js|ts|mjs))$/.test(path) || base === ".gitignore" || base === "SECURITY.md") return 2;
   if (/\.(ts|tsx|js|jsx|py|rs|json|yaml|yml|toml|sh)$/.test(path)) return 3;
@@ -777,6 +777,7 @@ export function buildPosture(files: Map<string, string>): PostureIssue[] {
     if (/pull_request_target/.test(content)) posture.push({ id: "actions-pr-target", title: "Workflow uses pull_request_target", severity: "high", detail: `${path} runs on pull_request_target, which can expose secrets to fork pull requests if it checks out untrusted code.`, fix: "Avoid pull_request_target unless you need it, and never check out PR code in that workflow." });
     if (/permissions:\s*write-all/.test(content)) posture.push({ id: "actions-write-all", title: "Workflow grants write-all permissions", severity: "medium", detail: `${path} grants write-all permissions to the workflow token.`, fix: "Grant only the permissions each job needs." });
     if (/echo\s+.*\$\{\{\s*secrets\./.test(content)) posture.push({ id: "actions-secret-echo", title: "Workflow may print a secret", severity: "high", detail: `${path} echoes a secret value, which can leak it into workflow logs.`, fix: "Never echo secrets. Mask them and pass them only to the step that needs them." });
+    if (/(?:curl|wget)\b[^\n]*\|\s*(?:sudo\s+)?(?:sh|bash)\b/.test(content)) posture.push({ id: "actions-curl-pipe-shell", title: "Workflow pipes a download straight into a shell", severity: "high", detail: `${path} downloads a script and pipes it straight into sh or bash, so whatever the server returns runs with the workflow's permissions — a compromised or hijacked download owns the runner.`, fix: "Download the script to a file, verify its checksum or signature, then run the file — never pipe a download into a shell." });
   }
   for (const v of viteFindings(files)) {
     posture.push({ id: `vite-${v.title.toLowerCase().replace(/[^a-z0-9]+/g, "-")}`, title: v.title, severity: v.severity, detail: v.detail, fix: v.title.includes("VITE_") ? "Move real secrets out of VITE_ variables — use server-side secrets instead." : "Restrict the dev server to localhost and review the plugins you install." });
@@ -1086,6 +1087,10 @@ export async function scanHead(
     else if (base === "package-lock.json") deps.push(...parsePackageLock(content, path));
     else if (base === "pnpm-lock.yaml" || base === "yarn.lock") deps.push(...parseYamlLock(content, path, "npm"));
     else if (base === "requirements.txt" || base === "Pipfile") deps.push(...parseRequirements(content, path));
+    else if (base === "pyproject.toml") deps.push(...parsePyprojectToml(content, path));
+    else if (base === "poetry.lock") deps.push(...parsePoetryLock(content, path));
+    else if (base === "pubspec.yaml") deps.push(...parsePubspecYaml(content, path));
+    else if (base === "pubspec.lock") deps.push(...parsePubspecLock(content, path));
     else if (base === "Cargo.toml") deps.push(...parseCargoToml(content, path));
     else if (base === "Cargo.lock") deps.push(...parseCargoLock(content, path));
     else if (base === "go.mod") deps.push(...parseGoMod(content, path));

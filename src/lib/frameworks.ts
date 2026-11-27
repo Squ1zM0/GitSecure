@@ -16,6 +16,10 @@ export const FRAMEWORK_MAP: Record<string, { name: string; ecosystem: string }> 
   svelte: { name: "Svelte", ecosystem: "js" },
   vite: { name: "Vite", ecosystem: "js" },
   express: { name: "Express", ecosystem: "js" },
+  fastify: { name: "Fastify", ecosystem: "js" },
+  koa: { name: "Koa", ecosystem: "js" },
+  hono: { name: "Hono", ecosystem: "js" },
+  "@sveltejs/kit": { name: "SvelteKit", ecosystem: "js" },
   "@nestjs/core": { name: "NestJS", ecosystem: "js" },
   nuxt: { name: "Nuxt", ecosystem: "js" },
   astro: { name: "Astro", ecosystem: "js" },
@@ -143,15 +147,21 @@ export function parseRequirements(content: string, sourceFile: string): Dependen
   return out;
 }
 
-/** Parse Cargo.toml [dependencies] (simple form) and Cargo.lock [[package]]. */
+/** Parse Cargo.toml dependency sections: [dependencies] plus
+ *  [dev-dependencies], [build-dependencies], [workspace.dependencies],
+ *  and target-specific `[target.'cfg(...)'.dependencies]` — all the
+ *  same `name = "spec"` / `name = { version = "spec" }` form. */
 export function parseCargoToml(content: string, sourceFile: string): Dependency[] {
   const out: Dependency[] = [];
-  const inDeps = /\[dependencies\]([\s\S]*?)(?:\n\[|\n$)/.exec(content);
-  if (!inDeps) return out;
-  for (const line of inDeps[1].split("\n")) {
-    const m = /^\s*([A-Za-z0-9_-]+)\s*=\s*(?:"([^"]+)"|\{\s*version\s*=\s*"([^"]+)")/.exec(line);
-    if (!m) continue;
-    out.push({ name: m[1], ecosystem: "crates", version: m[2] ?? m[3] ?? null, direct: true, sourceFile });
+  const sectionRe = /\[([^\]]+)\]([\s\S]*?)(?=\n\[|\n?$)/g;
+  for (const section of content.matchAll(sectionRe)) {
+    const header = section[1].trim();
+    if (!header.endsWith("dependencies")) continue;
+    for (const line of section[2].split("\n")) {
+      const m = /^\s*([A-Za-z0-9_-]+)\s*=\s*(?:"([^"]+)"|\{\s*version\s*=\s*"([^"]+)")/.exec(line);
+      if (!m) continue;
+      out.push({ name: m[1], ecosystem: "crates", version: m[2] ?? m[3] ?? null, direct: true, sourceFile });
+    }
   }
   return out;
 }
@@ -162,6 +172,148 @@ export function parseCargoLock(content: string, sourceFile: string): Dependency[
     const name = /name\s*=\s*"([^"]+)"/.exec(block)?.[1];
     const version = /version\s*=\s*"([^"]+)"/.exec(block)?.[1];
     if (name && version) out.push({ name, ecosystem: "crates", version, direct: false, sourceFile });
+  }
+  return out;
+}
+
+/** Split TOML content into [section] bodies (header -> body text).
+ *  A section ends at the next `[` header line or the end of file. */
+function tomlSections(content: string): { header: string; body: string }[] {
+  const out: { header: string; body: string }[] = [];
+  const re = /\[([^\]]+)\]([\s\S]*?)(?=\n\[|\n?$)/g;
+  for (const m of content.matchAll(re)) out.push({ header: m[1].trim(), body: m[2] });
+  return out;
+}
+
+/** Parse one PEP 508 requirement string (`django==5.2.17`,
+ *  `flask>=3.0`, `requests`, `name[extra]>=1.0`). An exact `==`
+ *  pin is a version; any other operator (a range, not a pin) or no
+ *  spec at all yields version null — a range is never presented as
+ *  the installed version. */
+function parsePep508(req: string): { name: string; version: string | null } | null {
+  const m = /^\s*([A-Za-z0-9_.-]+)\s*(?:\[[^\]]*\])?\s*(.*)$/.exec(req.trim());
+  if (!m) return null;
+  const spec = (m[2] ?? "").trim();
+  if (!spec) return { name: m[1], version: null };
+  const pin = /^==\s*([0-9][A-Za-z0-9.+-]*)/.exec(spec);
+  if (pin) return { name: m[1], version: pin[1] };
+  return { name: m[1], version: null };
+}
+
+/** Parse pyproject.toml: PEP 621 `[project] dependencies` and
+ *  `[project.optional-dependencies]` arrays, plus Poetry
+ *  `[tool.poetry.dependencies]` (and `[tool.poetry.group.*.dependencies]`)
+ *  tables — `name = "^5.0"` / `name = { version = "5.3.0" }`.
+ *  The `python` entry is the interpreter, not a package, and is
+ *  skipped. Poetry range strings are kept as written (the same
+ *  convention as package.json ranges); PEP 621 ranges yield null
+ *  (see parsePep508). */
+export function parsePyprojectToml(content: string, sourceFile: string): Dependency[] {
+  const out: Dependency[] = [];
+  for (const { header, body } of tomlSections(content)) {
+    if (header === "project") {
+      // Only the `dependencies = [...]` array: the section also holds
+      // `name`, `version`, `description` strings, which are not deps.
+      const arr = /dependencies\s*=\s*\[([\s\S]*?)\]/.exec(body)?.[1] ?? "";
+      for (const m of arr.matchAll(/"([^"]+)"/g)) {
+        const parsed = parsePep508(m[1]);
+        if (parsed) out.push({ name: parsed.name, ecosystem: "pypi", version: parsed.version, direct: true, sourceFile });
+      }
+      continue;
+    }
+    if (header.startsWith("project.optional-dependencies")) {
+      // Every array in this section is one extra's requirement list.
+      for (const arr of body.matchAll(/=\s*\[([\s\S]*?)\]/g)) {
+        for (const m of arr[1].matchAll(/"([^"]+)"/g)) {
+          const parsed = parsePep508(m[1]);
+          if (parsed) out.push({ name: parsed.name, ecosystem: "pypi", version: parsed.version, direct: true, sourceFile });
+        }
+      }
+      continue;
+    }
+    if (!/^tool\.poetry\.(group\..+\.)?dependencies$/.test(header)) continue;
+    for (const line of body.split("\n")) {
+      const m = /^\s*([A-Za-z0-9_.-]+)\s*=\s*(?:"([^"]+)"|\{\s*version\s*=\s*"([^"]+)")/.exec(line);
+      if (!m) continue;
+      if (m[1].toLowerCase() === "python") continue;
+      out.push({ name: m[1], ecosystem: "pypi", version: m[2] ?? m[3] ?? null, direct: true, sourceFile });
+    }
+  }
+  return out;
+}
+
+/** Parse poetry.lock [[package]] blocks (pinned versions, like
+ *  Cargo.lock). */
+export function parsePoetryLock(content: string, sourceFile: string): Dependency[] {
+  const out: Dependency[] = [];
+  for (const block of content.split("[[package]]")) {
+    const name = /name\s*=\s*"([^"]+)"/.exec(block)?.[1];
+    const version = /version\s*=\s*"([^"]+)"/.exec(block)?.[1];
+    if (name && version) out.push({ name, ecosystem: "pypi", version, direct: false, sourceFile });
+  }
+  return out;
+}
+
+/** Parse pubspec.yaml (Dart/Flutter): `dependencies:` and
+ *  `dev_dependencies:` sections. `name: ^1.2.0` keeps its range
+ *  string (same convention as package.json); `name:` with a nested
+ *  block and no version yields null, and an `sdk: flutter` entry is
+ *  not a package at all — it is skipped here and Flutter itself is
+ *  fingerprinted from the file by fingerprintFrameworks. */
+export function parsePubspecYaml(content: string, sourceFile: string): Dependency[] {
+  const out: Dependency[] = [];
+  const lines = content.split("\n");
+  let section: "deps" | "dev" | null = null;
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i];
+    if (/^\S/.test(line)) {
+      // Top-level key: a new section starts, the deps section ends.
+      section = line.startsWith("dependencies:") ? "deps" : line.startsWith("dev_dependencies:") ? "dev" : null;
+      continue;
+    }
+    if (!section) continue;
+    const m = /^  ([A-Za-z0-9_.-]+):\s*(.*)$/.exec(line);
+    if (!m) continue;
+    const name = m[1];
+    const inline = m[2].trim().replace(/^["']|["']$/g, "");
+    // Nested block? Look ahead: an `sdk:` line means an SDK dep
+    // (flutter itself, or flutter_test) — not a package.
+    let isSdk = false;
+    if (!inline) {
+      for (let j = i + 1; j < lines.length; j++) {
+        if (!/^    \S/.test(lines[j])) break;
+        if (/^\s*sdk:\s*/.test(lines[j])) isSdk = true;
+      }
+    }
+    if (isSdk) continue;
+    out.push({ name, ecosystem: "pub", version: inline || null, direct: section === "deps", sourceFile });
+  }
+  return out;
+}
+
+/** Parse pubspec.lock: `packages:` entries with a pinned `version:`. */
+export function parsePubspecLock(content: string, sourceFile: string): Dependency[] {
+  const out: Dependency[] = [];
+  const lines = content.split("\n");
+  let inPackages = false;
+  let current: string | null = null;
+  for (const line of lines) {
+    if (/^\S/.test(line)) {
+      inPackages = line.startsWith("packages:");
+      current = null;
+      continue;
+    }
+    if (!inPackages) continue;
+    const nameM = /^  ([A-Za-z0-9_.-]+):\s*$/.exec(line);
+    if (nameM) {
+      current = nameM[1];
+      continue;
+    }
+    const verM = /^    version:\s*["']?([^"'\s]+)["']?\s*$/.exec(line);
+    if (verM && current) {
+      out.push({ name: current, ecosystem: "pub", version: verM[1], direct: false, sourceFile });
+      current = null;
+    }
   }
   return out;
 }
@@ -356,6 +508,14 @@ export function fingerprintFrameworks(deps: Dependency[], files: Map<string, str
   for (const path of files.keys()) {
     if (/(^|\/)wp-config\.php$/.test(path) && !out.some((f) => f.name === "WordPress")) {
       out.push({ name: "WordPress", ecosystem: "php", version: null, versionSource: "unknown", unpinned: false, sourceFile: path });
+    }
+  }
+  // Flutter via pubspec.yaml: the `flutter:` entry is an SDK dep, not
+  // a versioned package, so parsePubspecYaml skips it — but the app
+  // is a Flutter app, and the version is not in the file, so null.
+  for (const [path, content] of files) {
+    if (/(^|\/)pubspec\.yaml$/.test(path) && /^\s+flutter:\s*$/m.test(content) && content.includes("sdk: flutter") && !out.some((f) => f.name === "Flutter")) {
+      out.push({ name: "Flutter", ecosystem: "dart", version: null, versionSource: "unknown", unpinned: false, sourceFile: path });
     }
   }
   // One entry per framework name: a framework named by two deps (e.g.

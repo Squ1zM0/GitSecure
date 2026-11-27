@@ -86,7 +86,7 @@ export interface Framework {
 
 export interface Dependency {
   name: string;
-  ecosystem: "npm" | "pypi" | "crates" | "go" | "ruby" | "php" | "java" | "dotnet" | "actions";
+  ecosystem: "npm" | "pypi" | "crates" | "go" | "ruby" | "php" | "java" | "dotnet" | "actions" | "pub";
   version: string | null;
   direct: boolean;
   sourceFile: string;

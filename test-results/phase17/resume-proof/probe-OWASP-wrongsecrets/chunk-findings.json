@@ -1,0 +1,46 @@
+[
+  {
+    "identity": "hardcoded-password|js/index.js|3|pass…=\"",
+    "commitQualified": "hardcoded-password|js/index.js|3|pass…=\"|692b475",
+    "type": "hardcoded-password",
+    "file": "js/index.js",
+    "line": 3,
+    "fragment": "pass…=\"",
+    "commit": "692b475",
+    "commitFull": "692b475",
+    "triage": "uncertain"
+  },
+  {
+    "identity": "hardcoded-password|js/index.js|3|pass…=\"",
+    "commitQualified": "hardcoded-password|js/index.js|3|pass…=\"|4ab1fbc",
+    "type": "hardcoded-password",
+    "file": "js/index.js",
+    "line": 3,
+    "fragment": "pass…=\"",
+    "commit": "4ab1fbc",
+    "commitFull": "4ab1fbc",
+    "triage": "uncertain"
+  },
+  {
+    "identity": "hardcoded-password|js/index.js|3|pass…=\"",
+    "commitQualified": "hardcoded-password|js/index.js|3|pass…=\"|a11398a",
+    "type": "hardcoded-password",
+    "file": "js/index.js",
+    "line": 3,
+    "fragment": "pass…=\"",
+    "commit": "a11398a",
+    "commitFull": "a11398a",
+    "triage": "uncertain"
+  },
+  {
+    "identity": "hardcoded-password|js/index.js|3|pass…=\"",
+    "commitQualified": "hardcoded-password|js/index.js|3|pass…=\"|990e12b",
+    "type": "hardcoded-password",
+    "file": "js/index.js",
+    "line": 3,
+    "fragment": "pass…=\"",
+    "commit": "990e12b",
+    "commitFull": "990e12b",
+    "triage": "uncertain"
+  }
+]

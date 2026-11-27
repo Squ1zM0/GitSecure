@@ -1,0 +1,1441 @@
+=== test:score-phase12 ===
+
+> gitsecure@0.1.0 test:score-phase12
+> tsx scripts/test-score-phase12.ts
+
+PASS  All-test-key: secrets deduction is 0 — 0
+PASS  All-test-key: score equals the zero-secrets control (100/A) — 100/A vs control 100/A
+PASS  All-test-key: 3 excluded, 0 full, 0 half — full=0 half=0 excluded=3
+PASS  All-test-key: wouldBeScore is the old-rule score (100-48=52/D) — 52
+PASS  Mixed: secrets deduction is 36 (25 + 7.5 + 0 + 3, rounded) — 36
+PASS  Mixed: score 64/C — 64/C
+PASS  Mixed: counts full=2 half=1 excluded=1 — full=2 half=1 excluded=1
+PASS  Mixed: wouldBeScore is the old-rule score (100-51=49/D) — 49
+PASS  Rounding: 12.5 + 1.5 sums to 14 (not 13 + 2 = 15) — 14
+PASS  Rounding: score 86/B — 86/B
+PASS  Rounding: single low uncertain 1.5 rounds to 2 — 2
+PASS  No-triage: full weight (25 + 15 = 40) — 40
+PASS  No-triage: score 60/C — 60/C
+PASS  No-triage: counted as full weight (never assumed a test key) — full=2
+PASS  No-triage: wouldBeScore equals the score (nothing to discount) — wouldBe=60 score=60
+PASS  Upgrade: fixture AWS key triages likely-test-key without usage — likely-test-key
+PASS  Upgrade: before upgrade it deducts 0 (score 100/A) — 0 / 100
+PASS  Upgrade: production usage upgrades it to likely-genuine-leak — likely-genuine-leak
+PASS  Upgrade: after upgrade it deducts full 25 (score 75/B) — 25 / 75/B
+PASS  Upgrade: counted as full weight after upgrade — full=1 excluded=0
+PASS  TechDirect fixture: score 83/B unchanged — 83/B
+PASS  TechDirect fixture: vuln 8, posture 9, unpinned 0 — v=8 p=9 u=0
+PASS  TechDirect fixture: wouldBeScore equals score (no secrets) — 83
+PASS  Self-scan repro: secrets deduction 8 (32 test at 0, 2 uncertain at half) — 8
+PASS  Self-scan repro: vuln 547, posture 84, unpinned 4 — v=547 p=84 u=4
+PASS  Self-scan repro: new score still 0/F (vulns alone floor it) — 0/F
+PASS  Self-scan repro: wouldBeScore 0/F (old rule) — 0
+PASS  Self-scan repro: counts full=0 half=2 excluded=32 — full=0 half=2 excluded=32
+PASS  Phase 13 repro: vuln 206 (20 medium, 53 low), posture 84, unpinned 4 — v=206 p=84 u=4
+PASS  Phase 13 repro: secrets deduction still 8 — 8
+PASS  Phase 13 repro: new score still 0/F (kept fixtures + posture floor it) — 0/F
+PASS  Phase 13 repro: wouldBeScore 0/F (old rule) — 0
+PASS  Provisional: carries scoreDetail — [object Object]
+PASS  Provisional: scoreDetail matches computeScore (15 deducted, 85/B) — ded=15 85/B
+PASS  Provisional: counts full=1 excluded=1 — full=1 excluded=1
+PASS  Provisional summary starts 'So far: ', never 'Scan complete.' — So far: 1 possible leaked secret found — rotate and remove these first; 1 look like test keys and do not count toward the score. The full detail is in this report — no sign-in needed.
+PASS  Finished summary starts 'Scan complete. ' — Scan complete. 2 possible leaked secrets found — rotate and remove these first. The full detail is in this report — no sign-in needed.
+PASS  Zero-secrets summary is capitalised ('No leaked secrets…') — Scan complete. No leaked secrets were found in the files scanned. The full detail is in this report — no sign-in needed.
+PASS  Provisional zero-secrets summary is 'So far: No leaked secrets…' — So far: No leaked secrets were found in the files scanned. The full detail is in this report — no sign-in needed.
+PASS  No literal secret-pattern values in this file
+
+All Phase 12 score tests passed.
+PASS test:score-phase12
+=== test:report-markdown ===
+
+> gitsecure@0.1.0 test:report-markdown
+> tsx scripts/test-report-markdown.ts
+
+PASS  filename is gitsecure-report-{owner}-{repo}-{short-sha}.md — gitsecure-report-Squ1zM0-FixtureRepo-abc1234.md
+PASS  md has the report title
+PASS  md has score and grade
+PASS  md has the verdict naming the real driver
+PASS  md has the summary
+PASS  md names the runner-up deduction (Phase 15 finding 13)
+PASS  md explains the test-key adjustment with both scores
+PASS  md carries the scan metadata
+PASS  md lists the genuine leak with its fragment
+PASS  md lists the test-key secret the page collapses by default
+PASS  md lists the long-path secret with its full path
+PASS  md lists the dead-end finding as a dead end
+PASS  md lists the test-only usage with its test reference
+PASS  md has one ### heading per finding (3 secrets + 5 vulns + 4 posture) — 12
+PASS  md reconciles js-yaml to one version (4.3.2, all 4 advisories)
+PASS  md Fix lines never name the losing versions — Fix: Upgrade js-yaml to 4.3.2 or later — this covers all 4 advisories for this version. | Fix: Upgrade js-yaml to 4.3.2 or later — this covers all 4 advisories for this version. | Fix: Upgrade js-yaml to 4.3.2 or later — this covers all 4 advisories for this version. | Fix: Upgrade js-yaml to 4.3.2 or later — this covers all 4 advisories for this version.
+PASS  md keeps the single-version lodash Fix unchanged
+PASS  md lists every advisory id
+PASS  md lists every posture issue
+PASS  md lists every framework, unpinned flagged
+PASS  md lists every dependency with direct/transitive
+PASS  md carries the About-this-scan lines
+PASS  md has no undefined/NaN placeholders
+PASS  md never emits an unknown field holding a full secret (decoy)
+PASS  md contains no secret-pattern values (fragments only)
+PASS  provisional md is labelled provisional with what is still running
+PASS  paused provisional md says paused, not still running
+PASS  finished md is not labelled provisional
+PASS  provisional md says vulns are not checked yet, not 'none found'
+PASS  No literal secret-pattern values in this file
+
+All report-markdown tests passed.
+PASS test:report-markdown
+=== test:deps-phase13 ===
+
+> gitsecure@0.1.0 test:deps-phase13
+> tsx scripts/test-deps-phase13.ts
+
+PASS  Phase 13: upgraded Django 5.2.17 has zero advisories
+PASS  Phase 13: upgraded next 15.5.29 has zero advisories
+PASS  Phase 13: upgraded github.com/gofiber/fiber/v2 v2.52.14 has zero advisories
+PASS  Phase 13: upgraded sinatra 4.2.0 has zero advisories
+PASS  Phase 13: upgraded puma 7.2.1 has zero advisories
+PASS  Phase 13: upgraded phpunit/phpunit 10.5.62 has zero advisories
+PASS  Phase 13: upgraded diff 8.0.4 has zero advisories
+PASS  Phase 13: upgraded zod 4.6.7 has zero advisories
+PASS  Phase 13: Django pinned at 5.2.17 — 5.2.17
+PASS  Phase 13: fixture next pinned at 15.5.29 (root next 16.4.6 shadows it in-scan) — 15.5.29
+PASS  Phase 13: diff pinned at 8.0.4 — 8.0.4
+PASS  Phase 13: zod pinned at 4.6.7 — 4.6.7
+PASS  Phase 13: kept-vulnerable github.com/labstack/echo/v4 still flags (>=1 advisory, measured 28) — got 28, measured 28 on 2026-11-26
+PASS  Phase 13: kept-vulnerable laravel/framework still flags (>=1 advisory, measured 7) — got 7, measured 7 on 2026-11-26
+PASS  Phase 13: kept-vulnerable org.springframework:spring-core still flags (>=1 advisory, measured 3) — got 3, measured 3 on 2026-11-26
+PASS  Phase 13: kept-vulnerable vite still flags (>=1 advisory, measured 23) — got 23, measured 23 on 2026-11-26
+PASS  Phase 13: kept-vulnerable tokio still flags (>=1 advisory, measured 9) — got 9, measured 9 on 2026-11-26
+PASS  Phase 13: kept-vulnerable Flask still flags (>=1 advisory, measured 2) — got 2, measured 2 on 2026-11-26
+PASS  Phase 13: kept-vulnerable rails still flags (>=1 advisory, measured 1) — got 1, measured 1 on 2026-11-26
+PASS  Phase 13: generated kept-vulnerable fixtures flag 73 total (was 197) — got 73 ({"low":53,"medium":20})
+PASS  Phase 13: vuln deduction is 206 (was 547) — got 206
+PASS  Phase 13: no critical or high vulns remain — {"low":53,"medium":20}
+
+All Phase 13 dep checks passed.
+PASS test:deps-phase13
+=== test:history ===
+
+> gitsecure@0.1.0 test:history
+> tsx scripts/test-history.ts
+
+PASS  history clone succeeds on a local repo
+PASS  all 3 commits scanned — 3 scanned
+PASS  old-commit webhook found (HEAD is clean) — 1 found
+PASS  finding attributed to the old commit — commit=89bf7a2 expected 89bf7a2
+PASS  finding points at app.js — app.js
+PASS  no full fake secret in findings
+PASS  history scan ran inside its time cap — 232ms
+PASS  temp clone dir cleaned up (no gitsecure- dirs left behind by this run)
+PASS  invalid owner fails closed (no clone attempted)
+PASS  API path succeeds against the mock
+PASS  API path reports method api — api
+PASS  API path scans all 3 commits across both list pages — 3 scanned
+PASS  mock saw 2 list pages and 3 detail fetches — list=2 detail=3
+PASS  API path finds the old-commit webhook (removed lines not scanned) — 1 found
+PASS  API finding attributed to the old commit sha — commit=1111111 expected 1111111
+PASS  API finding points at app.js — app.js
+PASS  no full fake secret in API findings
+PASS  API scan ran inside its time cap — 46ms
+PASS  rate-limit mock still returns ok
+PASS  rate-limit note says the limit was hit and names the token — GitHub API rate limit was hit — scanned 1 commit before stopping. Setting a GITHUB_TOKEN raises the limit.
+PASS  rate-limit mock keeps the first commit's finding — 1 found
+PASS  rate-limit mock reports 1 commit scanned — 1 scanned
+PASS  API path: invalid owner fails closed (no request attempted)
+PASS  pack bound: git path fails when the pack passes the byte bound — ok=false
+PASS  pack bound: result flags packTooLarge — packTooLarge=true
+PASS  pack bound: note says the history is too large to clone — History is too large to clone inside a serverless function — the git-protocol path gave up on the pack download.
+PASS  pack bound: no REST calls during the aborted clone — 0 REST calls
+PASS  git path succeeds over smart HTTP
+PASS  git path reports method git — git
+PASS  git path scans all 3 commits — 3 scanned
+PASS  git path fetched all 3 commits on the cold run — 3 fetched
+PASS  git path made zero REST calls — 0 REST calls
+PASS  no global fetch to api.github.com during the git scan — 0 calls
+PASS  git path finds the old-commit webhook (removed lines not scanned) — 1 found
+PASS  git finding attributed to the old commit — commit=6eae63f expected 6eae63f
+PASS  no full fake secret in git findings
+PASS  second git scan succeeds from cache
+PASS  second git scan reuses all 3 commits from cache — 3 cached
+PASS  second git scan fetches zero already-scanned commits — 0 fetched
+PASS  second git scan still covers all 3 commits — 3 scanned
+PASS  second git scan returns the same findings — 1 vs 1
+PASS  scan after one new commit covers 4 commits — 4 scanned
+PASS  scan after one new commit fetches exactly 1 new commit — 1 fetched
+PASS  scan after one new commit reuses the cached 3 — 3 cached
+PASS  scan after one new commit still finds the old webhook once
+PASS  poison fixture really has 5 commits — 5 commits
+PASS  poison chunk 1: scans the newest 3 commits — 3 scanned
+PASS  poison chunk 1: not complete (chunk boundary) — complete=false
+PASS  poison chunk 1: lastScannedSha is a full sha — 4c5d398afd1549ac4a15bfc7306a0fc5d17fe7e5
+PASS  poison chunk 2 (resumed): scans the remaining 2 commits — 2 scanned
+PASS  poison chunk 2 (resumed): complete is still true — the scan finished — complete=true
+PASS  fresh scan after a resumed final chunk reports the full depth (5), not the tail (2) — 5 scanned
+PASS  fresh scan after a resumed final chunk fetches commits (no poisoned cache hit) — 5 fetched
+PASS  fresh scan after a resumed final chunk reuses nothing from cache — 0 cached
+PASS  scanHistory method git returns the git path — git
+PASS  scanHistory method git covers all 4 commits — 4 scanned
+PASS  orchestrator pack fallback: API path wins after the pack bound trips — ok=true method=api
+PASS  orchestrator pack fallback: note says the history is too large to clone — This repo's history is too large to clone inside a serverless function, so history was checked through the GitHub API instead.
+PASS  orchestrator pack fallback: API path still covers all 4 commits — 4 scanned
+PASS  history usage: scan succeeds
+PASS  history usage: scans all 3 commits — 3 scanned
+PASS  history usage: old-commit api_key finding found — commit=325ec3c expected 325ec3c
+PASS  history usage: HEAD corpus contains the files — src/app.ts reference is found — [{"file":"src/app.ts","line":1}]
+PASS  history usage: referencedByTotal is 1 (real code only) — 1
+PASS  history usage: README.md prose mention is NOT a reference (Phase 14 Bug 2) — [{"file":"src/app.ts","line":1}]
+PASS  history usage: not a dead end
+PASS  history usage: annotation is HEAD-only
+PASS  history usage: no dead-end signal on a referenced finding
+PASS  no full fake secret in history-usage findings
+PASS  fixture really has 1005 commits — 1005 commits
+PASS  1005-commit scan succeeds
+PASS  1005-commit scan returns all 1005 (past the old 1000 cap) — 1005 scanned
+PASS  1005-commit scan made zero REST calls — 0 REST calls
+PASS  root-commit webhook found in the 1005-commit scan — 1 found
+PASS  root-commit webhook attributed to the root commit — commit=bf911f1 expected bf911f1
+PASS  no full fake secret in 1005-commit findings
+PASS  second 1005-commit scan reuses all 1005 from cache — 1005 cached
+PASS  second 1005-commit scan fetches zero commits — 0 fetched
+PASS  git path: invalid owner fails closed (no request attempted)
+
+All history tests passed.
+PASS test:history
+=== test:public-full ===
+
+> gitsecure@0.1.0 test:public-full
+> tsx scripts/test-public-full.ts
+
+PASS  src/lib/auth.ts is gone
+PASS  src/lib/owner.ts is gone
+PASS  src/app/api/auth route is gone
+PASS  no auth/owner module is imported anywhere in src
+PASS  home page has no 'Honest limits' section
+PASS  home page has no 'owner only' copy
+PASS  home page has no sign-in copy
+PASS  home page says everyone gets the full report
+PASS  report page has no sign-in copy
+PASS  report page has no 'Owner view' banner
+PASS  report page has no 'Public view' banner
+PASS  report page has no canViewFull / owner gate
+PASS  layout footer has no 'owner only' copy
+PASS  layout metadata has no 'owner-only' copy
+PASS  next-auth dependency is gone
+PASS  test:owner-gate script is gone
+PASS  test:public-full script exists
+PASS  scanner has no MAX_FILES constant
+PASS  scanner has no per-file/total size cap
+PASS  scanner mentions no '250 files' limit
+PASS  scanner mentions no '200 KB' / '3 MB' cap
+PASS  scanner fetches the whole tree (no slice cap on chosen)
+PASS  Phase 5: scanner has no 100-secret slice
+PASS  Phase 5: scanner has no secretOverflow / truncation bookkeeping
+PASS  Phase 5: scanner has no secret-findings cap copy
+PASS  Phase 5: scanner lists every dependency (no 200 slice)
+PASS  Phase 5: OSV has no advisory list cap (VULN_CAP)
+PASS  Phase 5: OSV has no fixed 50-detail cap constant (DETAIL_CAP)
+PASS  Phase 5: OSV queries every pinned dep (no 60 slice)
+PASS  Phase 5: MCP notes state no 100-finding cap
+PASS  Phase 5: MCP notes state no 50-detail cap
+PASS  Phase 5: report page renders lists progressively (Show more)
+PASS  Phase 5: report page lists dependencies, not just counts
+PASS  Phase 5: report page passes owner/repo/branch to the secrets list (GitHub links)
+PASS  nav: secrets list groups by type and file
+PASS  nav: secrets list filters by type, severity, and file name
+PASS  nav: vulnerabilities group by advisory/package with severity filter
+PASS  nav: posture groups + filters exist
+PASS  nav: dependencies filter by ecosystem and name
+PASS  nav: file map view exists (SVG spider, top files by count)
+PASS  nav: map aggregates by file (one node per file, no node per finding)
+PASS  nav: every secret row links to the exact GitHub file + line
+PASS  nav: every finding has an in-page anchor + copy-link button
+PASS  nav: link helper builds blob URLs with file + line
+PASS  nav: link helper uses the commit for history findings
+PASS  nav: map tooltips carry only file + count, never a fragment
+PASS  fixture scan still finds the planted secrets — 8 found
+PASS  redaction: full fake secret never appears (https://discord.co…)
+PASS  redaction: full fake secret never appears (AKIAIOSFODNN7EXAMP…)
+PASS  redaction: full fake secret never appears (ghp_FAKEFAKEFAKEFA…)
+PASS  redaction: full fake secret never appears (sk_live_FAKEFAKEFA…)
+PASS  redaction: full fake secret never appears (sk-proj-FAKEFAKEFA…)
+PASS  redaction: full fake secret never appears (postgres://fakeuse…)
+PASS  redaction: full fake secret never appears (FAKEFAKEFAKEFAKEFA…)
+PASS  full report detail includes file names
+PASS  full report detail includes secret fragments (redacted)
+
+All public-full tests passed.
+PASS test:public-full
+=== test:scanner ===
+
+> gitsecure@0.1.0 test:scanner
+> tsx scripts/test-scanner.ts
+
+PASS  detects discord-webhook
+PASS  detects aws-access-key
+PASS  detects github-token
+PASS  detects stripe-secret-key
+PASS  detects openai-api-key
+PASS  detects database-url
+PASS  detects hardcoded-password
+PASS  detects private-key
+PASS  env file finding
+PASS  redaction: full fake secret never appears (https://discord.co…)
+PASS  redaction: fragment is not the full value
+PASS  redaction: full fake secret never appears (AKIAIOSFODNN7EXAMP…)
+PASS  redaction: fragment is not the full value
+PASS  redaction: full fake secret never appears (ghp_FAKEFAKEFAKEFA…)
+PASS  redaction: fragment is not the full value
+PASS  redaction: full fake secret never appears (sk_live_FAKEFAKEFA…)
+PASS  redaction: fragment is not the full value
+PASS  redaction: full fake secret never appears (sk-proj-FAKEFAKEFA…)
+PASS  redaction: fragment is not the full value
+PASS  redaction: full fake secret never appears (postgres://fakeuse…)
+PASS  redaction: fragment is not the full value
+PASS  redaction: full fake secret never appears (FAKEFAKEFAKEFAKEFA…)
+PASS  redaction: fragment is not the full value
+PASS  at least 8 findings in fixture — 8 found
+PASS  split-across-lines password is not flagged — 0 findings
+PASS  match inside a cross-line span is still found — 1 findings, lines 2
+PASS  finding lands on the right line — github-token:3,generic-high-entropy-secret:3
+PASS  two assignments on one line are two findings — 2
+PASS  whole-content scan equals per-line scan — whole 8 vs per-line 8
+PASS  fingerprints Next.js 15.5.29 — 15.5.29
+PASS  fingerprints React 18.3.1
+PASS  fingerprints Vite 5.0.0
+PASS  fingerprints Django 5.2.17
+PASS  fingerprints Serde (Rust)
+PASS  flags unpinned express (*)
+PASS  Tier 2: fingerprints Gin v1.9.1 — v1.9.1
+PASS  Tier 2: fingerprints Echo v4.11.1
+PASS  Tier 2: fingerprints Fiber v2.52.14
+PASS  Tier 2: Rails lockfile 7.1.3 wins over Gemfile range — 7.1.3 / lockfile
+PASS  Tier 2: fingerprints Sinatra 4.2.0
+PASS  Tier 2: Laravel lockfile v10.34.2 wins over ^10.0 — v10.34.2
+PASS  Tier 2: fingerprints Symfony v6.3.8
+PASS  Tier 2: Spring Boot 3.2.0, one entry (parent + starter + gradle) — 3.2.0
+PASS  Tier 2: Spring Framework 6.1.2 via ${spring.version} — 6.1.2
+PASS  Tier 2: fingerprints Kotlin 1.9.20
+PASS  Tier 2: ASP.NET Core 8.0.0, one entry (SDK + package) — 8.0.0
+PASS  Tier 2: WordPress detected, version unknown (wp-config.php only) — version=null / unknown
+PASS  Tier 2: unresolvable ${...} pom version stays null, never guessed
+PASS  Tier 2: .NET SDK pseudo-dep has null version (TargetFramework is not a version)
+PASS  full report has score + counts
+PASS  full report includes file names
+PASS  full report includes framework names
+PASS  full report includes vulnerability IDs
+PASS  full report includes redacted secret fragments (never full)
+PASS  full report never contains the full fake secret (https://discord.co…)
+PASS  full report never contains the full fake secret (AKIAIOSFODNN7EXAMP…)
+PASS  full report never contains the full fake secret (ghp_FAKEFAKEFAKEFA…)
+PASS  full report never contains the full fake secret (sk_live_FAKEFAKEFA…)
+PASS  full report never contains the full fake secret (sk-proj-FAKEFAKEFA…)
+PASS  full report never contains the full fake secret (postgres://fakeuse…)
+PASS  full report never contains the full fake secret (FAKEFAKEFAKEFAKEFA…)
+PASS  Phase 5: 150 findings stay 150 through dedupe (no 100 cap) — 150 kept
+PASS  Phase 5: report lists all 150 secret findings — 150 listed
+PASS  Phase 5: count is the true total (150, not 100) — 150
+PASS  Phase 5: no truncation message in the report
+PASS  Phase 5: every fragment in the 150 is still redacted
+PASS  Phase 5: score floors at 0 with 150 critical secrets — 0/F
+PASS  Phase 5: score is never NaN with a huge finding count
+PASS  nav: HEAD finding links to branch blob + line — https://github.com/Squ1zM0/TechDirect/blob/main/src/index.js#L42
+PASS  nav: history finding links to its commit, not the branch — https://github.com/Squ1zM0/TechDirect/blob/abc1234/src/index.js#L42
+PASS  nav: file path segments are URL-encoded — https://github.com/o/r/blob/main/my%20folder/a%20b.js#L1
+PASS  nav: anchor ids are stable per kind + index
+PASS  nav: advisory links go to OSV.dev
+
+All fixture tests passed.
+PASS test:scanner
+=== test:tier3 ===
+
+> gitsecure@0.1.0 test:tier3
+> tsx scripts/test-tier3.ts
+
+PASS  Docker node image version 20-alpine detected — 20-alpine
+PASS  Docker node image ecosystem is docker
+PASS  postgres:15 detected — 15
+PASS  redis with no tag: version null + unpinned — version=null
+PASS  parseDockerfile returns both FROM stages — 2 entries
+PASS  latest-tag image reported version null + unpinned
+PASS  Kubernetes Deployment detected, version null — version=null
+PASS  k8s container image myapp detected, version null + unpinned
+PASS  Terraform aws provider 5.0.0 detected — 5.0.0
+PASS  unpinned provider reported version null
+PASS  Terraform 1.6.0 detected — 1.6.0
+PASS  checkout@v4 framework version v4, pinned
+PASS  setup-node@main framework unpinned — version=main
+PASS  build-push-action@v5 detected
+PASS  Vercel preset nextjs detected, version null
+PASS  Supabase detected, version null
+PASS  checkout@v4 dep version v4, ecosystem actions
+PASS  setup-node@main dep version null (branch ref is not a version)
+PASS  build-push-action@v5 dep version v5
+PASS  ACTIONS_OSV_ECOSYSTEM is GitHub Actions
+PASS  40-char SHA ref is NOT a version (null, never guessed)
+PASS  SHA-pinned action is pinned (unpinned false)
+PASS  Terraform range ~> 5.0 is NOT a version (null)
+PASS  Terraform range still counts as constrained (no unpinned finding)
+PASS  USER-root finding present
+PASS  only one Dockerfile root finding (no duplicate no-USER finding) — 2 root findings total (Dockerfile + k8s)
+PASS  latest base image finding present
+PASS  secret-looking ARG finding present
+PASS  remote ADD finding present
+PASS  privileged finding present
+PASS  hostNetwork finding present
+PASS  runAsUser 0 finding present
+PASS  latest k8s image finding present
+PASS  unpinned provider finding present (random)
+PASS  unpinned action finding present (setup-node)
+PASS  no finding for the pinned aws provider
+PASS  every finding detail is plain English with an exact fix — 10 findings
+PASS  Dockerfile with no USER is flagged (runs as root by default)
+PASS  no finding for the clean patterns
+PASS  infraFindings does not duplicate pull_request_target (scan.ts owns it)
+
+All Tier 3 tests passed.
+PASS test:tier3
+=== test:ui-phase7 ===
+
+> gitsecure@0.1.0 test:ui-phase7
+> tsx scripts/test-ui-phase7.ts
+
+PASS  gradeBand A is good
+PASS  gradeBand B is good
+PASS  gradeBand C is fair
+PASS  gradeBand D is poor
+PASS  gradeBand F is poor
+PASS  biggestProblem names leaked secrets first
+PASS  biggestProblem falls back to vulnerabilities
+PASS  biggestProblem says clean when nothing found
+PASS  dial renders an SVG
+PASS  dial carries the good band class
+PASS  dial shows the score number
+PASS  dial shows the grade
+PASS  dial has an accessible label
+PASS  dial arc uses a dasharray (0–100 gauge)
+PASS  dial F carries the poor band class
+PASS  list has a GitHub blob link to the exact file and line
+PASS  history finding links to its commit, not the branch
+PASS  list renders the secret-0 anchor
+PASS  list renders the secret-1 anchor
+PASS  list has copy-link buttons
+PASS  list has a severity filter
+PASS  list has a file-name search
+PASS  list has List/Map toggle
+PASS  list count line is aria-live
+PASS  list shows the true filtered count
+PASS  list shows the severity pill with its label
+PASS  list never renders a full secret (fragments only)
+PASS  triage: likely-test-key pill renders with its label
+PASS  triage: likely-genuine-leak pill renders with its label
+PASS  triage: test-key explanation renders
+PASS  triage: test-key Fix replaces the rotate fix
+PASS  triage: genuine leak keeps the detector Fix
+PASS  triage: filter dropdown offers the three verdicts
+PASS  triage: count line names the test-key split
+PASS  triage: adjusted severity shown
+PASS  map renders an SVG spider
+PASS  map carries its legend
+PASS  map nodes are keyboard reachable (role=button, tabIndex)
+PASS  map file chips are real buttons
+PASS  CSS has a real dark mode (prefers-color-scheme: dark)
+PASS  CSS dark mode redefines surfaces and text
+PASS  CSS respects prefers-reduced-motion
+PASS  CSS has focus-visible rings
+PASS  CSS tap targets are >= 44px
+PASS  CSS styles the score dial
+PASS  CSS styles the stat grid
+PASS  CSS styles grade chips per band
+PASS  CSS styles the loading spinner
+PASS  CSS buttons use an on-accent text colour (dark-mode contrast)
+PASS  CSS inline code wraps only when it must (no mid-word breaks)
+PASS  triage: pills have their own styles
+PASS  home has no 'Honest limits' copy
+PASS  home has no sign-in copy
+PASS  report page has no sign-in copy
+PASS  home keeps the designed URL example
+PASS  home error is styled and role=alert
+PASS  home scanning state is role=status with a spinner
+PASS  report page renders the score dial
+PASS  report page renders the stat grid
+PASS  report page renders the verdict
+PASS  report view labels a provisional score as provisional
+PASS  phase11: likely-test-keys section exists with its own count
+PASS  phase11: genuine-leaks section exists with its own count
+PASS  phase11: uncertain section exists with its own count
+PASS  phase11: test-keys section is collapsed by default
+PASS  phase11: genuine-leaks section is open by default
+PASS  phase11: uncertain section is open by default
+PASS  phase11: test-keys section expands (open when asked)
+PASS  phase11: genuine leak is not in the test-keys section
+PASS  phase11: test key is in the test-keys section, with its test-key Fix
+PASS  phase11: counts line shows the honest split
+PASS  phase11: dead-end finding carries the Dead end label
+PASS  phase11: dead-end explanation renders
+PASS  phase11: in-use finding shows its references
+PASS  phase11: every finding keeps its GitHub link and anchor
+PASS  phase11: getUsage is defensive (absent -> undefined)
+PASS  phase11: getUsage is defensive (malformed -> undefined)
+PASS  phase11 map: renders an SVG usage graph
+PASS  phase11 map: legend names solid vs dashed edges and dead ends
+PASS  phase11 map: in-use finding gets code + test edges
+PASS  phase11 map: edges total 5 (test key: own+code+test, genuine: own+code, dead end: none)
+PASS  phase11 map: dead-end finding is greyed and labelled
+PASS  phase11 map: finding nodes are keyboard reachable
+PASS  phase11 map: track hint renders when nothing is selected
+PASS  phase11 map: degrades gracefully with no usage data (file-count spider)
+PASS  phase11 CSS: verdict sections, dead-end pill, map edges and track detail styled
+PASS  phase12: explanation names the excluded test keys
+PASS  phase12: explanation names the half-weight count
+PASS  phase12: explanation names the full-weight count
+PASS  phase12: explanation shows both scores (self-scan: would-be equals score)
+PASS  phase12: explanation shows the would-be score when it differs
+PASS  phase12: explanation states the rule in plain English
+PASS  phase12: explanation renders nothing with no scoreDetail
+PASS  phase12: explanation handles zero secrets
+PASS  phase12: all-test-key verdict does not present secrets as the biggest problem
+PASS  phase12: all-test-key verdict names the real driver (vulnerabilities)
+PASS  phase12: all-test-key verdict says the test keys are excluded
+PASS  phase12: all-excluded verdict (no uncertain) says all are excluded
+PASS  phase12: verdict falls back to the old wording with no scoreDetail
+PASS  phase12: genuine-leak verdict still names the secrets
+PASS  phase12: explainScore names the real driver, not the test keys
+PASS  phase12: explainScore says the test keys are excluded
+PASS  phase12: genuine-leak explainScore still names the secrets
+PASS  phase12: explainScore falls back with no scoreDetail
+PASS  phase12: report hero renders the explanation with both scores
+PASS  phase12: report hero verdict names the real driver, not test keys
+PASS  phase12: report hero falls back gracefully with no scoreDetail
+PASS  phase12: report view wires the explanation to scoreDetail
+PASS  phase12: MCP prose states the new weights, not the old rule
+PASS  phase15 finding 8: score-0 dial uses a butt cap (no stray dot)
+PASS  phase15 finding 8: a normal score keeps the round cap
+PASS  phase15 finding 13: TechDirect explanation still names the top driver
+PASS  phase15 finding 13: TechDirect explanation appends the runner-up vulns with their points
+PASS  phase15 finding 13: no runner-up is appended when nothing else deducts
+PASS  phase15 finding 13: a secrets runner-up names the genuine leaks
+PASS  phase15 finding 2: GitHub link label is short
+PASS  phase15 finding 2: the long path is not in the link label
+PASS  phase15 finding 2: the blob link still points at the exact file and line
+PASS  phase15 finding 2: the path is still shown in the row above the link
+PASS  phase15 finding 9: tests-only usage renders without an empty Used by
+PASS  phase15 finding 9: track detail omits the Used by segment when only tests exist
+PASS  phase15 finding 9: both lists render as two segments
+PASS  phase15 finding 9: no references renders null
+PASS  phase15 finding 9: totals without a list fall back to a count sentence
+PASS  phase15 finding 4: long basenames truncate middle-out with an ellipsis
+PASS  phase15 finding 4: test-history.ts keeps head and tail
+PASS  phase15 finding 4: short basenames render whole
+PASS  phase15 finding 4: dense map truncates file labels with an ellipsis, never a silent clip
+PASS  phase15 finding 4: dense map shows the uses captions
+PASS  phase15 finding 4: dense map labels carry the halo class
+PASS  phase15 finding 4: dense map file counts sit inside their nodes
+PASS  phase15 finding 4: dense map still draws the dead ends
+PASS  phase15 finding 4: dense map keeps keyboard-reachable nodes
+PASS  phase15 finding 12: no 36 px tap-target exception remains in the CSS
+PASS  phase15 finding 12: copy-btn is 44 px
+PASS  phase15 finding 12: file-chip is 44 px
+PASS  phase15 finding 2: .github-link wraps anywhere
+PASS  phase15 finding 2: code.inline wraps anywhere (long file paths break)
+PASS  phase15 finding 2: no break-word left on code.inline
+PASS  phase15 finding 2: report-list items wrap anywhere
+PASS  phase15 finding 2: finding rows wrap anywhere
+PASS  phase15 finding 2: FrameworksList renders the wrapping report-list
+PASS  phase15 finding 4: map labels carry a halo so edges cannot strike them through
+PASS  phase15 finding 15: every js-yaml Fix line names the single recommended version
+PASS  phase15 finding 15: no Fix line names a losing version
+PASS  phase15 finding 15: the single-version lodash Fix is unchanged
+PASS  phase15 finding 15: recommendedFixVersions picks the max (4.3.2 of 4.3.2/3.15.0/4.3.1/4.2.0)
+PASS  phase15 finding 15: a single-version package has no reconciliation entry
+PASS  phase15 finding 15: compareVersions is semver-aware (4.3.2 > 3.15.0)
+PASS  phase15 finding 15: a pre-release sorts below its release
+PASS  roll-all: the button renders in the report hero
+PASS  roll-all: the button sits in the score hero, above the stat grid
+PASS  roll-all: the button explains what it downloads
+PASS  roll-all: the hero CSS puts the button top-right and full-width on phones
+PASS  no literal secret-pattern values in UI files
+
+All Phase 7 UI checks passed.
+PASS test:ui-phase7
+=== test:ui-phase15c ===
+
+> gitsecure@0.1.0 test:ui-phase15c
+> tsx scripts/test-ui-phase15-worker-c.ts
+
+PASS  404 explains the owner/repo URL shape
+PASS  404 gives the Squ1zM0/GitSecure example
+PASS  404 links home to scan
+PASS  404 uses the error card with role=alert
+PASS  404 has no stock Next.js wording
+PASS  MCP canonical URL is git-secure.com/mcp
+PASS  no vercel.app MCP URL in mcp-config
+PASS  no vercel.app MCP URL in the /mcp route comment
+PASS  no vercel.app MCP URL in README
+PASS  all four snippets are valid JSON with the canonical URL
+PASS  MCP section explains what MCP is in one plain line
+PASS  MCP explainer line sits at the top of the section
+PASS  MCP section renders the canonical URL
+PASS  MCP snippets are collapsed behind a <details>
+PASS  all four snippets sit inside the <details>
+PASS  MCP details summary names the four clients
+PASS  compact MCP section keeps the canonical URL
+PASS  compact MCP section keeps one snippet visible
+PASS  mobile CSS fades the right edge of snippet code blocks
+PASS  loading screen says 15–30 seconds
+PASS  loading screen scopes 15–30 seconds to small repos
+PASS  loading screen says large repos take several minutes
+PASS  loading screen never makes the unscoped 15–30 second claim
+PASS  loading screen keeps the nothing-to-click line
+PASS  loading screen no longer promises about 15 seconds
+PASS  home scan-status scopes 15–30 seconds to small repos
+PASS  home scan-status never makes the unscoped 15–30 second claim
+PASS  home scan-status no longer promises about 15 seconds
+PASS  home form has a visible label above the input
+PASS  label is wired to the input id
+PASS  label comes before the input in the form
+PASS  prefilled value unchanged
+PASS  empty-input validation message unchanged
+PASS  bad-format validation message unchanged
+PASS  scan-field label styled in the design system
+PASS  no literal secret-pattern values in the changed UI files
+
+All Phase 15 worker-C checks passed.
+PASS test:ui-phase15c
+=== test:ui-phase16c ===
+
+> gitsecure@0.1.0 test:ui-phase16c
+> tsx scripts/test-ui-phase16-worker-c.ts
+
+PASS  live-case fixture scores 91/A like the iPhone report — 91/A
+PASS  live-case fixture is provisional
+PASS  explainScore A says 'an excellent score'
+PASS  explainScore A never says 'a excellent score'
+PASS  explainScore B says 'a good score'
+PASS  explainScore C says 'a fair score'
+PASS  explainScore D says 'a poor score'
+PASS  explainScore F says 'a needs urgent attention score'
+PASS  explainScore 100 keeps the perfect-score line
+PASS  gradeWordWithArticle A is 'an excellent'
+PASS  gradeWordWithArticle B is 'a good'
+PASS  gradeWordWithArticle F is 'a needs urgent attention'
+PASS  adjustedExplainScore A says 'an excellent score' — 91 out of 100 (grade A) is an excellent score. The points lost come from 3 small security-hygiene issues — fixing those would raise the score.
+PASS  both score templates use the article helper, not a hard-coded 'a'
+PASS  loading screen scopes 15–30 seconds to small repos
+PASS  loading screen says large repos take several minutes
+PASS  loading screen never makes the unscoped 15–30 second claim
+PASS  home scan-status scopes 15–30 seconds to small repos
+PASS  home scan-status never makes the unscoped 15–30 second claim
+PASS  no unscoped 15–30 second claim anywhere in src
+PASS  historyRatePerMin: 400 commits in 60 s is 400/min (the observed iPhone pace)
+PASS  historyRatePerMin: 100 commits in 20 s is 300/min
+PASS  historyRatePerMin: under 100 commits is null (too little to mean anything)
+PASS  historyRatePerMin: under 20 s is null (early chunks include HEAD setup)
+PASS  historyRatePerMin: zero commits is null
+PASS  ScanProgress wires the measured rate (no invented ETA)
+PASS  provisional report: vuln heading says not checked yet
+PASS  provisional report: vuln body says the check has not run
+PASS  provisional report: stat tile says not checked yet
+PASS  provisional report: no 0 vulnerability count anywhere
+PASS  finished report: vuln heading shows the real 0
+PASS  finished report: vuln body says none found in the dependencies checked
+PASS  finished report: no 'not checked yet' anywhere
+PASS  finished report: hero says 'an excellent score'
+PASS  finished report: hero never says 'a excellent score'
+PASS  live progress view: report section and footer agree (both 'not checked yet')
+PASS  live progress view: no 0 vulnerability count while the check is pending
+PASS  live progress view: history timing says large repos take several minutes
+PASS  live progress view: no invented per-minute rate on first paint
+PASS  provisional markdown: vuln heading says not checked yet
+PASS  provisional markdown: summary bullet says not checked yet
+PASS  provisional markdown: no 0 vulnerability count
+PASS  finished markdown: vuln heading shows the real 0
+PASS  finished markdown: summary bullet shows 0
+PASS  No literal secret-pattern values in this file
+
+All Phase 16 worker-C checks passed.
+PASS test:ui-phase16c
+=== test:phase16-a ===
+
+> gitsecure@0.1.0 test:phase16-a
+> tsx scripts/test-phase16-worker-a.ts
+
+PASS  report page never awaits the scan loop
+PASS  report page never touches the fast-path budget
+PASS  report page never imports the chunk driver
+PASS  report page renders ScanProgress with a null cursor
+PASS  report page still validates the owner/repo name server-side
+PASS  report page bad-format state keeps the retry button
+PASS  report page bad-format state still offers 'Scan another repo'
+PASS  report page renders on demand via params (no prerender)
+PASS  report page has no sign-in copy
+PASS  not-found copy unchanged
+PASS  private copy unchanged
+PASS  rate-limit copy uses the honest reset body — Too many requests went to GitHub at once, so this scan couldn't run right now. GitHub's request limit resets in about 12 minutes — try this scan again then.
+PASS  rate-limit copy falls back to within the hour
+PASS  timeout copy unchanged
+PASS  bad-format copy unchanged
+PASS  head-moved copy unchanged
+PASS  unknown kind falls back to the generic error
+PASS  rate-limit retry label is 'Try this scan again'
+PASS  other retry label is 'Retry this scan'
+PASS  ScanProgress starts a fresh scan through /api/scan/start
+PASS  ScanProgress still drives later chunks through /api/scan/chunk
+PASS  ScanProgress picks the start route exactly when there is no cursor
+PASS  ScanProgress verifies a saved report against the live tip
+PASS  ScanProgress loads saved progress before any fetch
+PASS  ScanProgress resumes from saved progress without a server comparison
+PASS  ScanProgress saves nothing before the first chunk answers
+PASS  ScanProgress shows the resume line from saved progress
+PASS  ScanProgress shows the retained counts at once on resume
+PASS  ScanProgress re-bases the history pace on a resume
+PASS  ScanProgress shows the full error page for a terminal failure
+PASS  ScanProgress terminal errors use the matching retry label
+PASS  ScanProgress terminal errors render the shared RetryScanButton
+PASS  ScanProgress keeps the sessionStorage resume path
+PASS  ScanProgress keeps the 429 fail-fast
+PASS  ScanProgress keeps the provisional report paused on chunk errors
+PASS  ScanProgress keeps the provisional report unpaused while running
+PASS  fresh shell says which repo is scanning
+PASS  fresh shell shows honest zero counts, not a bare spinner
+PASS  fresh shell shows no resume line (nothing saved yet)
+PASS  fresh shell shows no invented per-minute rate
+PASS  start route runs exactly one fresh chunk
+PASS  start route returns the scan error kind
+PASS  start route passes the reset time through on errors
+PASS  tip route resolves the live tip over the git protocol
+PASS  tip route answers the branch and HEAD sha
+PASS  FAST_PATH_WAIT_MS is still 50_000
+PASS  API_FAST_PATH_WAIT_MS is 40_000 (Worker B's API budget)
+PASS  scan API route uses the API budget
+PASS  MCP uses the API budget
+PASS  report page uses neither budget constant
+PASS  chunk route untouched by this change
+PASS  no literal secret-pattern values in the changed files
+PASS  No literal secret-pattern values in this file
+PASS  report page renders the scanning shell immediately
+PASS  bad owner name still gets the server-side error page
+PASS  bad owner page offers a retry
+
+All Phase 16 worker-A checks passed.
+PASS test:phase16-a
+=== test:triage-phase10 ===
+
+> gitsecure@0.1.0 test:triage-phase10
+> tsx scripts/test-triage-phase10.ts
+
+PASS  Layer 2: RSA 3072 parses (kind + bits) — RSA 3072
+PASS  Layer 2: EC P-256 parses (kind + bits) — EC P-256
+PASS  Layer 2: EC P-384 parses — EC P-384
+PASS  Layer 2: unparseable content is null, not a crash
+PASS  Layer 2: fingerprint is a 64-hex SHA-256
+PASS  Linux case: private-key detector fires on sign_key.pem — 1 findings
+PASS  Linux case: sign_key.pem triages likely-test-key — likely-test-key
+PASS  Linux case: test-key Fix (not 'rotate it') — Confirm this key is only used by tests and never signs real artifacts; if it does, rotate it.
+PASS  Linux case: detector severity stays critical
+PASS  Linux case: adjusted severity is low
+PASS  Linux case: explanation names the test path — This looks like an intentional test key: it lives in a test path (tools/testing/selftests). It is still listed and still counted — if it ever signs real artifacts or grants real access, treat it as compromised and rotate it.
+PASS  Linux case: test-path signal recorded
+PASS  Linux case: built-in list carries the SGX key fingerprint
+PASS  Fingerprint match: known test key is decisive even in a prod path — likely-test-key
+PASS  Fingerprint match: explanation names the fingerprint
+PASS  Fingerprint match: the decisive match is recorded in the signals list — prod-filename:prod,known-test-key
+PASS  Fingerprint match: same key WITHOUT the fingerprint stays genuine in a prod path — likely-genuine-leak
+PASS  dtsi case: hardcoded-password detector fires on line 9 — hardcoded-password:9
+PASS  dtsi case: triages likely-test-key on its own signals — likely-test-key
+PASS  dtsi case: unittest path signal recorded
+PASS  dtsi case: tests filename signal recorded
+PASS  dtsi case: testcase content signal recorded
+PASS  dtsi case: test-value Fix (not the detector rotate fix) — Confirm this value is only used by tests or examples and is not a real credential. If it is real, rotate it and move it to a secrets manager.
+PASS  Control: prod.key stays likely-genuine-leak — likely-genuine-leak
+PASS  Control: detector severity stays critical
+PASS  Control: detector Fix kept (rotate it)
+PASS  Control: AWS key in deploy/ is found
+PASS  Control: AWS key in deploy/ stays likely-genuine-leak — likely-genuine-leak
+PASS  Control: deploy/ prod-path signal recorded
+PASS  Example value: AWS example key is test even in deploy/
+PASS  Token case: same token detected in both files
+PASS  Token case: fixture file triages likely-test-key — likely-test-key
+PASS  Token case: src/ triages likely-genuine-leak — likely-genuine-leak
+PASS  Token case: the two verdicts differ
+PASS  Example value: AWS docs example key triages likely-test-key — likely-test-key
+PASS  Example value: explanation names the AWS example
+PASS  Example value: the decisive match is recorded in the signals list — known-example-value
+PASS  Example value: baked hash matches the assembled string
+PASS  Uncertain case: test path + RSA 4096 is uncertain — uncertain (signals: test-path:tests,strong-key:RSA 4096)
+PASS  Uncertain case: keeps detector severity
+PASS  Uncertain case: explanation says a human should check
+PASS  Weak key: RSA 1024 signal recorded — weak-key:RSA 1024
+PASS  Weak key: weak key alone in src/ is uncertain, not auto-test — uncertain
+PASS  Counterpart: public key identity matches the private key's
+PASS  Counterpart: public-counterpart signal recorded — test-path:tests,public-counterpart-in-repo
+PASS  Counterpart: test path + counterpart triages likely-test-key — likely-test-key
+PASS  Stripe: test-mode signal recorded — stripe-test-mode
+PASS  Stripe: live key in src/ is NOT test-mode and stays genuine — likely-genuine-leak
+PASS  History: added-lines triage works (selftest path) — likely-test-key
+PASS  History: prod-path key added in a commit stays genuine
+PASS  Regression: triage keeps all 25 findings — 25
+PASS  Regression: every input id is still present
+PASS  Regression: every finding got an annotation
+PASS  Regression: ensureTriage fills a missing annotation, keeps an existing one
+PASS  Scoring rule (Phase 12): untriaged findings score at full weight (42/D) — 42/D
+PASS  Scoring rule (Phase 12): after triage the test keys deduct nothing (75/B) — 75/B
+PASS  Scoring rule (Phase 12): secrets deduction is 25 (only the genuine key) — 25
+PASS  Scoring rule (Phase 12): counts are full=1, excluded=2 — full=1 half=0 excluded=2
+PASS  Scoring rule (Phase 12): wouldBeScore is the old-rule score (42) — wouldBe=42 before=42
+PASS  Scoring rule: detector severity untouched by triage
+PASS  Counts: secrets total still includes the test keys — 3
+PASS  Counts: testKeySecrets is the honest split (2 of 3) — 2
+PASS  Counts: provisional carries the triage annotations
+
+All triage tests passed.
+PASS test:triage-phase10
+=== test:usage-phase11 ===
+
+> gitsecure@0.1.0 test:usage-phase11
+> tsx scripts/test-usage-phase11.ts
+
+PASS  (i) in-use: referencedBy lists the src/ reference with its line — [{"file":"src/config.ts","line":1}]
+PASS  (i) in-use: referencedByTotal is 1 — 1
+PASS  (i) in-use: test reference recorded separately in referencedByTests — [{"file":"tests/load_key.test.ts","line":2}]
+PASS  (i) in-use: not a dead end
+PASS  (i) in-use: test-key + production usage upgrades to likely-genuine-leak — likely-genuine-leak
+PASS  (i) in-use: explanation names the referencing file — This looks like a genuine leak: it was flagged as a possible test key (it lives in a test path (tests/fixtures)), but it is referenced from src/config.ts:1 in production code, so treat it as a real credential.
+PASS  (i) in-use: usage-prod-ref signal recorded — test-path:tests,usage-prod-ref
+PASS  (i) in-use: adjusted severity stays critical (detector severity)
+PASS  (i) in-use: detector Fix kept (rotate it)
+PASS  (ii) test-only: referencedBy is empty — []
+PASS  (ii) test-only: referencedByTotal is 0
+PASS  (ii) test-only: test references recorded in referencedByTests — [{"file":"tests/load_key.test.ts","line":2},{"file":"tests/load_key.test.ts","line":3}]
+PASS  (ii) test-only: not a dead end (tests reference it)
+PASS  (ii) test-only: still likely-test-key — likely-test-key
+PASS  (ii) test-only: usage-test-only signal recorded — test-path:tests,usage-test-only
+PASS  (iii) dead end: deadEnd is true
+PASS  (iii) dead end: both totals are 0
+PASS  (iii) dead end: usage-dead-end signal recorded — test-path:tests,usage-dead-end
+PASS  (iii) dead end: explanation says so plainly — This looks like an intentional test key: it lives in a test path (tests/fixtures); nothing in this repo references it. It is still listed and still counted — if it ever signs real artifacts or grants real access, treat it as compromised and rotate it. Nothing in this repo references this key — a true dead end.
+PASS  (iii) dead end: still likely-test-key — likely-test-key
+PASS  (iv) cap: referencedBy capped at 10 — 10
+PASS  (iv) cap: referencedByTotal is the true total (15) — 15
+PASS  (iv) cap: referencedByTests capped at 10 — 10
+PASS  (iv) cap: referencedByTestsTotal is the true total (12) — 12
+PASS  (iv) cap: not a dead end
+PASS  (iv) cap: own-file definition line does not count as a reference
+PASS  (v) value-regression: value present in src/other.ts, identifier absent -> no reference — {"referencedBy":[],"referencedByTotal":0,"referencedByTests":[],"referencedByTestsTotal":0,"deadEnd":true}
+PASS  (v) value-regression: deadEnd is true (identifier searched, nothing references it)
+PASS  (v) value-regression: identifier extracted from the line, not the value — MY_API_KEY
+PASS  (vi-a) prod usage: test-key + src/ reference upgrades to likely-genuine-leak — likely-genuine-leak
+PASS  (vi-a) prod usage: explanation names src/service.ts — This looks like a genuine leak: it was flagged as a possible test key (it lives in a test path (tests/fixtures)), but it is referenced from src/service.ts:2 in production code, so treat it as a real credential.
+PASS  (vi-b) docs-only: a docs mention is NOT a non-test reference — []
+PASS  (vi-b) docs-only: docs mention leaves it a dead end
+PASS  (vi-b) docs-only: docs/ is a docs path, not a production path
+PASS  (vi-b) docs-only: decisive key + docs mention stays likely-test-key — likely-test-key
+PASS  (vi-b) docs-only: usage-dead-end signal recorded (no usage-docs-ref any more) — test-path:tests,usage-dead-end,known-test-key
+PASS  (vi-b) docs-only: explanation says it is a dead end — This looks like an intentional test key: its fingerprint matches a published test key (Test-only planted key); it lives in a test path (tests/fixtures); nothing in this repo references it. It is still listed and still counted — if it ever signs real artifacts or grants real access, treat it as compromised and rotate it. Nothing in this repo references this key — a true dead end.
+PASS  (vi-c) dead end: test path + RSA 4096 without usage is uncertain — uncertain (test-path:tests,strong-key:RSA 4096)
+PASS  (vi-c) dead end: usage says deadEnd
+PASS  (vi-c) dead end: dead end reinforces to likely-test-key — likely-test-key
+PASS  (vi-c) dead end: explanation says so plainly
+PASS  (vi-d) other usage: tools/ is neither production nor docs
+PASS  (vi-d) other usage: upgrades to uncertain (not genuine) — uncertain
+PASS  (vi-d) other usage: explanation names tools/run.sh — This could be a test key or a real leak: it lives in a test path (tests/fixtures) — not enough evidence either way, so a human should check it. It is referenced from tools/run.sh:2 in non-test code, so it may be a real credential after all.
+PASS  (env) env-file: the variable name is found — [{"file":"src/db.ts","line":2}]
+PASS  (env) env-file: a prose/code mention of the bare ".env" name is NOT a reference — [{"file":"src/db.ts","line":2}]
+PASS  (env) env-file: identifiers are the var names, never the basename — MY_DB_URL,MY_OTHER_VAR
+PASS  (vii) bare URL: no identifier extracted from a bare URL line
+PASS  (vii) bare URL: usage undetermined, never a false dead end
+PASS  (vii) bare URL: stays likely-test-key (no production-usage upgrade)
+PASS  (viii) string match: no identifier (test variable is not the credential name)
+PASS  (viii) string match: usage undetermined, never a false dead end
+PASS  (viii) string match: stays likely-test-key (no production-usage upgrade)
+PASS  (ix) comment: identifier is api_key — api_key
+PASS  (ix) comment: no production reference from comments — []
+PASS  (ix) comment: true dead end
+PASS  (ix) comment: stays likely-test-key (no production-usage upgrade) — likely-test-key
+PASS  (ix) comment: dead-end signal recorded
+PASS  (ix) string: identifier in a string literal in code counts — 1
+PASS  (ix) stripComments: URL string survives — "const u = \"https://x/api_key\";\nconst y = api_key;\n                       \n"
+PASS  (ix) stripComments: real reference after the URL survives
+PASS  (ix) stripComments: comment line blanked, line count kept — "const u = \"https://x/api_key\";\nconst y = api_key;\n                       \n"
+PASS  (ix) stripComments: regex-quote trap — block comment after a regex is stripped — "const m = /^\\s*[\"']?([A-Za-z_][A-Za-z0-9_.\\-]*)[\"']?\\s*[:=]/.exec(match);\n                                                 \nconst y = api_key;\n"
+PASS  (ix) stripComments: regex-quote trap — real reference on the next line survives — "const m = /^\\s*[\"']?([A-Za-z_][A-Za-z0-9_.\\-]*)[\"']?\\s*[:=]/.exec(match);\n                                                 \nconst y = api_key;\n"
+PASS  (x) prose: identifier is api_key
+PASS  (x) prose: no non-test reference from .md / docs prose — []
+PASS  (x) prose: no test reference either
+PASS  (x) prose: true dead end
+PASS  (x) prose: stays likely-test-key (no production-usage upgrade) — likely-test-key
+PASS  (x) prose: usage-dead-end signal recorded, no usage-referenced — test-path:test-scanner.ts,filename-test:test,usage-dead-end
+PASS  (x) code: real code reference counts, docs mention does not — [{"file":"src/config.ts","line":1}]
+PASS  (x) code: not a dead end
+PASS  (x) code: test-key + production code reference upgrades to likely-genuine-leak — likely-genuine-leak
+PASS  (x) test: test-file reference still recorded in referencedByTests — [{"file":"tests/other.test.ts","line":1}]
+PASS  (x) test: no non-test reference (docs + tests only)
+PASS  (x) test: not a dead end (tests reference it)
+PASS  (x) test: still likely-test-key (test-only references do not upgrade) — likely-test-key
+PASS  (generic) generic name: `token = ...` yields no identifier
+PASS  (generic) generic name: usage present but deadEnd false (undetermined)
+PASS  (generic) generic name: no usage-dead-end signal without an identifier
+PASS  Regression: usage keeps all 5 findings — 5
+PASS  Regression: every input id is still present
+PASS  Scoring rule (Phase 12): usage-aware triage changes the score — test keys drop out (62/C, was 0/F untriaged) — 0/F vs 62/C
+PASS  Scoring rule (Phase 12): deduction 38 = genuine 25 + uncertain 12.5, 3 test keys at 0 — ded=38 full=1 half=1 excluded=3
+PASS  Scoring rule (Phase 12): wouldBeScore is the old-rule score (0/F) — wouldBe=0
+PASS  Scoring rule: detector severity untouched by usage
+PASS  Limits: history-usage line present when history findings carry HEAD-only usage — Scanned all 3 files in the tree (binary, dist, node_modules and .next skipped — generated/vendored paths, not source files). | History checked: 2 commits, newest first (git protocol — no git binary, no REST quota). | For secrets found in history, usage (whether anything still references the key) was checked against the current files only — the old commit's files are gone, so a reference that existed then but not now is not counted. | Public repos only. No secret is ever stored, logged, or shown in full.
+PASS  Limits: history-usage line absent when no history usage exists
+PASS  Provisional: carries the usage annotation through
+PASS  Provisional: history-usage limits line present for historyOnly findings — Scanned all 3 files in the tree (binary, dist, node_modules and .next skipped — generated/vendored paths, not source files). | History checked: 1 commit, newest first. | Dependency flaws are still being checked — no vulnerability count yet. | Public repos only. No secret is ever stored, logged, or shown in full. | For secrets found in history, usage (whether anything still references the key) was checked against the current files only — the old commit's files are gone, so a reference that existed then but not now is not counted.
+PASS  Provisional: does not import the triage module (client-safe) — provisional.ts must stay client-safe
+
+All usage tests passed.
+PASS test:usage-phase11
+=== test:cursor-phase9 ===
+
+> gitsecure@0.1.0 test:cursor-phase9
+> tsx scripts/test-cursor-phase9.ts
+
+PASS  cursor round-trips exactly
+PASS  cursor is base64url (no +/= padding in the middle)
+PASS  initial history cursor starts at stage history, page 1
+PASS  bogus cursor (garbage, not base64) → plain-English 400, no crash — That scan link doesn't look right — it may be from an older scan or pasted wrong. Starting a fresh scan instead.
+PASS  bogus cursor (valid base64, not JSON) → plain-English 400, no crash — That scan link doesn't look right — it may be from an older scan or pasted wrong. Starting a fresh scan instead.
+PASS  bogus cursor (JSON array, not object) → plain-English 400, no crash — That scan link doesn't look right — it may be from an older scan or pasted wrong. Starting a fresh scan instead.
+PASS  bogus cursor (wrong version) → plain-English 400, no crash — That scan link doesn't look right — it may be from an older scan or pasted wrong. Starting a fresh scan instead.
+PASS  bogus cursor (wrong owner) → plain-English 400, no crash — That scan link doesn't look right — it may be from an older scan or pasted wrong. Starting a fresh scan instead.
+PASS  bogus cursor (negative page) → plain-English 400, no crash — That scan link doesn't look right — it may be from an older scan or pasted wrong. Starting a fresh scan instead.
+PASS  bogus cursor (huge page) → plain-English 400, no crash — That scan link doesn't look right — it may be from an older scan or pasted wrong. Starting a fresh scan instead.
+PASS  bogus cursor (negative scanned count) → plain-English 400, no crash — That scan link doesn't look right — it may be from an older scan or pasted wrong. Starting a fresh scan instead.
+PASS  bogus cursor (short head sha) → plain-English 400, no crash — That scan link doesn't look right — it may be from an older scan or pasted wrong. Starting a fresh scan instead.
+PASS  bogus cursor (bad stage) → plain-English 400, no crash — That scan link doesn't look right — it may be from an older scan or pasted wrong. Starting a fresh scan instead.
+PASS  bogus cursor (101 page shas) → plain-English 400, no crash — That scan link doesn't look right — it may be from an older scan or pasted wrong. Starting a fresh scan instead.
+PASS  bogus cursor (empty string) → plain-English 400, no crash — That scan link doesn't look right — it may be from an older scan or pasted wrong. Starting a fresh scan instead.
+PASS  advanceScan with a bogus cursor → ScanError 400, never a crash — That scan link doesn't look right — it may be from an older scan or pasted wrong. Starting a fresh scan instead.
+PASS  API reference scan succeeds — 101 scanned
+PASS  API chunk 1 does not fail
+PASS  API chunk 2 does not fail
+PASS  API chunk 3 does not fail
+PASS  API chunk 4 does not fail
+PASS  API chunk 5 does not fail
+PASS  API chunk 6 does not fail
+PASS  API chunk 7 does not fail
+PASS  API chunk 8 does not fail
+PASS  API chunk 9 does not fail
+PASS  API chunk 10 does not fail
+PASS  API chunk 11 does not fail
+PASS  API chunk 12 does not fail
+PASS  API chunk 13 does not fail
+PASS  API chunk 14 does not fail
+PASS  API chunk 15 does not fail
+PASS  API chunk 16 does not fail
+PASS  API chunk 17 does not fail
+PASS  API chunk 18 does not fail
+PASS  API chunk 19 does not fail
+PASS  API chunk 20 does not fail
+PASS  API chunk 21 does not fail
+PASS  API chunk 22 does not fail
+PASS  API chunk 23 does not fail
+PASS  API chunk 24 does not fail
+PASS  API chunk 25 does not fail
+PASS  API chunk 26 does not fail
+PASS  API chunk 27 does not fail
+PASS  API chunk 28 does not fail
+PASS  API chunk 29 does not fail
+PASS  API chunk 30 does not fail
+PASS  API chunk 31 does not fail
+PASS  API chunk 32 does not fail
+PASS  API chunk 33 does not fail
+PASS  API chunk 34 does not fail
+PASS  API chunk 35 does not fail
+PASS  API chunk 36 does not fail
+PASS  API chunk 37 does not fail
+PASS  API chunk 38 does not fail
+PASS  API chunk 39 does not fail
+PASS  API chunk 40 does not fail
+PASS  API chunk 41 does not fail
+PASS  API chunk 42 does not fail
+PASS  API chunk 43 does not fail
+PASS  API chunk 44 does not fail
+PASS  API chunk 45 does not fail
+PASS  API chunk 46 does not fail
+PASS  API chunk 47 does not fail
+PASS  API chunk 48 does not fail
+PASS  API chunk 49 does not fail
+PASS  API chunk 50 does not fail
+PASS  API chunk 51 does not fail
+PASS  API chunk 52 does not fail
+PASS  API chunk 53 does not fail
+PASS  API chunk 54 does not fail
+PASS  API chunk 55 does not fail
+PASS  API chunk 56 does not fail
+PASS  API chunk 57 does not fail
+PASS  API chunk 58 does not fail
+PASS  API chunk 59 does not fail
+PASS  API chunk 60 does not fail
+PASS  API chunk 61 does not fail
+PASS  API chunk 62 does not fail
+PASS  API chunk 63 does not fail
+PASS  API chunk 64 does not fail
+PASS  API chunk 65 does not fail
+PASS  API chunk 66 does not fail
+PASS  API chunk 67 does not fail
+PASS  API chunk 68 does not fail
+PASS  API chunk 69 does not fail
+PASS  API chunk 70 does not fail
+PASS  API chunk 71 does not fail
+PASS  API chunk 72 does not fail
+PASS  API chunk 73 does not fail
+PASS  API chunk 74 does not fail
+PASS  API chunk 75 does not fail
+PASS  API chunk 76 does not fail
+PASS  API chunk 77 does not fail
+PASS  API chunk 78 does not fail
+PASS  API chunk 79 does not fail
+PASS  API chunk 80 does not fail
+PASS  API chunk 81 does not fail
+PASS  API chunk 82 does not fail
+PASS  API chunk 83 does not fail
+PASS  API chunk 84 does not fail
+PASS  API chunk 85 does not fail
+PASS  API chunk 86 does not fail
+PASS  API chunk 87 does not fail
+PASS  API chunk 88 does not fail
+PASS  API chunk 89 does not fail
+PASS  API chunk 90 does not fail
+PASS  API chunk 91 does not fail
+PASS  API chunk 92 does not fail
+PASS  API chunk 93 does not fail
+PASS  API chunk 94 does not fail
+PASS  API chunk 95 does not fail
+PASS  API chunk 96 does not fail
+PASS  API chunk 97 does not fail
+PASS  API chunk 98 does not fail
+PASS  API chunk 99 does not fail
+PASS  API chunk 100 does not fail
+PASS  API chunk 101 does not fail
+PASS  API chunked scan finishes in 101 chunks (100 + 1 across pages) — 101 chunks
+PASS  API chunked scan covers all 101 commits — 101 scanned
+PASS  API chunked findings are IDENTICAL to the uninterrupted scan — 1 vs 1 findings
+PASS  no full fake secret in API chunked findings
+PASS  rate-limit chunk reports rateLimited, not failed — rateLimited=true failed=false
+PASS  rate-limit chunk's cursor still points at the limited commit — nextIdx=0 scanned=0
+PASS  retry chunk after the limit scans the commit — scanned=1
+PASS  third chunk finishes the history — done=true
+PASS  rate-limit resume still finds the old-commit webhook once
+PASS  failed commit is skipped and counted (skipped 1, scanned 0) — skipped=1 scanned=0
+PASS  failed commit does not stall the chunk (cursor advances) — nextIdx=1
+PASS  chunk after the skip still finds the webhook and finishes — done=true
+PASS  API chunk with a moved HEAD reports headMoved, not findings — headMoved=true
+PASS  git reference scan succeeds, all 3 commits — 3 scanned
+PASS  git chunk 1 succeeds
+PASS  git chunk 2 succeeds
+PASS  git chunk 3 succeeds
+PASS  git chunked scan finishes in 3 chunks — 3 chunks
+PASS  git chunked scan covers all 3 commits — 3 scanned
+PASS  git chunked findings are IDENTICAL to the uninterrupted scan — 1 vs 1 findings
+PASS  git chunked scan finds the old-commit webhook once
+PASS  git chunked finding attributed to the old commit
+PASS  no full fake secret in git chunked findings
+PASS  git chunk with a vanished resume point reports headMoved — ok=false headMoved=true
+PASS  assembled report counts both HEAD + history secrets — 2
+PASS  assembled report counts history commits exactly — 3
+PASS  assembled score matches the inputs exactly — 48/D
+PASS  assembled report is not provisional
+PASS  assembled limits name the history count — Scanned all 3 files in the tree (binary, dist, node_modules and .next skipped — generated/vendored paths, not source files). | History checked: 3 commits, newest first (git protocol — no git binary, no REST quota). | Public repos only. No secret is ever stored, logged, or shown in full.
+PASS  partial-history report says history is incomplete — Scanned all 3 files in the tree (binary, dist, node_modules and .next skipped — generated/vendored paths, not source files). | History scan took 0.0s (clone and API history paths both unavailable; last-resort fallback scanned 2 most recent commits). | GitHub API rate limit was hit — scanned 2 commits before stopping. Setting a GITHUB_TOKEN raises the limit. | Public repos only. No secret is ever stored, logged, or shown in full. | History incomplete: 2 newest commits checked — older commits were not checked in this report.
+PASS  partial-history report carries the rate-limit note — Scanned all 3 files in the tree (binary, dist, node_modules and .next skipped — generated/vendored paths, not source files). | History scan took 0.0s (clone and API history paths both unavailable; last-resort fallback scanned 2 most recent commits). | GitHub API rate limit was hit — scanned 2 commits before stopping. Setting a GITHUB_TOKEN raises the limit. | Public repos only. No secret is ever stored, logged, or shown in full. | History incomplete: 2 newest commits checked — older commits were not checked in this report.
+PASS  partial-history report counts only the commits scanned — 2
+PASS  no saved progress before saving
+PASS  saved progress round-trips (cursor + counts)
+PASS  malformed saved progress loads as nothing, never a crash
+PASS  wrong-shaped saved progress loads as nothing
+PASS  resume line names the exact counts (singular) — Resumed — picked up where it left off (1 history commit checked, 1 secret found so far).
+PASS  resume line names the exact counts (plural, thousands) — Resumed — picked up where it left off (1,234 history commits checked, 5 secrets found so far).
+PASS  saved finished report round-trips with its HEAD sha
+PASS  provisional report is flagged provisional
+PASS  provisional score is HEAD-only (no vulnerabilities yet)
+PASS  provisional limits say history is still scanning
+PASS  provisional with complete history says so, no still-scanning line
+PASS  complete scan says so once with exact counts — Scanned all 2802 files in the tree (binary, dist, node_modules and .next skipped — generated/vendored paths, not source files). | History checked: 62 commits, newest first (git protocol — no git binary, no REST quota). | Public repos only. No secret is ever stored, logged, or shown in full.
+PASS  complete scan has no cap language — Scanned all 2802 files in the tree (binary, dist, node_modules and .next skipped — generated/vendored paths, not source files). | History checked: 62 commits, newest first (git protocol — no git binary, no REST quota). | Public repos only. No secret is ever stored, logged, or shown in full.
+PASS  partial scan states the un-fetched files exactly
+PASS  partial scan states the uncovered deps exactly
+PASS  partial scan states the ID-only advisories exactly
+PASS  partial scan carries the history note
+PASS  partial scan states the truncated tree
+PASS  partial scan states the tarball fallback
+PASS  no jobs imports remain in src
+PASS  no jobs.ts file remains
+PASS  no jobs poll route remains
+PASS  the 'no longer running' dead-end copy is gone from src
+PASS  no job-not-found kind remains in src
+PASS  chunk endpoint exists
+PASS  cursor module exists
+PASS  chunks driver exists
+PASS  ScanProgress saves progress in sessionStorage
+PASS  ScanProgress shows the resumed line
+PASS  README documents the cursor protocol
+PASS  README says the server holds no scan state
+PASS  HEAD timeout (fresh scan) returns a partial, never throws — status=partial
+PASS  HEAD-timeout cursor stays at the head stage — stage=head
+PASS  HEAD-timeout cursor pins the HEAD sha the repo reported — bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb
+PASS  HEAD-timeout partial has no HEAD yet (nothing half-reported)
+PASS  HEAD-timeout partial says the download timed out — The current-files download timed out, so this chunk stopped before finishing. Nothing was half-reported; the scan picks up from the start of the current-files step.
+PASS  HEAD-timeout partial keeps live progress (0 files scanned before the stall) — step=files files=0
+PASS  HEAD timeout (head-stage cursor) returns a partial, never throws — status=partial
+PASS  runScanLoop on a HEAD timeout returns a partial, never throws — status=partial
+PASS  HEAD timeout before the repo meta is known still throws (ScanError 504 timeout) — Error: GitHub took too long to answer. Try again.
+PASS  429 with x-ratelimit-reset → ScanError 429 carrying the reset time — kind=rate-limit resetAtMs=1795737693000
+PASS  429 with no reset headers → ScanError 429, reset time absent (hourly fallback) — kind=rate-limit resetAtMs=undefined
+
+All cursor (Phase 9) tests passed.
+PASS test:cursor-phase9
+=== test:phase16-worker-b ===
+
+> gitsecure@0.1.0 test:phase16-worker-b
+> tsx scripts/test-phase16-worker-b.ts
+
+PASS  API/MCP loop budget is 40 s — 40000 ms
+PASS  report page fast-path constant is untouched at 50 s — 50000 ms
+PASS  worst-case invocation stays under the 55 s headroom (budget 10 s) — 42000 ms
+PASS  worst-case invocation stays under the 55 s headroom (budget 40 s) — 53000 ms
+PASS  worst-case invocation stays under the 55 s headroom (budget 50 s) — 53000 ms
+PASS  worst case including the assemble tail stays under 60 s (budget 40 s) — 55000 ms
+PASS  worst case including the assemble tail stays under 60 s (budget 50 s) — 55000 ms
+PASS  slow API history: loop returns partial, never throws — status=partial
+PASS  slow API history: loop returns within budget + small unwind — 2009 ms for a 2000 ms budget
+PASS  slow API history: cursor still at the unscanned commit — stage=history page=1 idx=0
+PASS  slow API history: partial carries the 202 shape (progress, no report) — partial=true
+PASS  API chunk with a past deadline returns at once, same position, never failed — 1 ms failed=false
+PASS  API chunk with a 100 ms deadline returns promptly, never failed — 100 ms failed=false
+PASS  slow git clone: loop returns partial, never throws — status=partial
+PASS  slow git clone: loop returns within budget + small unwind — 2013 ms for a 2000 ms budget (30 s stalled clone)
+PASS  slow git clone: cursor stays at the history stage — stage=history
+PASS  fast path: loop still finishes in one call — status=done
+PASS  fast path: report covers the 1 file + 1 commit — files=1 hist=1
+PASS  fast path: finishes well inside the budget — 740 ms
+PASS  assemble exemption: loop finishes in one call despite history ending after the 21 s floor — status=done elapsed=22147 ms
+PASS  assemble exemption: report covers the 1 file + 1 commit (no findings lost) — files=1 hist=1
+PASS  assemble exemption: still well under the 60 s ceiling — 22147 ms
+PASS  API route passes the tightened budget
+PASS  API route still answers 202 with cursor + running status
+PASS  API route still answers 200 with the full report when done
+PASS  MCP passes the tightened budget in both tools
+PASS  report page does not await runScanLoop (Worker A's fix)
+PASS  report page uses none of the tightened budget
+PASS  loop passes its deadline into each chunk
+PASS  loop refuses a new chunk under the start floor
+PASS  assemble stage is exempt from the start floor (Phase 16 fix)
+
+All Phase 16 Worker B tests passed.
+PASS test:phase16-worker-b
+=== test:resilience-phase15 ===
+
+> gitsecure@0.1.0 test:resilience-phase15
+> tsx scripts/test-resilience-phase15.ts
+
+PASS  page error state renders a Retry this scan button
+PASS  RetryScanButton is a client component that reloads the same scan
+PASS  RetryScanButton says 'Retry this scan'
+PASS  page error state still offers 'Scan another repo' alongside
+PASS  ReportView accepts a paused prop
+PASS  paused banner says history and dependency checks stopped here
+PASS  running banner still says 'still running' when not paused
+PASS  ScanProgress error state renders the provisional report paused
+PASS  ScanProgress running state renders the provisional report unpaused
+PASS  chunk-error copy distinguishes the rate-limit reason
+PASS  chunk-error copy distinguishes the network reason
+PASS  chunk-error copy keeps the generic reason for other failures
+PASS  a 429 fails fast instead of burning three retries
+PASS  chunk-error card shows files scanned so far
+PASS  chunk-error card shows history commits checked so far
+PASS  chunk-error card shows secrets found so far
+PASS  chunk-error card keeps 'Retry from where it left off'
+PASS  provisional report summary says 'So far: ', never 'Scan complete.' — So far: No leaked secrets were found in the files scanned. The full detail is in this report — no sign-in needed.
+PASS  provisional zero-secrets summary is capitalised — So far: No leaked secrets were found in the files scanned. The full detail is in this report — no sign-in needed.
+PASS  provisional report is still flagged provisional
+PASS  reset time parses from x-ratelimit-reset (epoch seconds)
+PASS  reset time parses from retry-after (seconds)
+PASS  earliest of retry-after / x-ratelimit-reset wins
+PASS  no reset headers → null (unknown, never invented)
+PASS  a reset time in the past → null (clock skew is not a countdown)
+PASS  garbage header values → null
+PASS  reset minutes round up (61 s → 2)
+PASS  reset minutes are at least 1
+PASS  reset minutes unknown → null
+PASS  reset phrase with a known time names the minutes
+PASS  reset phrase singular minute
+PASS  reset phrase without a known time is hourly, no countdown
+PASS  page rate-limit body names the wait when known — Too many requests went to GitHub at once, so this scan couldn't run right now. GitHub's request limit resets in about 12 minutes — try this scan again then.
+PASS  page rate-limit body falls back to hourly when unknown — Too many requests went to GitHub at once, so this scan couldn't run right now. GitHub's request limit resets within the hour — try this scan again then.
+PASS  chunk rate-limit body names the wait and the resume point — GitHub's request limit was hit, so the scan paused here. The limit resets in about 12 minutes — retry then, and the scan picks up from the last finished chunk.
+PASS  rate-limit copy never proposes a token (standing ruling)
+PASS  scan error copy uses the honest reset body for rate limits
+PASS  ScanProgress terminal errors use the shared error copy
+PASS  rate-limit error offers 'Try this scan again'
+PASS  other errors keep 'Retry this scan'
+PASS  ScanProgress terminal errors use the matching retry label
+PASS  RetryScanButton accepts a label prop
+PASS  chunk route passes the reset time through on errors
+PASS  scan API route passes the reset time through on errors
+PASS  scan.ts captures the reset time from GitHub's rate-limit response
+PASS  ScanProgress reads the reset time from a 429 body
+PASS  No literal secret-pattern values in this file
+
+All Phase 15 resilience tests passed.
+PASS test:resilience-phase15
+=== test:fixtures-phase14 ===
+
+> gitsecure@0.1.0 test:fixtures-phase14
+> tsx scripts/test-fixtures-phase14.ts
+
+PASS  generated fixtures: OSV reachable
+PASS  generated github.com/labstack/echo/v4 detects the same 28 advisories as the old committed fixture — got 28: same set
+PASS  generated vite detects the same 23 advisories as the old committed fixture — got 23: same set
+PASS  generated tokio detects the same 9 advisories as the old committed fixture — got 9: same set
+PASS  generated laravel/framework detects the same 7 advisories as the old committed fixture — got 7: same set
+PASS  generated org.springframework:spring-core detects the same 3 advisories as the old committed fixture — got 3: same set
+PASS  generated Flask detects the same 2 advisories as the old committed fixture — got 2: same set
+PASS  generated rails detects the same 1 advisories as the old committed fixture — got 1: same set
+PASS  generated fixtures: total is 73, the old committed-fixture total — got 73
+PASS  generated fixtures: total matches the expected ID sets — 73 vs 73
+PASS  generated vite.config.ts yields the same 3 posture items (host, plugins, public vars) — VITE_ variables are public by design; Vite dev server bound to 0.0.0.0; Vite plugins in use
+PASS  generated Tier 3 fixtures yield the same 9 infra posture items — Docker base image is not pinned to a version; Dockerfile downloads a file with ADD; Dockerfile runs as root; Kubernetes container image is not pinned to a version; Kubernetes container runs as root (UID 0); Kubernetes container runs privileged; Kubernetes pod uses the host network; Possible secret passed as a Docker build argument; Terraform provider random has no version constraint
+PASS  generated Tier 3 (relative keys): unpinned setup-node action finding also present
+PASS  generated .env still trips the env-file finding
+PASS  generated fixtures through buildPosture give exactly the 13 fixture-driven posture items — env-committed, infra-docker-base-image-is-not-pinned-to-a-version, infra-dockerfile-downloads-a-file-with-add, infra-dockerfile-runs-as-root, infra-kubernetes-container-image-is-not-pinned-to-a-version, infra-kubernetes-container-runs-as-root-uid-0-, infra-kubernetes-container-runs-privileged, infra-kubernetes-pod-uses-the-host-network, infra-possible-secret-passed-as-a-docker-build-argument, infra-terraform-provider-random-has-no-version-constraint, vite-vite-dev-server-bound-to-0-0-0-0, vite-vite-plugins-in-use, vite-vite-variables-are-public-by-design
+PASS  temp-dir fixture: go.mod on disk still pins Echo v4.11.1 — v4.11.1
+PASS  temp-dir fixture: app.csproj generated on disk (not committed)
+PASS  temp-dir fixture: Dockerfile generated on disk (not committed)
+PASS  temp-dir fixture: k8s manifest generated on disk (not committed)
+PASS  generated Tier 3: Docker node image 20-alpine still detected
+PASS  committed manifests: OSV reachable
+PASS  committed manifests: ZERO OSV advisories (was 73 before the migration)
+PASS  committed manifests: zero unpinned direct dependencies (was 2)
+PASS  committed tests/fixtures/fake-repo/package.json no longer contains vite 5.0.0
+PASS  committed tests/fixtures/fake-repo/requirements.txt no longer contains Flask 3.0.0
+PASS  committed tests/fixtures/fake-repo/Cargo.toml no longer contains tokio 1.0.0
+PASS  committed tests/fixtures/fake-repo-tier2/go.mod no longer contains Echo v4.11.1
+PASS  committed tests/fixtures/fake-repo-tier2/composer.lock no longer contains laravel v10.34.2
+PASS  committed tests/fixtures/fake-repo-tier2/Gemfile.lock no longer contains rails 7.1.3
+PASS  committed tests/fixtures/fake-repo-tier2/pom.xml no longer contains spring-core 6.1.2
+PASS  committed tests/fixtures/fake-repo-tier2/pom.xml no longer contains org.example:unresolvable
+PASS  committed tests/fixtures/fake-repo/.env no longer exists (generated at test time)
+PASS  committed tests/fixtures/fake-repo-tier2/app.csproj no longer exists (generated at test time)
+PASS  committed tests/fixtures/fake-repo-tier3/Dockerfile no longer exists (generated at test time)
+PASS  committed tests/fixtures/fake-repo-tier3/k8s/deployment.yaml no longer exists (generated at test time)
+PASS  committed tests/fixtures/fake-repo-tier3/main.tf no longer exists (generated at test time)
+PASS  committed vite.config.ts yields zero vite findings
+PASS  committed fixture maps: zero fixture-driven posture items left (was 13)
+PASS  committed fixture maps: no infra findings left
+PASS  scanner lib: no owner/repo literal comparison anywhere
+PASS  scanner lib: 'Squ1zM0' appears only in doc comments / tool examples
+PASS  scanner lib: no conditional keyed on the product/repo name
+
+All Phase 14 fixture checks passed.
+PASS test:fixtures-phase14
+=== test:phase17-worker-b ===
+
+> gitsecure@0.1.0 test:phase17-worker-b
+> tsx scripts/test-phase17-worker-b.ts
+
+PASS  detects anthropic-api-key
+PASS  detects google-api-key
+PASS  detects npm-token
+PASS  detects pypi-token
+PASS  detects sendgrid-api-key
+PASS  detects telegram-bot-token
+PASS  detects huggingface-token
+PASS  detects aws-secret-key
+PASS  detects gitlab-token
+PASS  aws secret key fires on both cases (lower + upper) — 2 found
+PASS  no duplicate detector fires on the new-secret block — gitlab-token,anthropic-api-key,google-api-key,npm-token,pypi-token,sendgrid-api-key,telegram-bot-token,huggingface-token,aws-secret-key,aws-secret-key
+PASS  short / boundary-less values fire nothing
+PASS  detects slack xoxe- token
+PASS  slack xoxb- token still detected
+PASS  redaction: full invented secret never appears (sk-ant-api…)
+PASS  redaction: full invented secret never appears (AIzaKKKKKK…)
+PASS  redaction: full invented secret never appears (npm_NNNNNN…)
+PASS  redaction: full invented secret never appears (pypi-PPPPP…)
+PASS  redaction: full invented secret never appears (SG.SSSSSSS…)
+PASS  redaction: full invented secret never appears (123456789:…)
+PASS  redaction: full invented secret never appears (hf_HHHHHHH…)
+PASS  redaction: full invented secret never appears (glpat-GGGG…)
+PASS  redaction: full invented secret never appears (AAAAAAAAAA…)
+PASS  every new fragment is redacted (< 12 chars)
+PASS  new detectors fire nothing on the committed clean fixtures — 0 hits
+PASS  triage: anthropic key in a prod path is likely-genuine-leak
+PASS  triage: same key under tests/ is likely-test-key
+PASS  triage: test-key finding referenced from prod code upgrades to likely-genuine-leak
+PASS  usage: anthropic key referenced from src/app.ts is found — {"referencedBy":[{"file":"src/app.ts","line":2}],"referencedByTotal":1,"referencedByTests":[],"referencedByTestsTotal":0,"deadEnd":false}
+PASS  usage: unreferenced google key is a dead end
+PASS  pyproject: django ==5.2.17 pinned (PEP 621)
+PASS  pyproject: flask range yields null, never a guessed version
+PASS  pyproject: bare requests yields null
+PASS  pyproject: optional pytest ==8.0.0 parsed
+PASS  pyproject: poetry celery {version} parsed
+PASS  pyproject: poetry django ^5.0 kept as a range string
+PASS  pyproject: python interpreter entry is skipped
+PASS  pyproject: project name/version strings are not deps — django,flask,requests,pytest,django,celery
+PASS  pyproject: all deps are pypi
+PASS  pyproject: Django fingerprinted at 5.2.17 (pinned wins over range) — 5.2.17
+PASS  poetry.lock: django 5.2.17 pinned, not direct
+PASS  poetry.lock: flask 3.0.0 pinned
+PASS  pyproject with no deps parses to []
+PASS  cargo: dev-dependency tokio parsed
+PASS  cargo: build-dependency cc parsed
+PASS  cargo: workspace dependency foo parsed
+PASS  cargo: plain [dependencies] still parsed
+PASS  pubspec: http ^1.2.0 direct, ecosystem pub
+PASS  pubspec: provider 6.1.0 parsed
+PASS  pubspec: dev lints parsed as not direct
+PASS  pubspec: flutter sdk entry is skipped (not a package)
+PASS  pubspec.lock: http 1.2.0 pinned, not direct
+PASS  pubspec.lock: provider 6.1.0 pinned
+PASS  pubspec: Flutter fingerprinted, version null, not unpinned — {"name":"Flutter","ecosystem":"dart","version":null,"versionSource":"unknown","unpinned":false,"sourceFile":"pubspec.yaml"}
+PASS  framework map: Fastify fingerprinted
+PASS  framework map: Koa fingerprinted
+PASS  framework map: Hono fingerprinted
+PASS  framework map: SvelteKit fingerprinted
+PASS  posture: curl piped to shell flagged (high)
+PASS  posture: wget piped to sh flagged
+PASS  posture: clean workflow raises nothing at all
+PASS  posture: Dockerfile ENV secret flagged (high)
+PASS  posture: ENV secret flagged even when not the first var
+PASS  posture: plain ENV NODE_ENV stays quiet
+PASS  posture: k8s hostIPC flagged
+PASS  posture: k8s allowPrivilegeEscalation flagged
+PASS  posture: clean k8s manifest stays quiet
+PASS  posture: compose privileged flagged
+PASS  posture: compose host network flagged
+PASS  posture: clean compose stays quiet
+
+All Phase 17 Worker B tests passed.
+PASS test:phase17-worker-b
+=== test:phase17-worker-c ===
+
+> gitsecure@0.1.0 test:phase17-worker-c
+> tsx scripts/test-phase17-worker-c.ts
+
+PASS  activation: no env vars → NoopStore
+PASS  activation: URL without token → NoopStore
+PASS  activation: token without URL → NoopStore
+PASS  activation: KV pair → UpstashRestStore
+PASS  activation: Upstash pair → UpstashRestStore
+PASS  activation: Upstash pair wins over KV pair
+PASS  NoopStore: load is null
+PASS  NoopStore: save/del resolve without throwing
+PASS  validation: well-formed state passes
+PASS  validation: wrong version → null
+PASS  validation: bad headSha → null
+PASS  validation: negative histScanned → null
+PASS  validation: non-integer histScanned → null
+PASS  validation: findings not an array → null
+PASS  validation: non-object → null
+PASS  validation: malformed finding entries are dropped, good ones kept
+PASS  validation: oversized array → null
+PASS  validation: oversized value → null
+PASS  MemoryStore: load missing → null
+PASS  MemoryStore: round-trip
+PASS  MemoryStore: newer write replaces
+PASS  MemoryStore: monotonic guard — stale write (5) cannot clobber newer (10)
+PASS  MemoryStore: delete at assemble leaves nothing
+PASS  MemoryStore: state present before TTL
+PASS  MemoryStore: TTL expiry → load null
+PASS  Upstash: load missing → null
+PASS  Upstash: round-trip over real fetch
+PASS  Upstash: monotonic guard — stale write (5) cannot clobber newer (10)
+PASS  Upstash: corrupt stored value → load null, never a crash
+PASS  Upstash: wrong-version stored value → load null
+PASS  Upstash: delete at assemble leaves nothing
+PASS  Upstash: oversized save throws (caller degrades, never stores it)
+PASS  Upstash: oversized save stored nothing
+PASS  Upstash: non-2xx load throws (caller degrades)
+PASS  Upstash: non-2xx save throws (caller degrades)
+PASS  Upstash: hanging store times out instead of hanging the scan — 104ms
+PASS  round-trip: inv1 returns findings A+B
+PASS  round-trip: report has 3/3 secrets (was 1/3) — 3 secrets
+PASS  round-trip: score 23/F, as the caller-carried Path A — 23/F
+PASS  round-trip: no honest-limits line (findings recovered)
+PASS  round-trip: delete at assemble leaves nothing in the store
+PASS  noop single-invocation: 3/3 secrets
+PASS  noop single-invocation: no honest-limits line
+PASS  noop multi-invocation: report has 1/3 secrets (today's loss) — 1 secrets
+PASS  noop multi-invocation: score 73/C (today's inflation) — 73/C
+PASS  noop multi-invocation: honest limits line present, exact wording — Scanned all 3 files in the tree (binary, dist, node_modules and .next skipped — generated/vendored paths, not source files). | History checked: 5 commits, newest first (GitHub API — no git binary in this runtime). | Public repos only. No secret is ever stored, logged, or shown in full. | History findings from earlier parts of this scan could not be recovered, so this report may be missing secrets from the first 3 commits checked — the history count above is how far the scan walked, not how many findings survived.
+PASS  noop multi-invocation: line names the walked count
+PASS  failing store: scan completes (no throw, no 500)
+PASS  failing store: honest limits line present
+PASS  fallback (opts.historyFindings): report has 3/3 secrets
+PASS  fallback (opts.historyFindings): no honest-limits line (caller carried them)
+PASS  head-mismatch: stored state under another HEAD is ignored (1/3)
+PASS  head-mismatch: honest limits line present
+PASS  head-mismatch: the mismatched finding never enters the report
+PASS  ttl expiry: expired state → 1/3 secrets
+PASS  ttl expiry: honest limits line present
+PASS  advanceScan untouched: caller-carried Path A still 3/3
+PASS  mcp tools/list: resume_scan exists
+PASS  mcp tools/list: resume_scan takes a cursor
+PASS  mcp tools/list: resume_scan takes optional historyFindings
+PASS  mcp tools/list: resume_scan description mentions passing findings back
+PASS  mcp echo: still-running text carries the cursor
+PASS  mcp echo: still-running text echoes both findings
+PASS  mcp echo: text tells the model to pass them back verbatim as historyFindings
+PASS  mcp echo: no findings → no accumulation block
+PASS  mcp resume_scan with historyFindings: 3/3 secrets — 3 secrets
+PASS  mcp resume_scan with historyFindings: 23/F, no honest line
+PASS  mcp resume_scan without historyFindings: 1/3 + honest line (control)
+PASS  mcp resume_scan with a bogus cursor is still a plain-English error
+PASS  get param: null → []
+PASS  get param: valid base64url JSON round-trips
+PASS  get param: malformed base64 → []
+PASS  get param: valid base64, non-JSON → []
+PASS  get param: valid JSON, non-array → []
+PASS  get param: malformed entries dropped, good ones kept
+PASS  get param: oversized decoded JSON (>8 KB) → [] (URL-length limit, documented in the route) — 19341 bytes decoded
+PASS  get param: byte cap is 8192
+PASS  redaction: full invented secret never appears in any report output (https://discord.co…)
+PASS  redaction: full invented secret never appears in any report output (https://discord.co…)
+PASS  redaction: full invented secret never appears in any report output (https://discord.co…)
+PASS  redaction: every stored/echoed fragment is redacted (< 12 chars)
+
+All 81 Phase 17 Worker C checks passed.
+PASS test:phase17-worker-c
+=== test:zero-rest ===
+
+> gitsecure@0.1.0 test:zero-rest
+> tsx scripts/test-zero-rest.ts
+
+PASS  bounded http: pack past the byte bound throws PackTooLargeError — history pack download passed 1000 bytes (1200 bytes read) — too large to clone inside a serverless function
+PASS  bounded http: error carries the byte count read — 1200 bytes
+PASS  bounded http: the underlying request was aborted — aborted=true
+PASS  bounded http: non-pack request is not bounded — 2 chunks
+PASS  resolveRemoteHead times out on a silent server (reason timeout) — timeout
+PASS  fixture resolveRemoteHead succeeds over the git protocol
+PASS  fixture resolveRemoteHead reports the default branch — main
+PASS  fixture resolveRemoteHead reports the HEAD sha — 4676e4021f960bfa2fdc21d4ee7f6ff2d24fe949
+PASS  fixture git history succeeds
+PASS  fixture git history made zero REST calls — 0 REST calls
+PASS  fixture: no api.github.com fetch during the git-protocol legs — 0 calls
+PASS  live resolveRemoteHead succeeds over the git protocol
+PASS  live resolveRemoteHead reports the default branch (main) — main
+PASS  live resolveRemoteHead reports a 40-hex HEAD sha — fd35814ad7d9553723bdb21e82b4e714f200e0d5
+PASS  live resolveRemoteHead reports a missing repo as not-found — not-found
+PASS  live resolveRemoteHead: no api.github.com fetch so far — 0 calls
+live scan: 12831ms, score 83/B, files 2802, history commits 62
+fetch calls by host during the scan: codeload.github.com=1, api.osv.dev=5
+PASS  live full scan made ZERO api.github.com requests — 0 calls
+PASS  live full scan still scores 83/B — 83/B
+PASS  live full scan reports the default branch (main) — main
+PASS  live full scan pinned a 40-hex HEAD sha — fd35814ad7d9553723bdb21e82b4e714f200e0d5
+PASS  live full scan HEAD sha matches resolveRemoteHead — fd35814ad7d9553723bdb21e82b4e714f200e0d5 vs fd35814ad7d9553723bdb21e82b4e714f200e0d5
+PASS  live full scan covered the whole file list — 2802 files
+PASS  live full scan history ran over the git protocol — Scanned all 2802 files in the tree (binary, dist, node_modules and .next skipped — generated/vendored paths, not source files). | History checked: 62 commits, newest first (git protocol — no git binary, no REST quota). | Public repos only. No secret is ever stored, logged, or shown in full.
+PASS  live full scan history covered commits — 62 commits
+PASS  live full scan: no api.github.com fetch in total — 0 calls
+tree cross-check (test-side call, not counted as a scan call): 2802 scannable files in the tree, filesScanned=2802
+PASS  tree cross-check: tarball-derived file list matches the tree count — scanned=2802 tree=2802
+
+Zero-REST proof passed: full happy-path scan, 0 api.github.com requests.
+PASS test:zero-rest
+=== tsc --noEmit ===
+PASS tsc
+SUITE_OVERALL_EXIT=0

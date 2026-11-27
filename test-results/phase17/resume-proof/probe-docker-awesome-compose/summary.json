@@ -1,0 +1,7 @@
+{
+  "startedAt": "2026-11-26T23:10:35.853Z",
+  "repo": "docker/awesome-compose",
+  "base": "http://localhost:3100",
+  "mode": "chunk",
+  "error": "The operation was aborted due to timeout"
+}

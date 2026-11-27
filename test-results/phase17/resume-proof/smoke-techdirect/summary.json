@@ -1,0 +1,66 @@
+{
+  "startedAt": "2026-11-26T23:45:53.136Z",
+  "finishedAt": "2026-11-26T23:45:53.164Z",
+  "repo": "Squ1zM0/TechDirect",
+  "base": "http://localhost:3100",
+  "mode": "diff",
+  "chunkPath": {
+    "calls": 3,
+    "historyChunks": 1,
+    "wallMs": 15728,
+    "wallSeconds": 15.7,
+    "accumulatedFindings": 0,
+    "finalReportSecrets": 0,
+    "headSha": "fd35814ad7d9553723bdb21e82b4e714f200e0d5",
+    "probeOnly": false,
+    "loadedFromDisk": true
+  },
+  "getPath": {
+    "calls": 1,
+    "wallMs": 3284,
+    "wallSeconds": 3.3,
+    "finalReportSecrets": 0,
+    "headSha": "fd35814ad7d9553723bdb21e82b4e714f200e0d5",
+    "loadedFromDisk": true
+  },
+  "diff": {
+    "repo": "Squ1zM0/TechDirect",
+    "chunkReport": {
+      "secrets": 0,
+      "historySecrets": 0,
+      "headSecrets": 0,
+      "score": 83,
+      "grade": "B",
+      "historyCommitsScanned": 62,
+      "filesScanned": 2802,
+      "commit": "fd35814ad7d9553723bdb21e82b4e714f200e0d5"
+    },
+    "getReport": {
+      "secrets": 0,
+      "historySecrets": 0,
+      "headSecrets": 0,
+      "score": 83,
+      "grade": "B",
+      "historyCommitsScanned": 62,
+      "filesScanned": 2802,
+      "commit": "fd35814ad7d9553723bdb21e82b4e714f200e0d5"
+    },
+    "headShaMatch": true,
+    "historyDepthMatch": true,
+    "historyDepthNote": "both reports scanned the same number of history commits",
+    "identityDiff": {
+      "lostCount": 0,
+      "gainedCount": 0,
+      "lost": [],
+      "gained": []
+    },
+    "commitQualifiedDiff": {
+      "lostCount": 0,
+      "gainedCount": 0,
+      "lost": [],
+      "gained": []
+    }
+  },
+  "exitCode": 0,
+  "verdict": "MATCH — the two finding sets are identical (hole closed, or vacuous: see evidence.md for whether the repo had any history findings to lose)"
+}

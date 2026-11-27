@@ -31,6 +31,13 @@ import { decodeCursor, encodeCursor, initialHistoryCursor, type ScanCursorData }
 import { emptyProgress, type ScanProgress } from "./progress";
 import { scanHistoryApiChunk, scanHistoryViaGit, rateLimitNote } from "./history";
 import {
+  getScanStateStore,
+  scanStateKey,
+  SCAN_STATE_TTL_SECONDS,
+  type ScanStateStore,
+  type StoredScanState,
+} from "./scan-state";
+import {
   assembleReport,
   dedupeSecrets,
   fetchHeadSha,
@@ -485,6 +492,25 @@ export interface LoopResult {
   note?: string | null;
 }
 
+/** Phase 17 — the honest limits line. Fires on a finished report
+ *  when a scan resumed from a cursor that had already walked
+ *  `commits` history commits, but the findings from those commits
+ *  could not be recovered — no store provisioned, stored state
+ *  expired or corrupt, or a store operation failed — and the caller
+ *  passed no historyFindings of its own. The history count in the
+ *  report is how far the scan walked, not how many findings
+ *  survived; this line says so instead of letting the report
+ *  silently claim a clean history. Worded as a possibility ("may
+ *  be missing"): when the walked commits held no secrets, nothing
+ *  was lost — the line only records that the scan cannot prove it.
+ *  This is the ONLY copy change Phase 17 Part 1 makes: the public
+ *  "never stored" promise (mcp.ts, README, page.tsx, layout.tsx)
+ *  stays untouched until the store is actually provisioned (see
+ *  test-results/phase17/copy-after-provisioning.md). */
+export function historyFindingsMissingLine(commits: number): string {
+  return `History findings from earlier parts of this scan could not be recovered, so this report may be missing secrets from the first ${commits} commit${commits === 1 ? "" : "s"} checked — the history count above is how far the scan walked, not how many findings survived.`;
+}
+
 /** Drive chunks until the scan finishes or the wall-clock budget runs
  *  out. Returns the finished report, or the cursor + partial results
  *  so far (the caller resumes with advanceScan). `cursor` resumes an
@@ -523,6 +549,12 @@ export async function runScanLoop(
     apiBase?: string;
     cloneUrlOverride?: string;
     onProgress?: (p: ScanProgress) => void;
+    /** Phase 17: the short-lived scan-state store (see
+     *  scan-state.ts). Defaults to getScanStateStore() — NoopStore
+     *  when no store env vars are set. Test-only override, like
+     *  apiBase / cloneUrlOverride. advanceScan is NOT wired: the
+     *  POST-chunk caller already carries its own accumulation. */
+    store?: ScanStateStore;
   } = {},
 ): Promise<LoopResult> {
   validateOwnerRepo(owner, repo);
@@ -537,6 +569,60 @@ export async function runScanLoop(
   let head: HeadPartial | null = opts.head ?? null;
   let historyFindings: SecretFinding[] = [...(opts.historyFindings ?? [])];
   let lastPartial: Extract<AdvanceResult, { status: "partial" }> | null = null;
+  // --- Phase 17: short-lived scan state (see scan-state.ts). ---
+  // The store is touched at invocation boundaries only: one load
+  // at entry (when resuming a scan that already walked history),
+  // one save per partial return, one delete at assemble. A store
+  // failure never fails the scan — it is caught, recorded, and the
+  // loop continues with in-process accumulation; the finished
+  // report then carries the honest limits line (below).
+  const store = opts.store ?? getScanStateStore();
+  let stateHeadSha: string | null = null;
+  let findingsMayBeMissing = false;
+  let missingCommits = 0;
+  const markMissing = (commits: number) => {
+    findingsMayBeMissing = true;
+    missingCommits = Math.max(missingCommits, commits);
+  };
+  const saveState = async (histScanned: number, findings: SecretFinding[]): Promise<void> => {
+    if (!stateHeadSha || histScanned <= 0) return;
+    const state: StoredScanState = { v: 1, headSha: stateHeadSha, histScanned, historyFindings: findings };
+    try {
+      await store.save(scanStateKey(owner, repo, stateHeadSha), state, SCAN_STATE_TTL_SECONDS);
+    } catch {
+      // Store write failed: the next invocation cannot recover
+      // these findings. The scan continues; the finished report
+      // says so (markMissing), instead of silently dropping them.
+      markMissing(histScanned);
+    }
+  };
+  if (cursor) {
+    const entryCursor = decodeCursor(cursor, owner, repo);
+    stateHeadSha = entryCursor.headSha;
+    if (entryCursor.histScanned > 0) {
+      let stored: StoredScanState | null = null;
+      try {
+        stored = await store.load(scanStateKey(owner, repo, entryCursor.headSha));
+      } catch {
+        stored = null;
+      }
+      if (stored && stored.headSha === entryCursor.headSha) {
+        // Recovered: seed the in-process accumulation with the
+        // stored findings, deduped against anything the caller
+        // passed (caller-carried fallback). A stored count ahead of
+        // the cursor means a newer invocation already wrote — take
+        // the stored array; a stored count behind means stale — the
+        // walk re-finds those findings and dedupes them.
+        historyFindings = dedupeSecrets([...stored.historyFindings, ...historyFindings]);
+      } else if (historyFindings.length === 0) {
+        // Nothing to recover from (store unconfigured, state
+        // expired/corrupt, head mismatch, or the load failed) and
+        // the caller carried nothing either: findings from the
+        // first entryCursor.histScanned commits may be gone.
+        markMissing(entryCursor.histScanned);
+      }
+    }
+  }
   for (;;) {
     // A chunk started with almost no budget left would still pay its
     // uncapped prefix (clone + log parse) past the deadline. With a
@@ -558,6 +644,11 @@ export async function runScanLoop(
       }
     }
     if (lastPartial !== null && nextStage !== "assemble" && Date.now() >= deadline - startFloorMs) {
+      // Phase 17: invocation boundary — persist the merged
+      // accumulation before answering 202 (one write per
+      // invocation, not per chunk). Best-effort; a failure is
+      // recorded, never thrown.
+      await saveState(lastPartial.partial.historyScanned, historyFindings);
       return {
         status: "partial",
         cursor: cursor ?? lastPartial.cursor,
@@ -577,15 +668,36 @@ export async function runScanLoop(
       onProgress: opts.onProgress,
     });
     if (result.status === "done") {
+      // Phase 17: the scan finished — delete its state (primary
+      // cleanup: a finished scan leaves nothing in the store; a
+      // failed delete is harmless, the TTL cleans it in 7 days).
+      // Then, if earlier findings could not be recovered, say so
+      // on the finished report instead of silently misreporting.
+      if (stateHeadSha) {
+        try {
+          await store.del(scanStateKey(owner, repo, stateHeadSha));
+        } catch {
+          // Harmless: the 7-day TTL is the backstop.
+        }
+      }
+      if (findingsMayBeMissing) {
+        result.report.limits.push(historyFindingsMissingLine(missingCommits));
+      }
       return { status: "done", report: result.report };
     }
     lastPartial = result;
     cursor = result.cursor;
     if (result.partial.head) head = result.partial.head;
+    if (result.partial.headSha) stateHeadSha = result.partial.headSha;
     if (result.chunkFindings.length > 0) {
       historyFindings = dedupeSecrets([...historyFindings, ...result.chunkFindings]);
     }
     if (Date.now() >= deadline) {
+      // Phase 17: invocation boundary — persist the merged
+      // accumulation before answering 202 (one write per
+      // invocation, not per chunk). Best-effort; a failure is
+      // recorded, never thrown.
+      await saveState(result.partial.historyScanned, historyFindings);
       return {
         status: "partial",
         cursor,

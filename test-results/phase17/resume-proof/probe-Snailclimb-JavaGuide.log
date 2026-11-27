@@ -1,0 +1,9 @@
+resume-proof harness — repo Snailclimb/JavaGuide — base http://localhost:3100 — mode chunk
+out: test-results/phase17/resume-proof/probe-Snailclimb-JavaGuide
+Path A (chunk accumulation: POST /api/scan/start + POST /api/scan/chunk) …
+  [chunk #1] POST /api/scan/start http=200 5332ms stage=history scanned=0 chunkFindings=0 cumulative=0
+  [chunk #2] POST /api/scan/chunk http=200 13528ms stage=history scanned=10 chunkFindings=0 cumulative=0
+  [chunk #3] POST /api/scan/chunk http=200 3089ms stage=history scanned=20 chunkFindings=0 cumulative=0
+  probe cap reached (2 history chunks); stopping without a final report
+Path A done: 3 calls, 2 history chunks, 21.9s wall, 0 accumulated history+HEAD-dedupe findings in hand (probe only, no final report)
+VERDICT: MATCH — the two finding sets are identical (hole closed, or vacuous: see evidence.md for whether the repo had any history findings to lose) (exit 0)

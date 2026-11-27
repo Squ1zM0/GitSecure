@@ -19,9 +19,41 @@
 // See API_FAST_PATH_WAIT_MS in src/lib/chunks.ts for the arithmetic.)
 import { NextResponse } from "next/server";
 import { API_FAST_PATH_WAIT_MS, runScanLoop } from "@/lib/chunks";
+import { filterHistoryFindings } from "@/lib/scan-state";
 import { ScanError } from "@/lib/scan";
+import type { SecretFinding } from "@/lib/types";
 
 export const maxDuration = 60;
+
+/** Phase 17 caller-carried fallback: optional ?historyFindings=
+ *  (base64url JSON array of secret findings, same encoding family
+ *  as the cursor). Validated with the assemble-stage shape filter;
+ *  anything malformed, oversized, or absent is ignored, and the
+ *  scan runs with in-process accumulation only — the finished
+ *  report then carries the honest limits line when earlier
+ *  findings could not be recovered (see chunks.ts).
+ *
+ *  URL-length limit, stated honestly: a URL carries only a few KB
+ *  in practice (browsers ~2–8 KB, proxies/CDNs often less), so
+ *  only a handful of findings can ride here — the decoded JSON is
+ *  capped at 8 KB (~8 findings at ~1 KB each). A large set
+ *  (DefinitelyTyped-scale is ~400 KB) can never ride in a query
+ *  string. This fallback does NOT replace the server store (see
+ *  scan-state.ts); it only narrows the hole for small resumes. A
+ *  bare curl …?cursor= resume still carries nothing. */
+export const MAX_GET_HISTORY_FINDINGS_BYTES = 8192;
+export function parseHistoryFindingsParam(value: string | null): SecretFinding[] {
+  if (!value || value.length > MAX_GET_HISTORY_FINDINGS_BYTES * 2) return [];
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(Buffer.from(value, "base64url").toString("utf8")) as unknown;
+  } catch {
+    return [];
+  }
+  const findings = filterHistoryFindings(parsed);
+  if (Buffer.byteLength(JSON.stringify(findings), "utf8") > MAX_GET_HISTORY_FINDINGS_BYTES) return [];
+  return findings;
+}
 
 export async function GET(
   req: Request,
@@ -30,10 +62,12 @@ export async function GET(
   const { owner, repo } = await ctx.params;
   const url = new URL(req.url);
   const cursor = url.searchParams.get("cursor");
+  const historyFindings = parseHistoryFindingsParam(url.searchParams.get("historyFindings"));
   try {
     const result = await runScanLoop(owner, repo, {
       cursor: cursor || null,
       budgetMs: API_FAST_PATH_WAIT_MS,
+      historyFindings,
     });
     if (result.status === "done" && result.report) {
       return NextResponse.json(result.report);

@@ -1,0 +1,22 @@
+{
+  "startedAt": "2026-11-26T23:17:15.453Z",
+  "finishedAt": "2026-11-26T23:20:05.784Z",
+  "repo": "docker/awesome-compose",
+  "base": "http://localhost:3100",
+  "mode": "chunk",
+  "chunkPath": {
+    "calls": 3,
+    "historyChunks": 1,
+    "wallMs": 170318,
+    "wallSeconds": 170.3,
+    "accumulatedFindings": 10,
+    "finalReportSecrets": 24,
+    "headSha": "503c0dcef31b07fb77b2d4c5556bfafdf86f4f1a",
+    "probeOnly": true,
+    "loadedFromDisk": false
+  },
+  "getPath": null,
+  "diff": null,
+  "exitCode": 0,
+  "verdict": "MATCH — the two finding sets are identical (hole closed, or vacuous: see evidence.md for whether the repo had any history findings to lose)"
+}

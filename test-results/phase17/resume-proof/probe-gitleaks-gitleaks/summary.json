@@ -1,0 +1,22 @@
+{
+  "startedAt": "2026-11-26T22:51:48.818Z",
+  "finishedAt": "2026-11-26T22:53:31.159Z",
+  "repo": "gitleaks/gitleaks",
+  "base": "http://localhost:3100",
+  "mode": "chunk",
+  "chunkPath": {
+    "calls": 3,
+    "historyChunks": 2,
+    "wallMs": 102301,
+    "wallSeconds": 102.3,
+    "accumulatedFindings": 0,
+    "finalReportSecrets": null,
+    "headSha": "5f6ec56cfa6f8c67648d863582c7ae2f206d5c1c",
+    "probeOnly": true,
+    "loadedFromDisk": false
+  },
+  "getPath": null,
+  "diff": null,
+  "exitCode": 0,
+  "verdict": "MATCH — the two finding sets are identical (hole closed, or vacuous: see evidence.md for whether the repo had any history findings to lose)"
+}

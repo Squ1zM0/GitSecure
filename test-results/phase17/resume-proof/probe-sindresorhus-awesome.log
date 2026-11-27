@@ -1,0 +1,9 @@
+resume-proof harness — repo sindresorhus/awesome — base http://localhost:3100 — mode chunk
+out: test-results/phase17/resume-proof/probe-sindresorhus-awesome
+Path A (chunk accumulation: POST /api/scan/start + POST /api/scan/chunk) …
+  [chunk #1] POST /api/scan/start http=200 1440ms stage=history scanned=0 chunkFindings=0 cumulative=0
+  [chunk #2] POST /api/scan/chunk http=200 8212ms stage=history scanned=200 chunkFindings=0 cumulative=0
+  [chunk #3] POST /api/scan/chunk http=200 6166ms stage=history scanned=400 chunkFindings=0 cumulative=0
+  probe cap reached (2 history chunks); stopping without a final report
+Path A done: 3 calls, 2 history chunks, 15.8s wall, 0 accumulated history+HEAD-dedupe findings in hand (probe only, no final report)
+VERDICT: MATCH — the two finding sets are identical (hole closed, or vacuous: see evidence.md for whether the repo had any history findings to lose) (exit 0)

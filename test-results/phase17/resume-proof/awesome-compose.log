@@ -1,0 +1,14 @@
+resume-proof harness — repo docker/awesome-compose — base http://localhost:3100 — mode both
+out: test-results/phase17/resume-proof/awesome-compose
+Path A (chunk accumulation: POST /api/scan/start + POST /api/scan/chunk) …
+  [chunk #1] POST /api/scan/start http=200 5034ms stage=history scanned=0 chunkFindings=0 cumulative=0
+  [chunk #2] POST /api/scan/chunk http=200 146842ms stage=assemble scanned=64 chunkFindings=10 cumulative=10
+  [chunk #3] POST /api/scan/chunk (assemble) http=200 20469ms stage=done scanned=64 chunkFindings=0 cumulative=10
+Path A done: 3 calls, 1 history chunks, 172.4s wall, 10 accumulated history+HEAD-dedupe findings in hand (final report secrets: 24)
+Path B (GET resume: GET /api/scan/[owner]/[repo], fresh each call) …
+  [get #1] GET /api/scan/... http=202 184727ms status=running scanned=64 cursorStage=assemble bodyHasHistoryFindings=false
+  [get #2] GET /api/scan/... http=200 17546ms status=done scanned=64 cursorStage=done bodyHasHistoryFindings=false
+Path B done: 2 calls, 202.3s wall, final report secrets: 14
+DIFF: chunk=24 secrets (10 history) vs get=14 secrets (0 history)
+DIFF: lost on GET path (identity): 4; gained on GET path: 0; commit-qualified lost: 10
+VERDICT: DIFFER — the GET resume path lost findings the chunk path kept (hole demonstrated) (exit 1)

@@ -1,0 +1,5 @@
+resume-proof harness — repo axios/axios — base http://localhost:3100 — mode chunk
+out: test-results/phase17/resume-proof/probe-axios-axios
+Path A (chunk accumulation: POST /api/scan/start + POST /api/scan/chunk) …
+  [chunk #1] POST /api/scan/start http=200 3288ms stage=history scanned=0 chunkFindings=0 cumulative=0
+  [chunk #2] POST /api/scan/chunk http=200 46270ms stage=history scanned=16 chunkFindings=0 cumulative=0

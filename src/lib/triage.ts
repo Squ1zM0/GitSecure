@@ -184,8 +184,10 @@ export function isProductionPath(path: string): boolean {
  *  `generic-high-entropy-secret` (a low-confidence guess) are not
  *  in the set. */
 const CREDENTIAL_TYPES = new Set([
-  "aws-access-key",
-  "github-token", "slack-token", "openai-api-key", "stripe-secret-key", "jwt-token",
+  "aws-access-key", "aws-secret-key",
+  "github-token", "gitlab-token", "slack-token", "openai-api-key", "anthropic-api-key",
+  "google-api-key", "npm-token", "pypi-token", "sendgrid-api-key",
+  "telegram-bot-token", "huggingface-token", "stripe-secret-key", "jwt-token",
   "discord-webhook", "slack-webhook",
   "database-url", "hardcoded-password", "private-key",
 ]);

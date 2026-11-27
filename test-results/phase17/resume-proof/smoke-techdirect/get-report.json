@@ -1,0 +1,126 @@
+{
+  "kind": "full",
+  "repo": "TechDirect",
+  "owner": "Squ1zM0",
+  "branch": "main",
+  "commit": "fd35814ad7d9553723bdb21e82b4e714f200e0d5",
+  "score": 83,
+  "grade": "B",
+  "scoreDetail": {
+    "score": 83,
+    "grade": "B",
+    "secretsDeduction": 0,
+    "secretsFullWeight": 0,
+    "secretsHalfWeight": 0,
+    "secretsExcluded": 0,
+    "wouldBeScore": 83,
+    "vulnDeduction": 8,
+    "postureDeduction": 9,
+    "unpinnedDeduction": 0
+  },
+  "counts": {
+    "secrets": 0,
+    "testKeySecrets": 0,
+    "vulnerabilities": 4,
+    "frameworks": 0,
+    "dependencies": 2,
+    "postureIssues": 3,
+    "filesScanned": 2802,
+    "historyCommitsScanned": 62
+  },
+  "summary": "Scan complete. No leaked secrets were found in the files scanned; 4 known vulnerabilities in dependencies; 3 security hygiene issues to fix. The full detail is in this report — no sign-in needed.",
+  "scannedAt": "2026-11-26T22:43:36.834Z",
+  "historyDepth": "Full history, newest first.",
+  "limits": [
+    "Scanned all 2802 files in the tree (binary, dist, node_modules and .next skipped — generated/vendored paths, not source files).",
+    "History checked: 62 commits, newest first (git protocol — no git binary, no REST quota).",
+    "Public repos only. No secret is ever stored, logged, or shown in full."
+  ],
+  "secrets": [],
+  "frameworks": [],
+  "dependencies": [
+    {
+      "name": "argparse",
+      "ecosystem": "npm",
+      "version": "2.0.1",
+      "direct": false,
+      "sourceFile": "tech-support-directory/package-lock.json"
+    },
+    {
+      "name": "js-yaml",
+      "ecosystem": "npm",
+      "version": "4.1.1",
+      "direct": false,
+      "sourceFile": "tech-support-directory/package-lock.json"
+    }
+  ],
+  "vulnerabilities": [
+    {
+      "id": "GHSA-2883-xcg3-v3hh",
+      "packageName": "js-yaml",
+      "ecosystem": "npm",
+      "installedVersion": "4.1.1",
+      "fixedVersion": "4.3.2",
+      "severity": "low",
+      "summary": "js-yaml: maxTotalMergeKeys does not limit CPU use for empty merge sources",
+      "plainEnglish": "js-yaml: maxTotalMergeKeys does not limit CPU use for empty merge sources. This affects js-yaml 4.1.1. Upgrade to 4.3.2 or later to fix it.",
+      "upgrade": "Upgrade js-yaml to 4.3.2 or later."
+    },
+    {
+      "id": "GHSA-52cp-r559-cp3m",
+      "packageName": "js-yaml",
+      "ecosystem": "npm",
+      "installedVersion": "4.1.1",
+      "fixedVersion": "3.15.0",
+      "severity": "low",
+      "summary": "js-yaml: YAML merge-key chains can force quadratic CPU consumption",
+      "plainEnglish": "js-yaml: YAML merge-key chains can force quadratic CPU consumption. This affects js-yaml 4.1.1. Upgrade to 3.15.0 or later to fix it.",
+      "upgrade": "Upgrade js-yaml to 3.15.0 or later."
+    },
+    {
+      "id": "GHSA-5p4m-2wfm-xmqj",
+      "packageName": "js-yaml",
+      "ecosystem": "npm",
+      "installedVersion": "4.1.1",
+      "fixedVersion": "4.3.1",
+      "severity": "low",
+      "summary": "JS-YAML: Quadratic CPU consumption in !!omap resolution (3.x and 4.x) — CVE-2026-59870 fix not backported",
+      "plainEnglish": "JS-YAML: Quadratic CPU consumption in !!omap resolution (3.x and 4.x) — CVE-2026-59870 fix not backported. This affects js-yaml 4.1.1. Upgrade to 4.3.1 or later to fix it.",
+      "upgrade": "Upgrade js-yaml to 4.3.1 or later."
+    },
+    {
+      "id": "GHSA-h67p-54hq-rp68",
+      "packageName": "js-yaml",
+      "ecosystem": "npm",
+      "installedVersion": "4.1.1",
+      "fixedVersion": "4.2.0",
+      "severity": "low",
+      "summary": "JS-YAML: Quadratic-complexity DoS in merge key handling via repeated aliases",
+      "plainEnglish": "JS-YAML: Quadratic-complexity DoS in merge key handling via repeated aliases. This affects js-yaml 4.1.1. Upgrade to 4.2.0 or later to fix it.",
+      "upgrade": "Upgrade js-yaml to 4.2.0 or later."
+    }
+  ],
+  "posture": [
+    {
+      "id": "no-security-md",
+      "title": "No SECURITY.md",
+      "severity": "low",
+      "detail": "There is no SECURITY.md telling people how to report a vulnerability.",
+      "fix": "Add a SECURITY.md with a contact address and a response timeframe."
+    },
+    {
+      "id": "no-dependabot",
+      "title": "No Dependabot config",
+      "severity": "low",
+      "detail": "No .github/dependabot.yml was found, so dependency updates are not automated.",
+      "fix": "Add .github/dependabot.yml to get automated security update pull requests."
+    },
+    {
+      "id": "gitignore-gaps",
+      "title": ".gitignore gaps",
+      "severity": "medium",
+      "detail": ".gitignore does not cover: .env, *.pem.",
+      "fix": "Add .env, *.pem to .gitignore."
+    }
+  ]
+}

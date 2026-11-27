@@ -323,6 +323,47 @@ async function main() {
         check("scan after one new commit reuses the cached 3", g3.cachedCommits === 3, `${g3.cachedCommits} cached`);
         check("scan after one new commit still finds the old webhook once", g3.findings.filter((f) => f.type === "discord-webhook").length === 1);
 
+        // --- Phase 17 (Worker E): history-cache poisoning regression.
+        // A chunked scan's final chunk walks only the tail (it resumes
+        // after the previous chunk's last commit) yet reaches the
+        // oldest commit, so `complete` is true. Before the fix that
+        // tail-only order was cached as the repo's complete history,
+        // and the next scan on the same instance answered from the
+        // cache claiming the tail count was the whole history (live:
+        // vinta/awesome-python answered in 1.7 s claiming 150
+        // history commits instead of 3,350). A resumed walk must
+        // never write the cache; only a walk that started at the tip
+        // may. The resumed chunk's own `complete: true` is still
+        // correct — the chunk driver needs it to finish the scan —
+        // so the fix guards the cache write, not the result flag.
+        clearHistoryCache();
+        const poisonRepo = join(gitRoot, "poisonrepo");
+        await git(gitRoot, ["init", "-b", "main", "poisonrepo"]);
+        await git(poisonRepo, ["config", "user.email", "test@example.com"]);
+        await git(poisonRepo, ["config", "user.name", "GitSecure Test"]);
+        for (let i = 1; i <= 5; i++) {
+          await writeFile(join(poisonRepo, `file${i}.txt`), `change ${i}\n`);
+          await git(poisonRepo, ["add", "."]);
+          await git(poisonRepo, ["commit", "-m", `commit ${i}`]);
+        }
+        const poisonCount = await git(poisonRepo, ["rev-list", "--count", "HEAD"]);
+        check("poison fixture really has 5 commits", poisonCount === "5", `${poisonCount} commits`);
+        const poisonBase = `http://127.0.0.1:${(gitServer.address() as { port: number }).port}/poisonrepo`;
+        // Chunk 1: newest 3 commits, chunk-stopped, complete=false.
+        const p1 = await scanHistoryViaGit("poisonowner", "poisonrepo", "main", { cloneUrlOverride: poisonBase, maxCommits: 3 });
+        check("poison chunk 1: scans the newest 3 commits", p1.ok && p1.commitsScanned === 3, `${p1.commitsScanned} scanned`);
+        check("poison chunk 1: not complete (chunk boundary)", p1.complete === false, `complete=${p1.complete}`);
+        check("poison chunk 1: lastScannedSha is a full sha", typeof p1.lastScannedSha === "string" && p1.lastScannedSha.length === 40, p1.lastScannedSha ?? "(null)");
+        // Chunk 2 (resumed): the remaining 2 oldest commits, reaches the root.
+        const p2 = await scanHistoryViaGit("poisonowner", "poisonrepo", "main", { cloneUrlOverride: poisonBase, resumeAfterSha: p1.lastScannedSha, maxCommits: 3 });
+        check("poison chunk 2 (resumed): scans the remaining 2 commits", p2.ok && p2.commitsScanned === 2, `${p2.commitsScanned} scanned`);
+        check("poison chunk 2 (resumed): complete is still true — the scan finished", p2.complete === true, `complete=${p2.complete}`);
+        // Fresh scan: must re-walk the full 5, not answer the tail from cache.
+        const p3 = await scanHistoryViaGit("poisonowner", "poisonrepo", "main", { cloneUrlOverride: poisonBase });
+        check("fresh scan after a resumed final chunk reports the full depth (5), not the tail (2)", p3.ok && p3.commitsScanned === 5, `${p3.commitsScanned} scanned`);
+        check("fresh scan after a resumed final chunk fetches commits (no poisoned cache hit)", p3.commitsFetched === 5, `${p3.commitsFetched} fetched`);
+        check("fresh scan after a resumed final chunk reuses nothing from cache", p3.cachedCommits === 0, `${p3.cachedCommits} cached`);
+
         // Orchestrator: method "git" goes through the git path.
         const g4 = await scanHistory({ owner: "gitowner", repo: "gitrepo", branch: "main", method: "git", cloneUrlOverride: gitBase });
         check("scanHistory method git returns the git path", g4.ok && g4.method === "git", g4.method);

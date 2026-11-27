@@ -1,0 +1,6 @@
+resume-proof harness — repo OWASP/railsgoat — base http://localhost:3100 — mode chunk
+out: test-results/phase17/resume-proof/probe-OWASP-railsgoat
+Path A (chunk accumulation: POST /api/scan/start + POST /api/scan/chunk) …
+  [chunk #1] POST /api/scan/start http=200 5482ms stage=history scanned=0 chunkFindings=0 cumulative=0
+  retrying after fetch error: The operation was aborted due to timeout
+HARNESS ERROR: The operation was aborted due to timeout

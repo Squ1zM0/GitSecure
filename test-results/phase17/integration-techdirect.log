@@ -1,0 +1,41 @@
+
+> gitsecure@0.1.0 test:techdirect
+> tsx scripts/scan-techdirect.ts
+
+Scanning Squ1zM0/TechDirect (live, public GitHub API + ephemeral clone)...
+Total scan time: 12.7s
+{
+  "score": 83,
+  "grade": "B",
+  "counts": {
+    "secrets": 0,
+    "testKeySecrets": 0,
+    "vulnerabilities": 4,
+    "frameworks": 0,
+    "dependencies": 2,
+    "postureIssues": 3,
+    "filesScanned": 2802,
+    "historyCommitsScanned": 62
+  },
+  "summary": "Scan complete. No leaked secrets were found in the files scanned; 4 known vulnerabilities in dependencies; 3 security hygiene issues to fix. The full detail is in this report — no sign-in needed."
+}
+Tree check: 2802 scannable files in the tree, filesScanned=2802
+Dependencies:
+  - argparse 2.0.1 [npm, transitive] from tech-support-directory/package-lock.json
+  - js-yaml 4.1.1 [npm, transitive] from tech-support-directory/package-lock.json
+Frameworks:
+Secrets: 0 | Vulnerabilities: 4 | Posture issues: 3
+  posture: [low] No SECURITY.md
+  posture: [low] No Dependabot config
+  posture: [medium] .gitignore gaps
+  vuln: [low] GHSA-2883-xcg3-v3hh js-yaml 4.1.1 -> fixed 4.3.2
+  vuln: [low] GHSA-52cp-r559-cp3m js-yaml 4.1.1 -> fixed 3.15.0
+  vuln: [low] GHSA-5p4m-2wfm-xmqj js-yaml 4.1.1 -> fixed 4.3.1
+  vuln: [low] GHSA-h67p-54hq-rp68 js-yaml 4.1.1 -> fixed 4.2.0
+History depth: Full history, newest first.
+Limits: [
+  'Scanned all 2802 files in the tree (binary, dist, node_modules and .next skipped — generated/vendored paths, not source files).',
+  'History checked: 62 commits, newest first (git protocol — no git binary, no REST quota).',
+  'Public repos only. No secret is ever stored, logged, or shown in full.'
+]
+UNLIMITED scan proven: filesScanned matches the full scannable tree.

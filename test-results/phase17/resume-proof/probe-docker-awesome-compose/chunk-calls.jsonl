@@ -1,0 +1,1 @@
+{"call":1,"endpoint":"POST /api/scan/start","http":200,"ms":5579,"stage":"history","historyScanned":0,"chunkFindings":0,"cumulativeFindings":0,"headSha":"503c0dcef31b07fb77b2d4c5556bfafdf86f4f1a"}

@@ -1,0 +1,13 @@
+resume-proof harness — repo Squ1zM0/TechDirect — base http://localhost:3100 — mode both
+out: test-results/phase17/resume-proof/smoke-techdirect
+Path A (chunk accumulation: POST /api/scan/start + POST /api/scan/chunk) …
+  [chunk #1] POST /api/scan/start http=200 3077ms stage=history scanned=0 chunkFindings=0 cumulative=0
+  [chunk #2] POST /api/scan/chunk http=200 10990ms stage=assemble scanned=62 chunkFindings=0 cumulative=0
+  [chunk #3] POST /api/scan/chunk (assemble) http=200 1661ms stage=done scanned=62 chunkFindings=0 cumulative=0
+Path A done: 3 calls, 1 history chunks, 15.7s wall, 0 accumulated history+HEAD-dedupe findings in hand (final report secrets: 0)
+Path B (GET resume: GET /api/scan/[owner]/[repo], fresh each call) …
+  [get #1] GET /api/scan/... http=200 3284ms status=done scanned=62 cursorStage=done bodyHasHistoryFindings=false
+Path B done: 1 calls, 3.3s wall, final report secrets: 0
+DIFF: chunk=0 secrets (0 history) vs get=0 secrets (0 history)
+DIFF: lost on GET path (identity): 0; gained on GET path: 0; commit-qualified lost: 0
+VERDICT: MATCH — the two finding sets are identical (hole closed, or vacuous: see evidence.md for whether the repo had any history findings to lose) (exit 0)
