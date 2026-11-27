@@ -626,8 +626,8 @@ export function UsageMap({
   const basePositions = useMemo(() => {
     const base = new Map<string, { x: number; y: number }>();
     base.set("repo", { x: cx, y: cy });
-    for (const [i, p] of ringLayout(drawn.length, cx, cy, 112).entries()) base.set(nodeIdOfFinding(drawn[i].idx), p);
-    for (const [i, p] of ringLayout(fileNodes.length, cx, cy, 158).entries()) base.set(nodeIdOfFile(fileNodes[i].file), p);
+    for (const [i, p] of ringLayout(drawn.length, cx, cy, 124).entries()) base.set(nodeIdOfFinding(drawn[i].idx), p);
+    for (const [i, p] of ringLayout(fileNodes.length, cx, cy, 170).entries()) base.set(nodeIdOfFile(fileNodes[i].file), p);
     return base;
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [drawn, fileNodes]);
@@ -880,7 +880,7 @@ export function UsageMap({
       blockers.push({ x: pos.x, y: pos.y, w: r * 2, h: r * 2 });
       const angle = Math.atan2(pos.y - cy, pos.x - cx);
       const lx = Math.max(42, Math.min(358, pos.x + Math.cos(angle) * (r + 14)));
-      const ly = pos.y + Math.sin(angle) * (r + 14);
+      const ly = Math.max(8, Math.min(372, pos.y + Math.sin(angle) * (r + 14)));
       blockers.push({ x: lx, y: ly, w: shortLabel(f.file).length * 4 + 8, h: 14 });
     }
     drawn.forEach((e, i) => {
@@ -1304,10 +1304,12 @@ export function UsageMap({
               // from the finding ring), so it can never collide with
               // a finding's "N uses" caption, which lives in the band
               // between the rings. The x is clamped so a side node's
-              // label stays inside the viewBox.
+              // label stays inside the viewBox; the y is clamped so
+              // the top node's label stays inside it now the outer
+              // ring is wider (2026-11-27).
               const angle = Math.atan2(y - cy, x - cx);
               const lx = Math.max(42, Math.min(358, x + Math.cos(angle) * (r + 14)));
-              const ly = y + Math.sin(angle) * (r + 14);
+              const ly = Math.max(8, Math.min(372, y + Math.sin(angle) * (r + 14)));
               return (
                 <g
                   key={f.file}
