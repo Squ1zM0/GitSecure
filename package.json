@@ -1,7 +1,7 @@
 {
   "dependencies": {
     "@modelcontextprotocol/sdk": "1.32.2",
-    "diff": "8.0.4",
+    "diff": "9.0.0",
     "isomorphic-git": "1.44.19",
     "next": "16.4.6",
     "react": "19.3.1",
