@@ -50,6 +50,7 @@ import {
   fitView,
   neighboursOf,
   panBy,
+  resolveLabelCollisions,
   ringLayout,
   resolveNodePositions,
   togglePin,
@@ -489,15 +490,18 @@ export function UsageMap({
   const planeRef = useRef<HTMLDivElement | null>(null);
   const svgRef = useRef<SVGSVGElement | null>(null);
   // Fix round 2 (defect 2): the initial fit and Reset view call
-  // fitView with padding 32, not the default 8. fitView fits the
+  // fitView with padding 48, not the default 8. fitView fits the
   // 400x380 WORLD, but file labels sit radially OUTWARD from the
   // outer ring (up to ~r+14 world units beyond it), i.e. outside the
   // fitted rect — at 360px the side labels butted hard against the
-  // plane border and read as clipped. 32 screen px of breathing
-  // room on every side; the map gets slightly smaller (fit k drops
-  // ~16% at 360px) and the labels fit inside. fitView's default
-  // stays 8; the zoom-to-node target (zoomTargetK) is unchanged.
-  const [view, setView] = useState<ViewTransform>(() => fitView(640, 420, 32));
+  // plane border and read as clipped. 48 screen px of breathing
+  // room on every side (raised from 32 in the 2026-11-27 second
+  // pass — Freddy: default a little more zoomed out, rings spread
+  // wider); the map gets slightly smaller (fit k drops ~9% at
+  // 640px, ~11% at 360px) and the labels fit inside. fitView's
+  // default stays 8; the zoom-to-node target (zoomTargetK) is
+  // unchanged.
+  const [view, setView] = useState<ViewTransform>(() => fitView(640, 420, 48));
   const [selected, setSelected] = useState<{ type: "node" | "edge"; id: string } | null>(null);
   const [pins, setPins] = useState<Set<string>>(new Set());
   const [overrides, setOverrides] = useState<Map<string, { x: number; y: number }>>(new Map());
@@ -541,7 +545,7 @@ export function UsageMap({
       const w = el.clientWidth || 640;
       const h = el.clientHeight || 420;
       sizeRef.current = { w, h };
-      if (!interactedRef.current) setView(fitView(w, h, 32));
+      if (!interactedRef.current) setView(fitView(w, h, 48));
     };
     fit();
     const ro = new ResizeObserver(fit);
@@ -622,8 +626,8 @@ export function UsageMap({
   const basePositions = useMemo(() => {
     const base = new Map<string, { x: number; y: number }>();
     base.set("repo", { x: cx, y: cy });
-    for (const [i, p] of ringLayout(drawn.length, cx, cy, 100).entries()) base.set(nodeIdOfFinding(drawn[i].idx), p);
-    for (const [i, p] of ringLayout(fileNodes.length, cx, cy, 140).entries()) base.set(nodeIdOfFile(fileNodes[i].file), p);
+    for (const [i, p] of ringLayout(drawn.length, cx, cy, 112).entries()) base.set(nodeIdOfFinding(drawn[i].idx), p);
+    for (const [i, p] of ringLayout(fileNodes.length, cx, cy, 158).entries()) base.set(nodeIdOfFile(fileNodes[i].file), p);
     return base;
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [drawn, fileNodes]);
@@ -857,7 +861,47 @@ export function UsageMap({
       pushFrom(positions.get(e.toId) ?? e.to, radiusOf(e.toId), -ux, -uy);
       return { x, y, kind: e.kind, edgeId: e.key };
     });
-    return clusterEdgeLabels(anchors, threshold);
+    const clusters = clusterEdgeLabels(anchors, threshold);
+    // Second-pass collision pass (Phase 18 fix, 2026-11-27): the
+    // round-4 push-out only clears a label from its OWN endpoints,
+    // so a cluster could still land on a neighbouring node (worst
+    // 2006px² vs the repo centre) or across a caption ("lives in
+    // ×2" reading as "10 uslives in ×2"). Every blocker below uses
+    // the SAME geometry as the render: node circles (radiusOf),
+    // file labels (radial outward, clamped [42, 358]), finding
+    // captions ("N uses" / "dead end", alternating ±20, fr+14
+    // below the node). Edge directions come from the cluster's
+    // first edge, so nudges run along/across its own track.
+    const blockers: { x: number; y: number; w: number; h: number }[] = [{ x: cx, y: cy, w: 60, h: 60 }];
+    for (const f of fileNodes) {
+      const pos = positions.get(nodeIdOfFile(f.file));
+      if (!pos) continue;
+      const r = radiusOf(nodeIdOfFile(f.file));
+      blockers.push({ x: pos.x, y: pos.y, w: r * 2, h: r * 2 });
+      const angle = Math.atan2(pos.y - cy, pos.x - cx);
+      const lx = Math.max(42, Math.min(358, pos.x + Math.cos(angle) * (r + 14)));
+      const ly = pos.y + Math.sin(angle) * (r + 14);
+      blockers.push({ x: lx, y: ly, w: shortLabel(f.file).length * 4 + 8, h: 14 });
+    }
+    drawn.forEach((e, i) => {
+      const pos = positions.get(nodeIdOfFinding(e.idx));
+      if (!pos) return;
+      const fr = radiusOf(nodeIdOfFinding(e.idx));
+      blockers.push({ x: pos.x, y: pos.y, w: fr * 2, h: fr * 2 });
+      const u = usageOf(e);
+      const dead = u?.deadEnd === true;
+      const refs = u && !dead ? u.referencedByTotal + u.referencedByTestsTotal : 0;
+      const caption = dead ? "dead end" : u ? `${refs} use${refs === 1 ? "" : "s"}` : "";
+      if (caption) {
+        blockers.push({ x: pos.x + (i % 2 === 0 ? 20 : -20), y: pos.y + fr + 14, w: caption.length * 4 + 8, h: 14 });
+      }
+    });
+    const edgeDirs = new Map<string, { x: number; y: number }>();
+    for (const c of clusters) {
+      const e = edgeByKey.get(c.edgeIds[0]);
+      if (e) edgeDirs.set(c.edgeIds[0], { x: e.to.x - e.from.x, y: e.to.y - e.from.y });
+    }
+    return resolveLabelCollisions(clusters, blockers, edgeDirs);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [edges, view.k, selected, positions, drawn, fileNodes]);
 
@@ -892,7 +936,7 @@ export function UsageMap({
   };
   const resetView = () => {
     const { w, h } = containerSize();
-    setView(fitView(w, h, 32));
+    setView(fitView(w, h, 48));
   };
   const goToCrumb = (index: number) => {
     const id = path[index];

@@ -1,0 +1,4 @@
+ERROR: page.goto: net::ERR_TUNNEL_CONNECTION_FAILED at https://git-secure.com/Squ1zM0/GitSecure
+Call log:
+  - navigating to "https://git-secure.com/Squ1zM0/GitSecure", waiting until "domcontentloaded"
+

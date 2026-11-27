@@ -290,6 +290,109 @@ export function clusterEdgeLabels(items: EdgeLabelAnchor[], thresholdWorld: numb
 }
 
 /**
+ * Second-pass collision pass (Phase 18 fix, 2026-11-27 — Freddy:
+ * labels landing on neighbouring nodes/captions, worst 2006px²,
+ * "lives in ×2" reading as "10 uslives in ×2").
+ *
+ * The round-4 push-out only clears a label from its OWN edge
+ * endpoints. It never looks at neighbouring nodes, other labels,
+ * or node captions ("N uses", file basenames) — so a cluster label
+ * could still land on the repo centre or across a caption. This
+ * pass runs AFTER clustering, on the final label positions, and
+ * checks every label against every blocker (node circles as rects,
+ * caption/label rects) and every already-placed label.
+ *
+ * Label bbox: width = text.length * 4 + 8 (the same convention as
+ * edgeLabelThresholdWorld — font-size 9 world units, ~4 per char +
+ * padding), height 16, centred on the anchor, with a 2-unit margin
+ * on every side. Nudge candidates, in order, for the cluster's
+ * first edge direction (ux, uy) and its normal (-uy, ux): ±12/±24/
+ * ±36 along the normal, ±12/±24 along the edge, ±12/±24 in x, ±12/
+ * ±24 in y. First candidate with zero overlap wins; if none is
+ * clear, the candidate with the smallest total overlap area wins
+ * (a small graze beats a full cover). Candidates are clamped to
+ * the world (400×380) so a nudge can never push a label off-plane.
+ * Deterministic, bounded, pure — no DOM measurement.
+ */
+export interface LabelBlocker {
+  x: number;
+  y: number;
+  w: number;
+  h: number;
+}
+
+export function clusterLabelText(kind: EdgeKind, count: number): string {
+  return count === 1 ? edgeLabelText(kind) : `${edgeLabelText(kind)} ×${count}`;
+}
+
+export function resolveLabelCollisions(
+  clusters: EdgeLabelCluster[],
+  blockers: LabelBlocker[],
+  edgeDirs: Map<string, { x: number; y: number }>,
+): EdgeLabelCluster[] {
+  const MARGIN = 2;
+  const LABEL_H = 16;
+  const boxOf = (x: number, y: number, text: string) => {
+    const w = text.length * 4 + 8;
+    return { x0: x - w / 2 - MARGIN, y0: y - LABEL_H / 2 - MARGIN, x1: x + w / 2 + MARGIN, y1: y + LABEL_H / 2 + MARGIN };
+  };
+  const blockerBox = (b: LabelBlocker) => ({ x0: b.x - b.w / 2, y0: b.y - b.h / 2, x1: b.x + b.w / 2, y1: b.y + b.h / 2 });
+  const overlapArea = (a: { x0: number; y0: number; x1: number; y1: number }, b: { x0: number; y0: number; x1: number; y1: number }) => {
+    const w = Math.min(a.x1, b.x1) - Math.max(a.x0, b.x0);
+    const h = Math.min(a.y1, b.y1) - Math.max(a.y0, b.y0);
+    return w > 0 && h > 0 ? w * h : 0;
+  };
+  const blockerBoxes = blockers.map(blockerBox);
+  const placed: { x0: number; y0: number; x1: number; y1: number }[] = [];
+  const out: EdgeLabelCluster[] = [];
+  for (const c of clusters) {
+    const text = clusterLabelText(c.kind, c.count);
+    const w = text.length * 4 + 8;
+    const dir = edgeDirs.get(c.edgeIds[0]) ?? { x: 1, y: 0 };
+    const len = Math.hypot(dir.x, dir.y) || 1;
+    const ux = dir.x / len;
+    const uy = dir.y / len;
+    const nx = -uy;
+    const ny = ux;
+    const candidates: { x: number; y: number }[] = [{ x: c.x, y: c.y }];
+    for (const d of [12, 24, 36, 48]) {
+      candidates.push({ x: c.x + nx * d, y: c.y + ny * d });
+      candidates.push({ x: c.x - nx * d, y: c.y - ny * d });
+    }
+    for (const d of [12, 24, 36]) {
+      candidates.push({ x: c.x + ux * d, y: c.y + uy * d });
+      candidates.push({ x: c.x - ux * d, y: c.y - uy * d });
+      candidates.push({ x: c.x + d, y: c.y });
+      candidates.push({ x: c.x - d, y: c.y });
+      candidates.push({ x: c.x, y: c.y + d });
+      candidates.push({ x: c.x, y: c.y - d });
+    }
+    let best = candidates[0];
+    let bestArea = Infinity;
+    for (const cand of candidates) {
+      const cx = Math.max(w / 2 + MARGIN, Math.min(WORLD_W - w / 2 - MARGIN, cand.x));
+      const cy = Math.max(LABEL_H / 2 + MARGIN, Math.min(WORLD_H - LABEL_H / 2 - MARGIN, cand.y));
+      const box = boxOf(cx, cy, text);
+      let area = 0;
+      for (const b of blockerBoxes) area += overlapArea(box, b);
+      for (const p of placed) area += overlapArea(box, p);
+      if (area === 0) {
+        best = { x: cx, y: cy };
+        bestArea = 0;
+        break;
+      }
+      if (area < bestArea) {
+        best = { x: cx, y: cy };
+        bestArea = area;
+      }
+    }
+    placed.push(boxOf(best.x, best.y, text));
+    out.push({ ...c, x: best.x, y: best.y });
+  }
+  return out;
+}
+
+/**
  * Plain-English edge detail, built ONLY from the named args — never
  * from a secret fragment (this module never sees one). The "own"
  * case uses refFile/refLine: that is the file the finding lives in.

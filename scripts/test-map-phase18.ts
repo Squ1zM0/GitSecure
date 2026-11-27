@@ -30,6 +30,7 @@ import {
   edgeLabelThresholdWorld,
   edgeDetailText,
   neighboursOf,
+  resolveLabelCollisions,
   traverseStep,
   traverseBack,
   clusterEdgeLabels,
@@ -291,7 +292,52 @@ check("edgeLabelThresholdWorld: empty input -> 70 (uncounted-label default)", ed
 check("edgeLabelThresholdWorld: mixed kinds -> max of the two (test x2 = 72, code x1 = 56)", edgeLabelThresholdWorld([{ kind: "test", count: 2 }, { kind: "code", count: 1 }]) === 72, `got=${edgeLabelThresholdWorld([{ kind: "test", count: 2 }, { kind: "code", count: 1 }])}`);
 check("edgeLabelThresholdWorld: 'lives in x3' alone -> 52 (11 chars * 4 + 8), below the empty default", edgeLabelThresholdWorld([{ kind: "own", count: 3 }]) === 52, `got=${edgeLabelThresholdWorld([{ kind: "own", count: 3 }])}`);
 
-// --- 20. No literal secret-pattern values in this file ---
+// --- 20. resolveLabelCollisions (second pass, 2026-11-27) ---
+// The round-4 push-out only clears a label from its OWN endpoints,
+// so a cluster could still land on a neighbouring node (worst
+// 2006px² vs the repo centre) or across a caption ("lives in ×2"
+// reading as "10 uslives in ×2"). This pass runs after clustering
+// against node circles, caption/label rects, and already-placed
+// labels. Bbox convention matches the implementation: width =
+// text.length * 4 + 8, height 16, centred on the anchor.
+import type { EdgeLabelCluster, LabelBlocker } from "../src/lib/map-view";
+import { clusterLabelText } from "../src/lib/map-view";
+const cluster = (x: number, y: number, kind: EdgeKind, count: number, edgeId: string): EdgeLabelCluster => ({ x, y, kind, count, edgeIds: [edgeId] });
+const blocker = (x: number, y: number, w: number, h: number): LabelBlocker => ({ x, y, w, h });
+const rectOverlap = (a: { x0: number; y0: number; x1: number; y1: number }, b: { x0: number; y0: number; x1: number; y1: number }) => {
+  const w = Math.min(a.x1, b.x1) - Math.max(a.x0, b.x0);
+  const h = Math.min(a.y1, b.y1) - Math.max(a.y0, b.y0);
+  return w > 0 && h > 0 ? w * h : 0;
+};
+const labelBox = (c: EdgeLabelCluster) => {
+  const t = clusterLabelText(c.kind, c.count);
+  const w = t.length * 4 + 8;
+  return { x0: c.x - w / 2, y0: c.y - 8, x1: c.x + w / 2, y1: c.y + 8 };
+};
+const blockerBox = (b: LabelBlocker) => ({ x0: b.x - b.w / 2, y0: b.y - b.h / 2, x1: b.x + b.w / 2, y1: b.y + b.h / 2 });
+
+check("clusterLabelText: count 1 -> plain kind text", clusterLabelText("test", 1) === "used in tests");
+check("clusterLabelText: count 3 -> counted text", clusterLabelText("own", 3) === "lives in ×3");
+const clear = resolveLabelCollisions([cluster(200, 190, "code", 1, "e1")], [blocker(200, 100, 60, 60)], new Map([["e1", { x: 1, y: 0 }]]));
+check("resolveLabelCollisions: clear label stays exactly put", clear.length === 1 && clear[0].x === 200 && clear[0].y === 190, JSON.stringify(clear[0]));
+const onNode = resolveLabelCollisions([cluster(200, 190, "code", 1, "e1")], [blocker(200, 190, 60, 60)], new Map([["e1", { x: 1, y: 0 }]]));
+check("resolveLabelCollisions: label centred on a node circle moves to zero overlap", rectOverlap(labelBox(onNode[0]), blockerBox(blocker(200, 190, 60, 60))) === 0, `moved to (${onNode[0].x}, ${onNode[0].y})`);
+const captionCase = resolveLabelCollisions(
+  [cluster(230, 250, "own", 2, "e1")],
+  [blocker(230, 250, 36, 14)], // "10 uses" caption rect, label centred exactly on it
+  new Map([["e1", { x: 1, y: 0 }]]),
+);
+check("resolveLabelCollisions: 'lives in ×2' centred on a '10 uses' caption moves clear (no '10 uslives in ×2')", rectOverlap(labelBox(captionCase[0]), blockerBox(blocker(230, 250, 36, 14))) === 0, `moved to (${captionCase[0].x}, ${captionCase[0].y})`);
+const twoLabels = resolveLabelCollisions(
+  [cluster(200, 190, "code", 1, "e1"), cluster(210, 190, "test", 1, "e2")],
+  [],
+  new Map([["e1", { x: 1, y: 0 }], ["e2", { x: 1, y: 0 }]]),
+);
+check("resolveLabelCollisions: two overlapping labels separate to zero overlap", rectOverlap(labelBox(twoLabels[0]), labelBox(twoLabels[1])) === 0, JSON.stringify(twoLabels.map((c) => [c.x, c.y])));
+const atEdge = resolveLabelCollisions([cluster(395, 190, "code", 1, "e1")], [blocker(395, 190, 60, 60)], new Map([["e1", { x: 1, y: 0 }]]));
+check("resolveLabelCollisions: nudged label stays inside the 400x380 world", atEdge[0].x + (clusterLabelText("code", 1).length * 4 + 8) / 2 <= 400 && atEdge[0].x >= 0, `x=${atEdge[0].x}`);
+
+// --- 21. No literal secret-pattern values in this file ---
 import { readFileSync } from "node:fs";
 const self = readFileSync(new URL(import.meta.url).pathname, "utf8");
 const leaked = ["AKIA" + "IOSFODNN7EXAMPLE", "ghp_" + "FAKE".repeat(8) + "1234", "sk_test_" + "FAKE".repeat(6) + "12"].some((s) => self.includes(s));
