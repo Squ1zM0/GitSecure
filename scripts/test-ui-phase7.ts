@@ -357,7 +357,15 @@ const noUsageMap = renderToString(
     onSelectFile: () => {},
   }),
 ).replace(/<!-- -->/g, "");
-check("phase11 map: degrades gracefully with no usage data (file-count spider)", noUsageMap.includes("Map of files holding secrets") && !noUsageMap.includes("map-edge"));
+check("phase11 map: no usage data still renders the dynamic plane (nodes, no edges, note)", noUsageMap.includes("map-plane") && noUsageMap.includes("This repo") && noUsageMap.includes("no usage data") && !noUsageMap.includes("map-edge"));
+const emptyMap = renderToString(
+  React.createElement(UsageMap, { findings: [], byFile: [], onSelectFile: () => {} }),
+).replace(/<!-- -->/g, "");
+check("map always exists: UsageMap with zero findings renders the plane with just the repo node", emptyMap.includes("map-plane") && emptyMap.includes("This repo") && emptyMap.includes("No secrets in this report"));
+const emptySecretsList = renderToString(
+  React.createElement(SecretsList, { secrets: [], owner: "Squ1zM0", repo: "TechDirect", branch: "main" }),
+).replace(/<!-- -->/g, "");
+check("map always exists: SecretsList with zero secrets still offers the Map view", emptySecretsList.includes(">Map<") && emptySecretsList.includes("map-plane"));
 check("phase11 CSS: verdict sections, dead-end pill, map edges and track detail styled", css.includes(".verdict-test") && css.includes(".pill.dead-end") && css.includes(".map-edge-test") && css.includes(".map-edge-own") && css.includes(".map-finding-deadend") && css.includes(".map-track-detail"));
 
 // --- 2e. Phase 18: dynamic usage-map plane --------------------------

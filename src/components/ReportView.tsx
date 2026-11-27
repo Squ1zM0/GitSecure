@@ -107,11 +107,12 @@ export default function ReportView({ report, paused }: { report: FullReport; pau
 
       <div className="card">
         <h2>Leaked secrets ({report.secrets.length})</h2>
-        {report.secrets.length === 0 ? (
-          <p>No leaked secrets were found in the files and recent history scanned.</p>
-        ) : (
-          <SecretsList secrets={report.secrets} owner={report.owner} repo={report.repo} branch={report.branch} />
-        )}
+        {/* SecretsList always mounts — even with zero secrets
+          (2026-11-27, Freddy: the map view needs to exist even when
+          there are no test keys). The empty state (no-secrets text
+          in the list view, repo-only map in the map view) lives
+          inside SecretsList / UsageMap. */}
+        <SecretsList secrets={report.secrets} owner={report.owner} repo={report.repo} branch={report.branch} />
       </div>
 
       <div className="card">

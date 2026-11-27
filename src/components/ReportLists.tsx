@@ -742,7 +742,13 @@ export function UsageMap({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [drawn, positions]);
 
-  if (!hasUsage) return <FileMap byFile={byFile} onSelectFile={onSelectFile} />;
+  // The dynamic plane always renders — even with no findings or no
+  // usage data (2026-11-27, Freddy: the map view needs to exist
+  // even when there are no test keys). With no findings it shows
+  // just the repo node plus an empty-state note; with findings but
+  // no usage it shows the finding and file nodes with no edges.
+  // The old FileMap fallback is gone from this path (the component
+  // stays exported and tested, but nothing in the app renders it).
 
   const selNodeId = selected?.type === "node" ? selected.id : null;
   const selFinding = selNodeId?.startsWith("finding:") ? drawn.find((e) => nodeIdOfFinding(e.idx) === selNodeId) ?? null : null;
@@ -1432,6 +1438,11 @@ export function UsageMap({
       <p className="small map-hint">
         Click a node to zoom to it. Drag the background to pan, drag a node to move it, pinch to zoom. Edge labels appear as you zoom in, and always for the selected track. Press p to pin a node, [ and ] to step between neighbours, 0 to reset the view, Esc to deselect.
       </p>
+      {findings.length === 0 ? (
+        <p className="small">No secrets in this report, so the map shows just this repo. Scan a repo with secrets to see its findings and files mapped here.</p>
+      ) : !hasUsage ? (
+        <p className="small">These findings carry no usage data, so there are no edges yet — the nodes are the findings and the files that hold them.</p>
+      ) : null}
       {selNodeId ? (
         <nav className="map-breadcrumb" aria-label="Map breadcrumb">
           {path.map((id, i) => (
@@ -1526,7 +1537,10 @@ export function SecretsList({ secrets, owner, repo, branch, defaultTestSectionOp
   const [sevFilter, setSevFilter] = useState("all");
   const [triageFilter, setTriageFilter] = useState("all");
   const [fileQuery, setFileQuery] = useState("");
-  const [view, setView] = useState<"list" | "map">("list");
+  // The map view exists on every report, even with no secrets
+  // (2026-11-27, Freddy): a clean repo opens on the map, showing
+  // just the repo node, instead of hiding the map entirely.
+  const [view, setView] = useState<"list" | "map">(secrets.length === 0 ? "map" : "list");
   // Phase 11 verdict sections. Genuine leaks and uncertain findings
   // are open by default — they are the ones that need a human. Likely
   // test keys are collapsed by default: still listed, still counted,
@@ -1708,6 +1722,9 @@ export function SecretsList({ secrets, owner, repo, branch, defaultTestSectionOp
         <UsageMap findings={filtered} byFile={byFile} onSelectFile={selectFile} onShowFinding={showFinding} />
       ) : (
         <>
+          {secrets.length === 0 && (
+            <p>No leaked secrets were found in the files and recent history scanned.</p>
+          )}
           {genuineEntries.length > 0 && (
             <details className="group verdict-section verdict-genuine" open={genuineEffectiveOpen} onToggle={(e) => setGenuineOpen(e.currentTarget.open)}>
               <summary>
