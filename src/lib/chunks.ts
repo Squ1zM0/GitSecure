@@ -265,6 +265,30 @@ function partialFrom(
   return partial;
 }
 
+/** A HEAD partial is usable for assemble only when it carries the
+ *  shape assembleReport reads: the identity fields matching the
+ *  cursor, plus the four arrays it spreads and counts. The client
+ *  carries the head through sessionStorage and the POST body, so a
+ *  stale, partial, or older-build saved head can arrive without
+ *  them - and assembleReport then threw a raw TypeError on the first
+ *  missing array, which the chunk route answered as a 500 at the
+ *  dependencies step (live TechDirect failure, 2026-11-27). A bad
+ *  head is never trusted here: it is re-derived server-side with a
+ *  fresh scanHead, exactly like an absent head, so the scan finishes
+ *  instead of 500ing. */
+export function isUsableHead(head: unknown, cursor: ScanCursorData): head is HeadPartial {
+  if (typeof head !== "object" || head === null) return false;
+  const h = head as Record<string, unknown>;
+  if (h.owner !== cursor.owner || h.repo !== cursor.repo || h.branch !== cursor.branch || h.headSha !== cursor.headSha) return false;
+  if (!Array.isArray(h.secrets) || !Array.isArray(h.frameworks) || !Array.isArray(h.dependencies) || !Array.isArray(h.posture)) return false;
+  if (typeof h.filesScanned !== "number" || !Number.isFinite(h.filesScanned)) return false;
+  if (typeof h.filesTotal !== "number" || !Number.isFinite(h.filesTotal)) return false;
+  if (typeof h.unpinnedCount !== "number" || !Number.isFinite(h.unpinnedCount)) return false;
+  if (typeof h.treeTruncated !== "boolean" || typeof h.tarballFallback !== "boolean" || typeof h.retainedIncomplete !== "boolean") return false;
+  if (h.historyMethod !== "git" && h.historyMethod !== "api") return false;
+  return true;
+}
+
 /** Run exactly one chunk. Throws ScanError (plain English, honest HTTP
  *  status) for bad cursors, missing/private repos, rate limits, and a
  *  HEAD that moved mid-scan - never a crash, never a stack trace. */
@@ -295,7 +319,7 @@ export async function advanceScan(input: AdvanceInput): Promise<AdvanceResult> {
   // --- ASSEMBLE chunk: merge HEAD + accumulated history, OSV, score. ---
   if (cursor.stage === "assemble") {
     let head = input.head ?? null;
-    if (!head) {
+    if (!isUsableHead(head, cursor)) {
       head = await scanHead(owner, repo, { deadlineMs: input.deadlineMs });
     }
     if (head.owner !== cursor.owner || head.repo !== cursor.repo || head.branch !== cursor.branch || head.headSha !== cursor.headSha) {

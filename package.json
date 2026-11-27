@@ -4,8 +4,8 @@
     "diff": "8.0.4",
     "isomorphic-git": "1.44.19",
     "next": "16.4.6",
-    "react": "19.3.0",
-    "react-dom": "19.3.0",
+    "react": "19.3.1",
+    "react-dom": "19.3.1",
     "zod": "4.6.7"
   },
   "description": "GitSecure - swap github.com for git-secure.com and get a security report for a public repo: leaked secrets, framework flaws, dependency vulnerabilities, and posture. Everyone gets the full report - no sign-up, no login.",
@@ -49,7 +49,8 @@
     "test:zero-rest": "tsx scripts/test-zero-rest.ts",
     "test:code-risks-phase19": "tsx scripts/test-code-risks-phase19.ts",
     "test:posture-phase19": "tsx scripts/test-posture-phase19.ts",
-    "test:map-phase19": "tsx scripts/test-map-phase19.ts"
+    "test:map-phase19": "tsx scripts/test-map-phase19.ts",
+    "test:assemble-head-validation": "tsx scripts/test-assemble-head-validation.ts"
   },
   "version": "0.1.0"
 }

@@ -180,7 +180,17 @@ export default function ScanProgress({
       const saved = loadProgress(sessionStorage, owner, repo);
       if (saved) {
         const savedHead = saved.head as HeadPartial;
-        if (typeof savedHead === "object" && savedHead !== null && typeof (savedHead as HeadPartial).headSha === "string") {
+        // A saved head is trusted only with its full shape: the chunk
+        // route re-derives a bad head server-side, but a head missing
+        // its arrays must never be sent at all - an older-build saved
+        // head once reached assemble without them and the scan 500ed
+        // at the dependencies step (live TechDirect, 2026-11-27). A
+        // head that fails this check falls through to a fresh scan.
+        const savedHeadUsable =
+          typeof savedHead === "object" && savedHead !== null && typeof (savedHead as HeadPartial).headSha === "string" &&
+          Array.isArray((savedHead as HeadPartial).secrets) && Array.isArray((savedHead as HeadPartial).dependencies) &&
+          Array.isArray((savedHead as HeadPartial).frameworks) && Array.isArray((savedHead as HeadPartial).posture);
+        if (savedHeadUsable) {
           cursor = saved.cursor;
           head = savedHead;
           findings = dedupeFindings(saved.historyFindings as SecretFinding[]);
