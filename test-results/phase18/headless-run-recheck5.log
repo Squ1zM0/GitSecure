@@ -1,0 +1,54 @@
+INFO  browser launched: /home/hatch/.cache/ms-playwright/chromium-1255/chrome-linux64/chrome
+INFO  360px load: still waiting 29s — filesSoFar=null, has37=false, progressCard=true, savedReport=false
+INFO  360px load: still waiting 59s — filesSoFar=null, has37=false, progressCard=true, savedReport=false
+INFO  360px load: still waiting 89s — filesSoFar=null, has37=false, progressCard=true, savedReport=false
+INFO  360px load: still waiting 120s — filesSoFar=null, has37=false, progressCard=true, savedReport=false
+INFO  360px load: still waiting 150s — filesSoFar=null, has37=false, progressCard=true, savedReport=false
+INFO  360px load: still waiting 180s — filesSoFar=null, has37=false, progressCard=true, savedReport=false
+INFO  360px load: still waiting 210s — filesSoFar=null, has37=false, progressCard=true, savedReport=false
+INFO  360px load: still waiting 240s — filesSoFar=null, has37=false, progressCard=true, savedReport=false
+INFO  360px load: still waiting 270s — filesSoFar=null, has37=false, progressCard=true, savedReport=false
+INFO  360px load: still waiting 300s — filesSoFar=null, has37=false, progressCard=true, savedReport=false
+INFO  360px load: still waiting 330s — filesSoFar=null, has37=false, progressCard=true, savedReport=false
+INFO  360px load: still waiting 361s — filesSoFar=null, has37=false, progressCard=true, savedReport=false
+INFO  360px load: still waiting 391s — filesSoFar=null, has37=false, progressCard=true, savedReport=false
+INFO  360px load: still waiting 421s — filesSoFar=null, has37=false, progressCard=true, savedReport=false
+INFO  360px load: still waiting 451s — filesSoFar=null, has37=false, progressCard=true, savedReport=false
+INFO  360px load: still waiting 481s — filesSoFar=null, has37=false, progressCard=true, savedReport=false
+INFO  360px load: still waiting 511s — filesSoFar=null, has37=false, progressCard=true, savedReport=false
+INFO  360px load: still waiting 541s — filesSoFar=null, has37=false, progressCard=true, savedReport=false
+INFO  360px load: still waiting 571s — filesSoFar=null, has37=false, progressCard=true, savedReport=false
+INFO  360px load: still waiting 601s — filesSoFar=null, has37=false, progressCard=true, savedReport=false
+FAIL  360px load: FINAL report did NOT settle in 600s :: no 37-secrets + no-progress-card + saved-report state
+FAIL  RUN ERROR :: Error: scan did not settle; stopping per task instructions |     at /tmp/p18/recheck5-final.cjs:190:25
+INFO  done. 0 PASS, 2 FAIL
+
+=== DIAGNOSTICS (after 2x 600s settle failures; read-only, no source edits) ===
+- diag-recheck5.cjs (60s probe, 1280px): page stuck at "Checking the current files
+  for leaked secrets..." / "0 files scanned so far", no failed requests, no console
+  errors, no rate-limit text.
+- diag2-recheck5.cjs (90s request log): only 1x POST /api/scan/start + 2x POST
+  /api/scan/chunk in 90s; sessionStorage has only gitsecure:progress key, no
+  gitsecure:report key.
+- diag3-recheck5.cjs (150s, chunk responses): /api/scan/start responds at 24.8s
+  with status partial, cursor stage "history", historyMethod "git",
+  histScanned 0, histPage 1, histIdx 0, histDone false. Provisional report renders:
+  18 secrets, 100/A. Every subsequent chunk (~32s each, 200 partial) returns the
+  IDENTICAL cursor — histScanned 0, histPage 1, histIdx 0 — zero progress over
+  4+ chunks / 150s.
+- curl https://api.github.com/rate_limit: core 52/60 remaining (not rate-limited).
+- curl HEAD tarball (74,804,551 bytes) via codeload: 200 in 20.4s (fast).
+- git clone --bare https://github.com/Squ1zM0/GitSecure.git: 71MB pack, 42 commits,
+  took 102.9s from this VM (vs the history chunk's 30s GIT_HISTORY_CHUNK_BUDGET_MS).
+  The isomorphic-git clone inside each history chunk therefore burns its whole
+  ~30s budget inside the clone, aborts with 0 commits walked, persists no progress
+  (ephemeral clone dir deleted in finally), and the next chunk re-clones from scratch.
+  Infinite no-progress loop: the FINAL report (37 secrets) cannot settle from this
+  VM while the git-protocol fetch takes ~100s.
+- No .env.local in ~/workspace/gitsecure (no GITHUB_TOKEN / Upstash creds locally;
+  those live only in Vercel env). Local server runs unauthenticated.
+- Code read (no edits): edgeLabelThresholdWorld in src/lib/map-view.ts implements the
+  design (text.length*4+8, max over kinds, empty->70); push-out math present in
+  ReportLists.tsx labelClusters memo; cluster label <text> elements render LAST in
+  the SVG (after centre/file/finding node groups, ~line 1364). Code matches the fix
+  description; browser verification was NOT possible.

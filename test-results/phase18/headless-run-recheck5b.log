@@ -1,0 +1,189 @@
+===== MAIN RUN (/tmp/p18/recheck5b-final.cjs) =====
+INFO  browser launched: /home/hatch/.cache/ms-playwright/chromium-1255/chrome-linux64/chrome
+INFO  360px load: still waiting 29s — filesSoFar=null, has37=false, progressCard=true, savedReport=false
+INFO  360px load: FINAL report settled in 42.3s (30 secrets, progress card gone, final report saved in sessionStorage)
+INFO  360px fit view: translate(32.0 75.0) scale(0.600)
+INFO  360px map counts: nodes=37 edges=80
+INFO  richest finding track: Secret 6 with 11 edges (nodeId finding:5)
+PASS  3d label gating at fit (360) :: 0 edge labels with nothing selected
+PASS  3f 360px overflow (fit) :: scrollWidth=360
+PASS  360px fit redaction :: no sk-ant- / -----BEGIN in page text or HTML
+INFO  clickNode finding:5: centre (205.9,449.2), elementFromPoint top = finding:5
+INFO  clickNode finding:5: selected on attempt 1, detail starts: "Secret 6 — Committed .env file · pihole-cloudflared-DoH/.env:1 · Likely genuine leak · This file reads this secret, so r"
+INFO  S6 selected: view translate(-163.0 58.7) scale(1.260)
+PASS  3a click finding selects + zooms (360) :: detail panel shows Secret 6; k 0.600 -> 1.260
+INFO  ITEM2 selected track: 2 label(s) rendered, 2 in viewport: ["lives in","used in code ×10"]
+INFO    label "lives in" at (193.3,560.2) 36.3x15 pointer-events-none=true
+INFO    label "used in code ×10" at (189.1,529.1) 89.6x15 pointer-events-none=true
+INFO  ITEM2 selected track: overlapping pairs (in-viewport, >1px both axes) = 0; no overlaps
+FAIL  2a cluster labels present on selected track :: 2 labels: ["lives in","used in code ×10"]
+INFO  ITEM2 node circles for finding:5: {"hit":{"x":149.8,"y":468.4,"w":60.5,"h":60.5,"rAttr":"24"},"visible":{"x":161.1,"y":479.8,"w":37.8,"h":37.8,"rAttr":"15"},"caption":{"text":"10 uses","x":132.5,"y":522.2,"w":44.6,"h":17}}
+FAIL  2b "used in tests ×N" label does NOT intersect S-node visible circle :: testLabel=MISSING, circles={"hit":{"x":149.8,"y":468.4,"w":60.5,"h":60.5,"rAttr":"24"},"visible":{"x":161.1,"y":479.8,"w":37.8,"h":37.8,"rAttr":"15"},"caption":{"text":"10 uses","x":132.5,"y":522.2,"w":44.6,"h":17}}
+PASS  2c zero overlapping label bboxes on selected track :: 2 in-viewport labels, 0 overlapping pairs
+INFO  screenshot saved: awesome-360-selected-recheck5b.png
+INFO  ITEM3 elementFromPoint at cluster label centre (233.9,449.6): circle -> finding:8
+INFO  ITEM3 detail after clicking cluster label: "Secret 9 — Database URL with credentials · wasmedge-kafka-mysql/README.md:56 · Uncertain — needs a human check · This file reads this secret, so rotating it means updating this file too. Used by: wasmedge-kafka-mysql/com"
+FAIL  3e edge click through cluster label selects edge :: detail after click: "Secret 9 — Database URL with credentials · wasmedge-kafka-mysql/README.md:56 · Uncertain — needs a human check · This file reads this secret, so rotating it means updating this file too. Used by: wasm"
+INFO  360px back to fit: translate(32.0 75.0) scale(0.600), labels=0
+PASS  3c Reset view returns to fit (360) :: back to translate(32.0 75.0) scale(0.600)
+INFO  screenshot saved: awesome-360-light-recheck5b.png
+INFO  1280px load: still waiting 29s — filesSoFar=null, has37=false, progressCard=true, savedReport=false
+INFO  1280px load: FINAL report settled in 43.3s (30 secrets, progress card gone, final report saved in sessionStorage)
+INFO  1280px fit view: translate(219.7 32.0) scale(0.932)
+PASS  3d label gating at fit (1280) :: 0 edge labels with nothing selected
+INFO  ITEM1 zoomed in with 3 toolbar clicks: k=1.819 (target 1.8-1.9)
+INFO  ITEM1 zoomed k~1.8-1.9: 10 label(s) rendered, 3 in viewport: ["lives in ×2","used in code ×13","used in code ×9"]
+INFO    label "lives in ×2" at (709.1,795.4) 75.4x22 pointer-events-none=true
+INFO    label "used in code ×13" at (645.3,722.9) 129.4x22 pointer-events-none=true
+INFO    label "used in code ×9" at (763.6,833.5) 120.1x22 pointer-events-none=true
+INFO  ITEM1 zoomed k~1.8-1.9: overlapping pairs (in-viewport, >1px both axes) = 0; no overlaps
+INFO  ITEM1 counted cluster labels at zoom: ["lives in ×2","used in code ×13","used in code ×9","lives in ×3","used in code ×29","lives in ×4","used in code ×14","lives in ×2","used in code ×3"]
+PASS  1 zoom reached k~1.8-1.9 :: k=1.819 after 3 toolbar Zoom-in clicks, nothing selected
+PASS  1b zero overlapping label bboxes at zoom :: 3 in-viewport labels (10 rendered, 9 counted), 0 overlapping pairs (recheck-4: 6 pairs, worst 1001.6px²)
+INFO  screenshot saved: awesome-1280-zoomed-recheck5b.png
+INFO  ITEM1 extra: zoomed label-vs-visible-node-circle intersections = [{"label":"lives in ×2","node":"finding:8","area":211.5},{"label":"used in code ×13","node":"finding:7","area":484.8},{"label":"used in code ×13","node":"finding:5","area":709.7},{"label":"used in code ×9","node":"file:pihole-cloudflared-DoH/compose.yaml","area":396.7},{"label":"used in code ×9","node":"finding:8","area":903},{"label":"used in code ×29","node":"finding:14","area":776},{"label":"lives in ×4","node":"finding:17","area":1120.8},{"label":"used in code ×14","node":"finding:15","area":290.4},{"label":"used in code ×14","node":"finding:17","area":858.5},{"label":"lives in","node":"finding:24","area":66.8},{"label":"lives in ×2","node":"repo","area":946.3},{"label":"used in code ×3","node":"repo","area":2006.2}] (empty = none)
+PASS  3c Reset view returns to fit (1280) :: back to translate(219.7 32.0) scale(0.932)
+INFO  clickNode finding:0: node not found in DOM
+FAIL  3a click finding selects + zooms (1280, S1) :: detail=""
+INFO  3b drag start (verified background, element=svg): (299.0,770.4)
+INFO  3b drag (+120,+60): translate delta (120.0,60.0), k 0.932 -> 0.932
+PASS  3b background drag pans (1280) :: delta exactly (+120.0,+60.0), k unchanged
+INFO  3c Reset view returns to fit (1280, post-drag): back to fit
+PASS  1280px redaction :: no sk-ant- / -----BEGIN in page text or HTML
+INFO  1280px scrollWidth=1280
+INFO  done. 12 PASS, 4 FAIL
+
+===== SUPPLEMENT (/tmp/p18/recheck5b-supplement.cjs) — corrects the 3 harness-artifact FAILs, re-measures 2b ===
+INFO  browser launched
+INFO  360px load (supplement): still waiting 29s — has30=false, progressCard=true, savedReport=false
+INFO  360px load (supplement): FINAL report settled in 42.4s
+INFO  drawn finding node ids (360): ["finding:10","finding:12","finding:13","finding:14","finding:15","finding:17","finding:18","finding:24","finding:5","finding:7","finding:8","finding:9"] — finding:0 present = false
+INFO  360px fit view: translate(32.0 75.0) scale(0.600)
+INFO  clickNode finding:5: selected on attempt 1
+INFO  S6 selected: view translate(-163.0 58.7) scale(1.260); detail starts: "Secret 6 — Committed .env file · pihole-cloudflared-DoH/.env:1 · Likely genuine leak · This file rea"
+INFO  selected-track labels: ["lives in","used in code ×10"]
+PASS  2a-corrected cluster labels present on selected track :: "used in code ×10" + "lives in" — the counted kind here is "used in code" (Secret 6 has 10 code refs, 0 test refs); the main-run FAIL was the harness hard-coding "used in tests"
+INFO  2b-corrected "used in code ×10" (189.1,529.1) 89.6x15 vs S6 visible circle (161.1,479.8) 37.8x37.8 r=15 -> intersection 0px²; vs hit circle r=24 -> 0px²
+PASS  2b-corrected counted label does NOT intersect its finding node visible circle :: intersection 0px² (recheck-4 S8: 45.7x15.0px behind the node)
+INFO  2b-extra: selected-track label vs ANY visible node circle intersections = [{"label":"lives in","node":"finding:8","area":46.4},{"label":"used in code ×10","node":"file:postgresql-pgadmin/.env","area":105.8},{"label":"used in code ×10","node":"finding:8","area":529.5}] (empty = none)
+FAIL  2b-extra no selected-track label intersects any node circle :: 3 intersection(s): [{"label":"lives in","node":"finding:8","area":46.4},{"label":"used in code ×10","node":"file:postgresql-pgadmin/.env","area":105.8},{"label":"used in code ×10","node":"finding:8","area":529.5}]
+INFO  2b-caption "lives in" (193.3,560.2) 36.3x15 vs caption "10 uses" (132.5,522.2) 44.6x17 -> intersection 0px² (recheck-4 graze: 30px²)
+PASS  2b-caption "lives in" does not touch the "N uses" caption :: intersection 0px²
+INFO  2b-caption2 "used in code ×10" vs caption "10 uses" -> intersection 0px²
+INFO  3e probe label "lives in" centre (211.4,567.7): top = circle -> finding:8
+INFO  3e probe label "used in code ×10" centre (233.9,536.6): top = circle -> finding:8
+FAIL  3e-corrected edge click through cluster label selects edge :: NO counted label centre sits over an edge hit line — every label centre is over a node/other element; see probes above
+INFO  1280px load (supplement): still waiting 29s — has30=false, progressCard=true, savedReport=false
+INFO  1280px load (supplement): FINAL report settled in 50.4s
+INFO  drawn finding node ids (1280): ["finding:10","finding:12","finding:13","finding:14","finding:15","finding:17","finding:18","finding:24","finding:5","finding:7","finding:8","finding:9"] — finding:0 present = false
+INFO  clickNode finding:10: selected on attempt 1
+PASS  3a-corrected click finding selects + zooms (1280) :: clicked first drawn node finding:10 (Secret 11); k 0.932 -> 1.851; detail shows Secret 11. Main-run FAIL used finding:0, which is not among the 12 drawn findings on this repo.
+INFO  done. 4 PASS, 2 FAIL
+
+===== PROBE 2 (/tmp/p18/recheck5b-probe2.cjs) — direct edge click + zoom label-vs-caption ===
+INFO  browser launched
+INFO  360px load (probe2): FINAL report settled in 44.5s
+INFO  S6 selected; detail starts: "Secret 6 — Committed .env file · pihole-cloudflared-DoH/.env:1 · Likely genuine "
+INFO  edge probe own-7 f=0.2 (147.6,489.3): top = line -> code-7-postgresql-pgadmin/compose.yaml-8
+INFO  edge probe own-7 f=0.3 (162.8,493.1): top = circle -> finding:5
+INFO  edge probe own-7 f=0.4 (178.1,496.9): top = text -> finding:5
+INFO  edge probe own-7 f=0.5 (193.4,500.7): top = circle -> finding:5
+INFO  edge probe own-7 f=0.6 (208.7,504.5): top = circle -> finding:5
+INFO  edge probe own-7 f=0.7 (223.9,508.2): top = line -> code-5-pihole-cloudflared-DoH/compose.yaml-30
+INFO  edge probe own-7 f=0.8 (239.2,512): top = circle -> file:postgresql-pgadmin/compose.yaml
+INFO  edge probe code-7-gitea-postgres/compose.yaml-18 f=0.2 (113.2,471.7): top = circle -> finding:7
+INFO  edge probe code-7-gitea-postgres/compose.yaml-18 f=0.3 (113.2,466.7): top = circle -> finding:7
+INFO  edge probe code-7-gitea-postgres/compose.yaml-18 f=0.4 (113.2,461.6): top = circle -> finding:7
+INFO  edge probe code-7-gitea-postgres/compose.yaml-18 f=0.5 (113.2,456.6): top = circle -> finding:7
+INFO  edge probe code-7-gitea-postgres/compose.yaml-18 f=0.6 (113.2,451.5): top = circle -> file:gitea-postgres/compose.yaml
+INFO  edge probe code-7-gitea-postgres/compose.yaml-18 f=0.7 (113.2,446.5): top = circle -> file:gitea-postgres/compose.yaml
+INFO  edge probe code-7-gitea-postgres/compose.yaml-18 f=0.8 (113.2,441.5): top = circle -> file:gitea-postgres/compose.yaml
+INFO  edge probe code-7-gitea-postgres/compose.yaml-20 f=0.2 (120.8,471.7): top = circle -> finding:7
+INFO  edge probe code-7-gitea-postgres/compose.yaml-20 f=0.3 (120.8,466.7): top = circle -> finding:7
+INFO  edge probe code-7-gitea-postgres/compose.yaml-20 f=0.4 (120.8,461.6): top = circle -> finding:7
+INFO  edge probe code-7-gitea-postgres/compose.yaml-20 f=0.5 (120.8,456.6): top = circle -> finding:7
+INFO  edge probe code-7-gitea-postgres/compose.yaml-20 f=0.6 (120.8,451.5): top = circle -> file:gitea-postgres/compose.yaml
+INFO  edge probe code-7-gitea-postgres/compose.yaml-20 f=0.7 (120.8,446.5): top = circle -> file:gitea-postgres/compose.yaml
+INFO  edge probe code-7-gitea-postgres/compose.yaml-20 f=0.8 (120.8,441.5): top = circle -> file:gitea-postgres/compose.yaml
+INFO  edge probe code-7-nextcloud-postgres/compose.yaml-7 f=0.2 (118.2,464.8): top = circle -> finding:7
+INFO  edge probe code-7-nextcloud-postgres/compose.yaml-7 f=0.3 (122.8,460.3): top = circle -> finding:7
+INFO  edge probe code-7-nextcloud-postgres/compose.yaml-7 f=0.4 (127.4,455.9): top = circle -> finding:7
+INFO  edge probe code-7-nextcloud-postgres/compose.yaml-7 f=0.5 (131.9,451.5): top = circle -> file:gitea-postgres/compose.yaml
+INFO  edge probe code-7-nextcloud-postgres/compose.yaml-7 f=0.6 (136.5,447): top = circle -> file:nextcloud-postgres/compose.yaml
+INFO  edge probe code-7-nextcloud-postgres/compose.yaml-7 f=0.7 (141.1,442.6): top = circle -> file:nextcloud-postgres/compose.yaml
+INFO  edge probe code-7-nextcloud-postgres/compose.yaml-7 f=0.8 (145.6,438.1): top = circle -> file:nextcloud-postgres/compose.yaml
+INFO  edge probe code-7-nextcloud-postgres/compose.yaml-8 f=0.2 (123.5,470.2): top = circle -> finding:7
+INFO  edge probe code-7-nextcloud-postgres/compose.yaml-8 f=0.3 (128.1,465.7): top = circle -> finding:7
+INFO  edge probe code-7-nextcloud-postgres/compose.yaml-8 f=0.4 (132.6,461.3): top = circle -> finding:7
+INFO  edge probe code-7-nextcloud-postgres/compose.yaml-8 f=0.5 (137.2,456.9): top = line -> code-7-nextcloud-postgres/compose.yaml-18
+INFO  edge probe code-7-nextcloud-postgres/compose.yaml-8 f=0.6 (141.8,452.4): top = circle -> file:nextcloud-postgres/compose.yaml
+INFO  edge probe code-7-nextcloud-postgres/compose.yaml-8 f=0.7 (146.3,448): top = circle -> file:nextcloud-postgres/compose.yaml
+INFO  edge probe code-7-nextcloud-postgres/compose.yaml-8 f=0.8 (150.9,443.6): top = circle -> file:nextcloud-postgres/compose.yaml
+INFO  edge probe code-7-nextcloud-postgres/compose.yaml-18 f=0.2 (128.8,475.6): top = circle -> finding:7
+INFO  edge probe code-7-nextcloud-postgres/compose.yaml-18 f=0.3 (133.3,471.2): top = circle -> finding:7
+INFO  edge probe code-7-nextcloud-postgres/compose.yaml-18 f=0.4 (137.9,466.7): top = circle -> finding:7
+INFO  edge probe code-7-nextcloud-postgres/compose.yaml-18 f=0.5 (142.5,462.3): top = line -> code-7-nextcloud-postgres/compose.yaml-19
+INFO  edge probe code-7-nextcloud-postgres/compose.yaml-18 f=0.6 (147,457.9): top = circle -> file:nextcloud-postgres/compose.yaml
+INFO  edge probe code-7-nextcloud-postgres/compose.yaml-18 f=0.7 (151.6,453.4): top = circle -> file:nextcloud-postgres/compose.yaml
+INFO  edge probe code-7-nextcloud-postgres/compose.yaml-18 f=0.8 (156.2,449): top = circle -> file:nextcloud-postgres/compose.yaml
+INFO  edge probe code-7-nextcloud-postgres/compose.yaml-19 f=0.2 (134,481): top = circle -> finding:7
+INFO  edge probe code-7-nextcloud-postgres/compose.yaml-19 f=0.3 (138.6,476.6): top = circle -> finding:7
+INFO  edge probe code-7-nextcloud-postgres/compose.yaml-19 f=0.4 (143.2,472.2): top = circle -> finding:7
+INFO  edge probe code-7-nextcloud-postgres/compose.yaml-19 f=0.5 (147.7,467.7): top = line -> code-7-postgresql-pgadmin/compose.yaml-6
+INFO  edge probe code-7-nextcloud-postgres/compose.yaml-19 f=0.6 (152.3,463.3): top = circle -> file:nextcloud-postgres/compose.yaml
+INFO  edge probe code-7-nextcloud-postgres/compose.yaml-19 f=0.7 (156.9,458.8): top = circle -> file:nextcloud-postgres/compose.yaml
+INFO  edge probe code-7-nextcloud-postgres/compose.yaml-19 f=0.8 (161.4,454.4): top = circle -> file:nextcloud-postgres/compose.yaml
+INFO  edge probe code-7-nginx-golang-postgres/compose.yaml-21 f=0.2 (134.6,476.4): top = circle -> finding:7
+INFO  edge probe code-7-nginx-golang-postgres/compose.yaml-21 f=0.3 (143.5,473.7): top = circle -> finding:7
+INFO  edge probe code-7-nginx-golang-postgres/compose.yaml-21 f=0.4 (152.3,471.1): top = line -> code-7-postgresql-pgadmin/compose.yaml-6
+INFO  edge probe code-7-nginx-golang-postgres/compose.yaml-21 f=0.5 (161.1,468.4): top = line -> code-7-postgresql-pgadmin/compose.yaml-6
+INFO  edge probe code-7-nginx-golang-postgres/compose.yaml-21 f=0.6 (169.9,465.7): top = circle -> file:nextcloud-postgres/compose.yaml
+INFO  edge probe code-7-nginx-golang-postgres/compose.yaml-21 f=0.7 (178.7,463): top = circle -> file:nginx-golang-postgres/compose.yaml
+INFO  edge probe code-7-nginx-golang-postgres/compose.yaml-21 f=0.8 (187.6,460.4): top = circle -> file:nginx-golang-postgres/compose.yaml
+INFO  edge probe code-7-postgresql-pgadmin/compose.yaml-6 f=0.2 (142,474.5): top = circle -> finding:7
+INFO  edge probe code-7-postgresql-pgadmin/compose.yaml-6 f=0.3 (154.5,474.6): top = line -> code-7-postgresql-pgadmin/compose.yaml-7
+INFO  edge probe code-7-postgresql-pgadmin/compose.yaml-6 f=0.4 (167,474.7): top = circle -> finding:5
+INFO  edge probe code-7-postgresql-pgadmin/compose.yaml-6 f=0.5 (179.4,474.8): top = circle -> finding:5
+INFO  edge probe code-7-postgresql-pgadmin/compose.yaml-6 f=0.6 (191.9,475): top = circle -> finding:5
+INFO  edge probe code-7-postgresql-pgadmin/compose.yaml-6 f=0.7 (204.4,475.1): top = circle -> file:nginx-golang-postgres/compose.yaml
+INFO  edge probe code-7-postgresql-pgadmin/compose.yaml-6 f=0.8 (216.9,475.2): top = circle -> file:postgresql-pgadmin/compose.yaml
+INFO  edge probe code-7-postgresql-pgadmin/compose.yaml-7 f=0.2 (141.9,482): top = circle -> finding:7
+INFO  edge probe code-7-postgresql-pgadmin/compose.yaml-7 f=0.3 (154.4,482.2): top = line -> code-7-postgresql-pgadmin/compose.yaml-8
+INFO  edge probe code-7-postgresql-pgadmin/compose.yaml-7 f=0.4 (166.9,482.3): top = circle -> finding:5
+INFO  edge probe code-7-postgresql-pgadmin/compose.yaml-7 f=0.5 (179.4,482.4): top = circle -> finding:5
+INFO  edge probe code-7-postgresql-pgadmin/compose.yaml-7 f=0.6 (191.8,482.5): top = circle -> finding:5
+INFO  edge probe code-7-postgresql-pgadmin/compose.yaml-7 f=0.7 (204.3,482.7): top = circle -> finding:5
+INFO  edge probe code-7-postgresql-pgadmin/compose.yaml-7 f=0.8 (216.8,482.8): top = circle -> file:postgresql-pgadmin/compose.yaml
+INFO  edge probe code-7-postgresql-pgadmin/compose.yaml-8 f=0.2 (141.9,489.6): top = circle -> finding:7
+INFO  edge probe code-7-postgresql-pgadmin/compose.yaml-8 f=0.3 (154.3,489.7): top = circle -> finding:5
+INFO  edge probe code-7-postgresql-pgadmin/compose.yaml-8 f=0.4 (166.8,489.8): top = circle -> finding:5
+INFO  edge probe code-7-postgresql-pgadmin/compose.yaml-8 f=0.5 (179.3,490): top = text -> finding:5
+INFO  edge probe code-7-postgresql-pgadmin/compose.yaml-8 f=0.6 (191.8,490.1): top = circle -> finding:5
+INFO  edge probe code-7-postgresql-pgadmin/compose.yaml-8 f=0.7 (204.2,490.2): top = circle -> finding:5
+INFO  edge probe code-7-postgresql-pgadmin/compose.yaml-8 f=0.8 (216.7,490.3): top = circle -> file:postgresql-pgadmin/compose.yaml
+INFO  edge probe own-5 f=0.2 (198,538.1): top = circle -> finding:8
+INFO  edge probe own-5 f=0.3 (206.9,557.9): top = circle -> finding:8
+INFO  edge probe own-5 f=0.4 (215.9,577.6): top = line -> code-8-wasmedge-mysql-nginx/compose.yml-17
+INFO  edge probe own-5 f=0.5 (224.9,597.3): top = circle -> finding:10
+INFO  edge probe own-5 f=0.6 (233.9,617): top = circle -> finding:10
+INFO  edge probe own-5 f=0.7 (242.8,636.8): top = circle -> finding:10
+INFO  edge probe own-5 f=0.8 (251.8,656.5): top = circle -> finding:13
+INFO  edge probe code-5-pihole-cloudflared-DoH/compose.yaml-10 f=0.2 (214.9,488.6): top = circle -> file:postgresql-pgadmin/compose.yaml
+INFO  edge probe code-5-pihole-cloudflared-DoH/compose.yaml-10 f=0.3 (225.7,494.9): top = circle -> file:postgresql-pgadmin/compose.yaml
+INFO  edge probe code-5-pihole-cloudflared-DoH/compose.yaml-10 f=0.4 (236.4,501.3): top = circle -> file:postgresql-pgadmin/compose.yaml
+INFO  edge probe code-5-pihole-cloudflared-DoH/compose.yaml-10 f=0.5 (247.2,507.6): top = circle -> file:postgresql-pgadmin/.env
+INFO  edge probe code-5-pihole-cloudflared-DoH/compose.yaml-10 f=0.6 (257.9,514): top = circle -> file:postgresql-pgadmin/.env
+INFO  edge probe code-5-pihole-cloudflared-DoH/compose.yaml-10 f=0.7 (268.6,520.3): top = text -> file:postgresql-pgadmin/.env
+INFO  edge probe code-5-pihole-cloudflared-DoH/compose.yaml-10 f=0.8 (279.4,526.6): top = circle -> file:postgresql-pgadmin/.env
+INFO  edge probe code-5-pihole-cloudflared-DoH/compose.yaml-28 f=0.2 (211.1,495.1): top = line -> code-5-pihole-cloudflared-DoH/compose.yaml-28  <-- SELF EDGE
+INFO  direct edge click detail: "Secret Committed .env file lives in pihole-cloudflared-DoH/.env:1 and is read by pihole-cloudflared-DoH/compose.yaml:30. Rotating it means updating that file too. pihole-cloudflared-DoH/compose.yaml:30 · used in code Show Secret 6"
+PASS  3-edge direct edge-line click selects the edge :: clicked code-5-pihole-cloudflared-DoH/compose.yaml-28 at f=0.2; detail shows file:line: "Secret Committed .env file lives in pihole-cloudflared-DoH/.env:1 and is read by pihole-cloudflared-DoH/compose.yaml:30. Rotating it means updating that file to"
+INFO  1280px load (probe2): FINAL report settled in 42.3s
+INFO  zoomed: k=1.819 after 3 clicks
+INFO  zoomed in-viewport labels: ["lives in ×2","used in code ×13","used in code ×9"]
+INFO  zoomed in-viewport captions: ["14 uses (finding:7)","10 uses (finding:5)","5 uses (finding:8)","4 uses (finding:9)","4 uses (finding:12)"]
+INFO  zoomed label-vs-caption intersections: [{"label":"lives in ×2","caption":"10 uses","node":"finding:5","area":382.7}]
+FAIL  zoom label-vs-caption :: 1 intersection(s), worst 382.7px²: [{"label":"lives in ×2","caption":"10 uses","node":"finding:5","area":382.7}] — matches the "10 uslives in ×2" seen in awesome-1280-zoomed-recheck5b.png
+INFO  done. 1 PASS, 1 FAIL
+
+COMBINED: 17 PASS, 7 FAIL across the three logs. Of the 7 FAILs, 3 were harness artifacts corrected to PASS in the supplement (2a, 2b, 3a@1280); the remaining 4 FAIL lines cover 2 distinct real defects: (A) cluster labels overlap OTHER nodes/captions (2b-extra, zoom label-vs-caption, plus the ITEM1-extra measurement in the main log), (B) tap-through-a-cluster-label selects the node beneath instead of the edge (3e main + 3e-corrected).

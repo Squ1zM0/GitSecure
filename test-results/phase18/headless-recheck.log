@@ -1,0 +1,16 @@
+INFO  3e-recheck: crumbs before=["This repo","Secret 1"]; detail before="Secret 1 — Database URL with credentials · scripts/test-public-full.ts:128 · Lik"
+INFO  3e-recheck: Go to button label="Go to test-pub…ll.ts"
+INFO  3e-recheck: crumbs after=["This repo","Secret 1","test-pub…ll.ts"]; detail after="scripts/test-public-full.ts · 2 findings live in this file\n\nPin Filter list to this file\n\nConnected to 1 neighbour — 1 o"
+PASS  3e-recheck traverse Next+Go to :: breadcrumb 2 -> 3 ["This repo","Secret 1","test-pub…ll.ts"]; detail panel now shows the traversed node ("scripts/test-public-full.ts · 2 findings live in this file\n\nPin Filter list to t")
+INFO  3f-recheck edge target on-screen: {"x":674.4762878417969,"y":648.2067260742188,"id":"test-18-scripts/test-history.ts-431","aria":"Connection: Secret 19 used in tests in scripts/test-history.ts line 431"} (viewport 1280x900)
+INFO  3f-recheck detail after mouse edge-click: "scripts/test-public-full.ts · 2 findings live in this file\n\nPin Filter list to this file\n\nConnected to 1 neighbour — 1 of 1: Secret 1.\n\nPrevious neighbour Next neighbour Go to Secret 1"
+FAIL  3f-recheck edge-click (mouse) :: click at on-screen midpoint did NOT select edge; panel="scripts/test-public-full.ts · 2 findings live in this file\n\nPin Filter list to this file\n\nConnected to 1 neighbour — 1 of 1: Secret 1.\n\nPrevious neigh" (pre-click panel was "scripts/test-public-full.ts · 2 findings live in this file\n\n")
+INFO  --- TECHDIRECT re-check ---
+INFO  techdirect FileMap svg NOT present after 120s
+INFO  techdirect: {"mapToggle":false,"fileMapSvg":false,"usageToolbar":false,"usagePlane":false,"secretsLine":null,"fileNodes":0}
+FAIL  techdirect-recheck fallback FileMap :: {"mapToggle":false,"fileMapSvg":false,"usageToolbar":false,"usagePlane":false,"secretsLine":null,"fileNodes":0}
+INFO  screenshot re-saved: techdirect-1280-light.png
+INFO  360px techdirect: documentElement.scrollWidth=360
+INFO  screenshot re-saved: techdirect-360-light.png
+PASS  360px overflow techdirect :: scrollWidth=360 (<=360)
+INFO  recheck done. 2 PASS, 2 FAIL

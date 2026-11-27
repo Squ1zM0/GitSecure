@@ -1,0 +1,25 @@
+INFO  browser launched
+INFO  360px load (supplement): still waiting 29s — has30=false, progressCard=true, savedReport=false
+INFO  360px load (supplement): FINAL report settled in 42.4s
+INFO  drawn finding node ids (360): ["finding:10","finding:12","finding:13","finding:14","finding:15","finding:17","finding:18","finding:24","finding:5","finding:7","finding:8","finding:9"] — finding:0 present = false
+INFO  360px fit view: translate(32.0 75.0) scale(0.600)
+INFO  clickNode finding:5: selected on attempt 1
+INFO  S6 selected: view translate(-163.0 58.7) scale(1.260); detail starts: "Secret 6 — Committed .env file · pihole-cloudflared-DoH/.env:1 · Likely genuine leak · This file rea"
+INFO  selected-track labels: ["lives in","used in code ×10"]
+PASS  2a-corrected cluster labels present on selected track :: "used in code ×10" + "lives in" — the counted kind here is "used in code" (Secret 6 has 10 code refs, 0 test refs); the main-run FAIL was the harness hard-coding "used in tests"
+INFO  2b-corrected "used in code ×10" (189.1,529.1) 89.6x15 vs S6 visible circle (161.1,479.8) 37.8x37.8 r=15 -> intersection 0px²; vs hit circle r=24 -> 0px²
+PASS  2b-corrected counted label does NOT intersect its finding node visible circle :: intersection 0px² (recheck-4 S8: 45.7x15.0px behind the node)
+INFO  2b-extra: selected-track label vs ANY visible node circle intersections = [{"label":"lives in","node":"finding:8","area":46.4},{"label":"used in code ×10","node":"file:postgresql-pgadmin/.env","area":105.8},{"label":"used in code ×10","node":"finding:8","area":529.5}] (empty = none)
+FAIL  2b-extra no selected-track label intersects any node circle :: 3 intersection(s): [{"label":"lives in","node":"finding:8","area":46.4},{"label":"used in code ×10","node":"file:postgresql-pgadmin/.env","area":105.8},{"label":"used in code ×10","node":"finding:8","area":529.5}]
+INFO  2b-caption "lives in" (193.3,560.2) 36.3x15 vs caption "10 uses" (132.5,522.2) 44.6x17 -> intersection 0px² (recheck-4 graze: 30px²)
+PASS  2b-caption "lives in" does not touch the "N uses" caption :: intersection 0px²
+INFO  2b-caption2 "used in code ×10" vs caption "10 uses" -> intersection 0px²
+INFO  3e probe label "lives in" centre (211.4,567.7): top = circle -> finding:8
+INFO  3e probe label "used in code ×10" centre (233.9,536.6): top = circle -> finding:8
+FAIL  3e-corrected edge click through cluster label selects edge :: NO counted label centre sits over an edge hit line — every label centre is over a node/other element; see probes above
+INFO  1280px load (supplement): still waiting 29s — has30=false, progressCard=true, savedReport=false
+INFO  1280px load (supplement): FINAL report settled in 50.4s
+INFO  drawn finding node ids (1280): ["finding:10","finding:12","finding:13","finding:14","finding:15","finding:17","finding:18","finding:24","finding:5","finding:7","finding:8","finding:9"] — finding:0 present = false
+INFO  clickNode finding:10: selected on attempt 1
+PASS  3a-corrected click finding selects + zooms (1280) :: clicked first drawn node finding:10 (Secret 11); k 0.932 -> 1.851; detail shows Secret 11. Main-run FAIL used finding:0, which is not among the 12 drawn findings on this repo.
+INFO  done. 4 PASS, 2 FAIL

@@ -106,3 +106,25 @@ node test-results/phase17/resume-proof/run-resume-proof.mjs \
 
 `evidence.md` in this directory — numbers, lost-finding lists,
 timings, and what could not be measured locally.
+
+## Live proof after provisioning (2026-11-27, post-deploy 57323998)
+
+Run against https://git-secure.com after the store went live:
+
+```sh
+node test-results/phase17/resume-proof/run-resume-proof.mjs \
+  --base https://git-secure.com --repo docker/awesome-compose \
+  --out test-results/phase17/resume-proof/awesome-compose-live3
+```
+
+- **GET spanned two invocations** (call 1: HTTP 202 after 40.3 s,
+  261/274 commits; call 2 resumed with `?cursor=` and finished 200
+  after 24.5 s). The cursor carries no findings and the GET caller
+  passes none, so the early-chunk findings in the finished report
+  could only have come back from the store.
+- **MATCH, exit 0:** chunk 30 secrets (14 HEAD + 16 history) vs GET
+  30 (14 + 16), 0 lost, 0 gained, depth 274 = 274. Pre-fix this same
+  repo's GET lost all 10 history findings.
+- This closes design §4.6 step 9. The DefinitelyTyped-scale
+  multi-invocation run was not needed: awesome-compose crossed a real
+  invocation boundary live with history findings on both sides of it.

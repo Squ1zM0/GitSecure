@@ -1,0 +1,104 @@
+INFO  browser launched
+INFO  360px load (probe2): FINAL report settled in 44.5s
+INFO  S6 selected; detail starts: "Secret 6 — Committed .env file · pihole-cloudflared-DoH/.env:1 · Likely genuine "
+INFO  edge probe own-7 f=0.2 (147.6,489.3): top = line -> code-7-postgresql-pgadmin/compose.yaml-8
+INFO  edge probe own-7 f=0.3 (162.8,493.1): top = circle -> finding:5
+INFO  edge probe own-7 f=0.4 (178.1,496.9): top = text -> finding:5
+INFO  edge probe own-7 f=0.5 (193.4,500.7): top = circle -> finding:5
+INFO  edge probe own-7 f=0.6 (208.7,504.5): top = circle -> finding:5
+INFO  edge probe own-7 f=0.7 (223.9,508.2): top = line -> code-5-pihole-cloudflared-DoH/compose.yaml-30
+INFO  edge probe own-7 f=0.8 (239.2,512): top = circle -> file:postgresql-pgadmin/compose.yaml
+INFO  edge probe code-7-gitea-postgres/compose.yaml-18 f=0.2 (113.2,471.7): top = circle -> finding:7
+INFO  edge probe code-7-gitea-postgres/compose.yaml-18 f=0.3 (113.2,466.7): top = circle -> finding:7
+INFO  edge probe code-7-gitea-postgres/compose.yaml-18 f=0.4 (113.2,461.6): top = circle -> finding:7
+INFO  edge probe code-7-gitea-postgres/compose.yaml-18 f=0.5 (113.2,456.6): top = circle -> finding:7
+INFO  edge probe code-7-gitea-postgres/compose.yaml-18 f=0.6 (113.2,451.5): top = circle -> file:gitea-postgres/compose.yaml
+INFO  edge probe code-7-gitea-postgres/compose.yaml-18 f=0.7 (113.2,446.5): top = circle -> file:gitea-postgres/compose.yaml
+INFO  edge probe code-7-gitea-postgres/compose.yaml-18 f=0.8 (113.2,441.5): top = circle -> file:gitea-postgres/compose.yaml
+INFO  edge probe code-7-gitea-postgres/compose.yaml-20 f=0.2 (120.8,471.7): top = circle -> finding:7
+INFO  edge probe code-7-gitea-postgres/compose.yaml-20 f=0.3 (120.8,466.7): top = circle -> finding:7
+INFO  edge probe code-7-gitea-postgres/compose.yaml-20 f=0.4 (120.8,461.6): top = circle -> finding:7
+INFO  edge probe code-7-gitea-postgres/compose.yaml-20 f=0.5 (120.8,456.6): top = circle -> finding:7
+INFO  edge probe code-7-gitea-postgres/compose.yaml-20 f=0.6 (120.8,451.5): top = circle -> file:gitea-postgres/compose.yaml
+INFO  edge probe code-7-gitea-postgres/compose.yaml-20 f=0.7 (120.8,446.5): top = circle -> file:gitea-postgres/compose.yaml
+INFO  edge probe code-7-gitea-postgres/compose.yaml-20 f=0.8 (120.8,441.5): top = circle -> file:gitea-postgres/compose.yaml
+INFO  edge probe code-7-nextcloud-postgres/compose.yaml-7 f=0.2 (118.2,464.8): top = circle -> finding:7
+INFO  edge probe code-7-nextcloud-postgres/compose.yaml-7 f=0.3 (122.8,460.3): top = circle -> finding:7
+INFO  edge probe code-7-nextcloud-postgres/compose.yaml-7 f=0.4 (127.4,455.9): top = circle -> finding:7
+INFO  edge probe code-7-nextcloud-postgres/compose.yaml-7 f=0.5 (131.9,451.5): top = circle -> file:gitea-postgres/compose.yaml
+INFO  edge probe code-7-nextcloud-postgres/compose.yaml-7 f=0.6 (136.5,447): top = circle -> file:nextcloud-postgres/compose.yaml
+INFO  edge probe code-7-nextcloud-postgres/compose.yaml-7 f=0.7 (141.1,442.6): top = circle -> file:nextcloud-postgres/compose.yaml
+INFO  edge probe code-7-nextcloud-postgres/compose.yaml-7 f=0.8 (145.6,438.1): top = circle -> file:nextcloud-postgres/compose.yaml
+INFO  edge probe code-7-nextcloud-postgres/compose.yaml-8 f=0.2 (123.5,470.2): top = circle -> finding:7
+INFO  edge probe code-7-nextcloud-postgres/compose.yaml-8 f=0.3 (128.1,465.7): top = circle -> finding:7
+INFO  edge probe code-7-nextcloud-postgres/compose.yaml-8 f=0.4 (132.6,461.3): top = circle -> finding:7
+INFO  edge probe code-7-nextcloud-postgres/compose.yaml-8 f=0.5 (137.2,456.9): top = line -> code-7-nextcloud-postgres/compose.yaml-18
+INFO  edge probe code-7-nextcloud-postgres/compose.yaml-8 f=0.6 (141.8,452.4): top = circle -> file:nextcloud-postgres/compose.yaml
+INFO  edge probe code-7-nextcloud-postgres/compose.yaml-8 f=0.7 (146.3,448): top = circle -> file:nextcloud-postgres/compose.yaml
+INFO  edge probe code-7-nextcloud-postgres/compose.yaml-8 f=0.8 (150.9,443.6): top = circle -> file:nextcloud-postgres/compose.yaml
+INFO  edge probe code-7-nextcloud-postgres/compose.yaml-18 f=0.2 (128.8,475.6): top = circle -> finding:7
+INFO  edge probe code-7-nextcloud-postgres/compose.yaml-18 f=0.3 (133.3,471.2): top = circle -> finding:7
+INFO  edge probe code-7-nextcloud-postgres/compose.yaml-18 f=0.4 (137.9,466.7): top = circle -> finding:7
+INFO  edge probe code-7-nextcloud-postgres/compose.yaml-18 f=0.5 (142.5,462.3): top = line -> code-7-nextcloud-postgres/compose.yaml-19
+INFO  edge probe code-7-nextcloud-postgres/compose.yaml-18 f=0.6 (147,457.9): top = circle -> file:nextcloud-postgres/compose.yaml
+INFO  edge probe code-7-nextcloud-postgres/compose.yaml-18 f=0.7 (151.6,453.4): top = circle -> file:nextcloud-postgres/compose.yaml
+INFO  edge probe code-7-nextcloud-postgres/compose.yaml-18 f=0.8 (156.2,449): top = circle -> file:nextcloud-postgres/compose.yaml
+INFO  edge probe code-7-nextcloud-postgres/compose.yaml-19 f=0.2 (134,481): top = circle -> finding:7
+INFO  edge probe code-7-nextcloud-postgres/compose.yaml-19 f=0.3 (138.6,476.6): top = circle -> finding:7
+INFO  edge probe code-7-nextcloud-postgres/compose.yaml-19 f=0.4 (143.2,472.2): top = circle -> finding:7
+INFO  edge probe code-7-nextcloud-postgres/compose.yaml-19 f=0.5 (147.7,467.7): top = line -> code-7-postgresql-pgadmin/compose.yaml-6
+INFO  edge probe code-7-nextcloud-postgres/compose.yaml-19 f=0.6 (152.3,463.3): top = circle -> file:nextcloud-postgres/compose.yaml
+INFO  edge probe code-7-nextcloud-postgres/compose.yaml-19 f=0.7 (156.9,458.8): top = circle -> file:nextcloud-postgres/compose.yaml
+INFO  edge probe code-7-nextcloud-postgres/compose.yaml-19 f=0.8 (161.4,454.4): top = circle -> file:nextcloud-postgres/compose.yaml
+INFO  edge probe code-7-nginx-golang-postgres/compose.yaml-21 f=0.2 (134.6,476.4): top = circle -> finding:7
+INFO  edge probe code-7-nginx-golang-postgres/compose.yaml-21 f=0.3 (143.5,473.7): top = circle -> finding:7
+INFO  edge probe code-7-nginx-golang-postgres/compose.yaml-21 f=0.4 (152.3,471.1): top = line -> code-7-postgresql-pgadmin/compose.yaml-6
+INFO  edge probe code-7-nginx-golang-postgres/compose.yaml-21 f=0.5 (161.1,468.4): top = line -> code-7-postgresql-pgadmin/compose.yaml-6
+INFO  edge probe code-7-nginx-golang-postgres/compose.yaml-21 f=0.6 (169.9,465.7): top = circle -> file:nextcloud-postgres/compose.yaml
+INFO  edge probe code-7-nginx-golang-postgres/compose.yaml-21 f=0.7 (178.7,463): top = circle -> file:nginx-golang-postgres/compose.yaml
+INFO  edge probe code-7-nginx-golang-postgres/compose.yaml-21 f=0.8 (187.6,460.4): top = circle -> file:nginx-golang-postgres/compose.yaml
+INFO  edge probe code-7-postgresql-pgadmin/compose.yaml-6 f=0.2 (142,474.5): top = circle -> finding:7
+INFO  edge probe code-7-postgresql-pgadmin/compose.yaml-6 f=0.3 (154.5,474.6): top = line -> code-7-postgresql-pgadmin/compose.yaml-7
+INFO  edge probe code-7-postgresql-pgadmin/compose.yaml-6 f=0.4 (167,474.7): top = circle -> finding:5
+INFO  edge probe code-7-postgresql-pgadmin/compose.yaml-6 f=0.5 (179.4,474.8): top = circle -> finding:5
+INFO  edge probe code-7-postgresql-pgadmin/compose.yaml-6 f=0.6 (191.9,475): top = circle -> finding:5
+INFO  edge probe code-7-postgresql-pgadmin/compose.yaml-6 f=0.7 (204.4,475.1): top = circle -> file:nginx-golang-postgres/compose.yaml
+INFO  edge probe code-7-postgresql-pgadmin/compose.yaml-6 f=0.8 (216.9,475.2): top = circle -> file:postgresql-pgadmin/compose.yaml
+INFO  edge probe code-7-postgresql-pgadmin/compose.yaml-7 f=0.2 (141.9,482): top = circle -> finding:7
+INFO  edge probe code-7-postgresql-pgadmin/compose.yaml-7 f=0.3 (154.4,482.2): top = line -> code-7-postgresql-pgadmin/compose.yaml-8
+INFO  edge probe code-7-postgresql-pgadmin/compose.yaml-7 f=0.4 (166.9,482.3): top = circle -> finding:5
+INFO  edge probe code-7-postgresql-pgadmin/compose.yaml-7 f=0.5 (179.4,482.4): top = circle -> finding:5
+INFO  edge probe code-7-postgresql-pgadmin/compose.yaml-7 f=0.6 (191.8,482.5): top = circle -> finding:5
+INFO  edge probe code-7-postgresql-pgadmin/compose.yaml-7 f=0.7 (204.3,482.7): top = circle -> finding:5
+INFO  edge probe code-7-postgresql-pgadmin/compose.yaml-7 f=0.8 (216.8,482.8): top = circle -> file:postgresql-pgadmin/compose.yaml
+INFO  edge probe code-7-postgresql-pgadmin/compose.yaml-8 f=0.2 (141.9,489.6): top = circle -> finding:7
+INFO  edge probe code-7-postgresql-pgadmin/compose.yaml-8 f=0.3 (154.3,489.7): top = circle -> finding:5
+INFO  edge probe code-7-postgresql-pgadmin/compose.yaml-8 f=0.4 (166.8,489.8): top = circle -> finding:5
+INFO  edge probe code-7-postgresql-pgadmin/compose.yaml-8 f=0.5 (179.3,490): top = text -> finding:5
+INFO  edge probe code-7-postgresql-pgadmin/compose.yaml-8 f=0.6 (191.8,490.1): top = circle -> finding:5
+INFO  edge probe code-7-postgresql-pgadmin/compose.yaml-8 f=0.7 (204.2,490.2): top = circle -> finding:5
+INFO  edge probe code-7-postgresql-pgadmin/compose.yaml-8 f=0.8 (216.7,490.3): top = circle -> file:postgresql-pgadmin/compose.yaml
+INFO  edge probe own-5 f=0.2 (198,538.1): top = circle -> finding:8
+INFO  edge probe own-5 f=0.3 (206.9,557.9): top = circle -> finding:8
+INFO  edge probe own-5 f=0.4 (215.9,577.6): top = line -> code-8-wasmedge-mysql-nginx/compose.yml-17
+INFO  edge probe own-5 f=0.5 (224.9,597.3): top = circle -> finding:10
+INFO  edge probe own-5 f=0.6 (233.9,617): top = circle -> finding:10
+INFO  edge probe own-5 f=0.7 (242.8,636.8): top = circle -> finding:10
+INFO  edge probe own-5 f=0.8 (251.8,656.5): top = circle -> finding:13
+INFO  edge probe code-5-pihole-cloudflared-DoH/compose.yaml-10 f=0.2 (214.9,488.6): top = circle -> file:postgresql-pgadmin/compose.yaml
+INFO  edge probe code-5-pihole-cloudflared-DoH/compose.yaml-10 f=0.3 (225.7,494.9): top = circle -> file:postgresql-pgadmin/compose.yaml
+INFO  edge probe code-5-pihole-cloudflared-DoH/compose.yaml-10 f=0.4 (236.4,501.3): top = circle -> file:postgresql-pgadmin/compose.yaml
+INFO  edge probe code-5-pihole-cloudflared-DoH/compose.yaml-10 f=0.5 (247.2,507.6): top = circle -> file:postgresql-pgadmin/.env
+INFO  edge probe code-5-pihole-cloudflared-DoH/compose.yaml-10 f=0.6 (257.9,514): top = circle -> file:postgresql-pgadmin/.env
+INFO  edge probe code-5-pihole-cloudflared-DoH/compose.yaml-10 f=0.7 (268.6,520.3): top = text -> file:postgresql-pgadmin/.env
+INFO  edge probe code-5-pihole-cloudflared-DoH/compose.yaml-10 f=0.8 (279.4,526.6): top = circle -> file:postgresql-pgadmin/.env
+INFO  edge probe code-5-pihole-cloudflared-DoH/compose.yaml-28 f=0.2 (211.1,495.1): top = line -> code-5-pihole-cloudflared-DoH/compose.yaml-28  <-- SELF EDGE
+INFO  direct edge click detail: "Secret Committed .env file lives in pihole-cloudflared-DoH/.env:1 and is read by pihole-cloudflared-DoH/compose.yaml:30. Rotating it means updating that file too. pihole-cloudflared-DoH/compose.yaml:30 · used in code Show Secret 6"
+PASS  3-edge direct edge-line click selects the edge :: clicked code-5-pihole-cloudflared-DoH/compose.yaml-28 at f=0.2; detail shows file:line: "Secret Committed .env file lives in pihole-cloudflared-DoH/.env:1 and is read by pihole-cloudflared-DoH/compose.yaml:30. Rotating it means updating that file to"
+INFO  1280px load (probe2): FINAL report settled in 42.3s
+INFO  zoomed: k=1.819 after 3 clicks
+INFO  zoomed in-viewport labels: ["lives in ×2","used in code ×13","used in code ×9"]
+INFO  zoomed in-viewport captions: ["14 uses (finding:7)","10 uses (finding:5)","5 uses (finding:8)","4 uses (finding:9)","4 uses (finding:12)"]
+INFO  zoomed label-vs-caption intersections: [{"label":"lives in ×2","caption":"10 uses","node":"finding:5","area":382.7}]
+FAIL  zoom label-vs-caption :: 1 intersection(s), worst 382.7px²: [{"label":"lives in ×2","caption":"10 uses","node":"finding:5","area":382.7}] — matches the "10 uslives in ×2" seen in awesome-1280-zoomed-recheck5b.png
+INFO  done. 1 PASS, 1 FAIL

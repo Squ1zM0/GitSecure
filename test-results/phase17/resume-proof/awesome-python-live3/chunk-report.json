@@ -1,0 +1,83 @@
+{
+  "kind": "full",
+  "repo": "awesome-python",
+  "owner": "vinta",
+  "branch": "master",
+  "commit": "4c3cb15dc695e95ae64add86b9994add8277f323",
+  "score": 91,
+  "grade": "A",
+  "scoreDetail": {
+    "score": 91,
+    "grade": "A",
+    "secretsDeduction": 0,
+    "secretsFullWeight": 0,
+    "secretsHalfWeight": 0,
+    "secretsExcluded": 0,
+    "wouldBeScore": 91,
+    "vulnDeduction": 0,
+    "postureDeduction": 9,
+    "unpinnedDeduction": 0
+  },
+  "counts": {
+    "secrets": 0,
+    "testKeySecrets": 0,
+    "vulnerabilities": 0,
+    "frameworks": 1,
+    "dependencies": 1,
+    "postureIssues": 3,
+    "filesScanned": 126,
+    "historyCommitsScanned": 3350
+  },
+  "summary": "Scan complete. No leaked secrets were found in the files scanned; 3 security hygiene issues to fix; 1 framework fingerprinted. The full detail is in this report — no sign-in needed.",
+  "scannedAt": "2026-11-27T02:16:01.086Z",
+  "historyDepth": "Full history, newest first.",
+  "limits": [
+    "Scanned all 126 files in the tree (binary, dist, node_modules and .next skipped — generated/vendored paths, not source files).",
+    "History checked: 3350 commits, newest first (git protocol — no git binary, no REST quota).",
+    "Public repos only. No secret is ever stored after the scan finishes, logged, or shown in full."
+  ],
+  "secrets": [],
+  "frameworks": [
+    {
+      "name": "GitHub Action actions/checkout",
+      "ecosystem": "actions",
+      "version": "v7",
+      "versionSource": "config",
+      "unpinned": false,
+      "sourceFile": ".github/workflows/ci.yml"
+    }
+  ],
+  "dependencies": [
+    {
+      "name": "actions/checkout",
+      "ecosystem": "actions",
+      "version": "v7",
+      "direct": true,
+      "sourceFile": ".github/workflows/ci.yml"
+    }
+  ],
+  "vulnerabilities": [],
+  "posture": [
+    {
+      "id": "no-security-md",
+      "title": "No SECURITY.md",
+      "severity": "low",
+      "detail": "There is no SECURITY.md telling people how to report a vulnerability.",
+      "fix": "Add a SECURITY.md with a contact address and a response timeframe."
+    },
+    {
+      "id": "no-dependabot",
+      "title": "No Dependabot config",
+      "severity": "low",
+      "detail": "No .github/dependabot.yml was found, so dependency updates are not automated.",
+      "fix": "Add .github/dependabot.yml to get automated security update pull requests."
+    },
+    {
+      "id": "gitignore-gaps",
+      "title": ".gitignore gaps",
+      "severity": "medium",
+      "detail": ".gitignore does not cover: node_modules, *.pem.",
+      "fix": "Add node_modules, *.pem to .gitignore."
+    }
+  ]
+}

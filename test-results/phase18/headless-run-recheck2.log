@@ -1,0 +1,127 @@
+INFO  browser launched: executablePath=/home/hatch/.cache/ms-playwright/chromium-1255/chrome-linux64/chrome
+INFO  --- SELF-SCAN 1280 light (recheck2) ---
+INFO  self-scan: WARNING — progress card still present after 120s (provisional report)
+INFO  scan settled after 44.2s; Showing 18 of 18 secrets · 6 files. Of the 18 secrets, 18 look like test keys — still listed and still counted, with a test-key fix instead of "rotate it".
+INFO  fit view transform (initial): translate(194.4 8.0) scale(1.058)
+INFO  map nodes=20 findings=12 files=7 edges=52 edge-labels=0
+INFO  screenshot saved: selfscan-1280-light-recheck2.png
+INFO  finding:0 screen point: (731.6, 744.2)
+INFO  mouse node-click: detail="Secret 1 — Database URL with credentials · scripts/test-public-full.ts:128 · Likely test key · No references recorded.\n\n" selected=finding:0 transform translate(194.4 8.0) scale(1.058) -> translate(-124.6 -235.3) scale(1.851)
+PASS  1 mouse/tap node select (was FAIL 3a) :: detail shows "Secret 1", selected finding:0, translate(194.4 8.0) scale(1.058) -> translate(-124.6 -235.3) scale(1.851)
+INFO  edge click target: {"x":698.5775756835938,"y":712.2390441894531,"id":"own-15","aria":"Connection: Secret 16 lives in test-results/phase14-self-scan-inventory.md line 270"}
+INFO  detail after mouse edge-click: "Click a finding node to follow its track — the secret, the files that use it, and the file it lives in."
+FAIL  1b edge midpoint click (was FAIL 3f) :: mouse click did not select edge; panel="Click a finding node to follow its track — the secret, the files that use it, and the file it lives in." transform translate(194.4 8.0) scale(1.058)
+INFO  pan drag (+120,+60): before=translate(194.4 8.0) scale(1.058) after=translate(314.4 68.0) scale(1.058)
+PASS  2 background drag pan (was FAIL 3b) :: translate (194.4,8.0) -> (314.4,68.0) — delta (120.0,60.0) ≈ drag (120,60)
+INFO  pin: button was "Pin", aria-pressed=true, pin mark=true->true; world pos {"cx":"286.6025403784439","cy":"240"} -> {"cx":"286.6025403784439","cy":"240"}; view translate(-124.6 -235.3) scale(1.851) -> translate(-4.6 -175.3) scale(1.851)
+PASS  3 pin with pan (was vacuous) :: aria-pressed=true, pin mark present before+after pan, cx/cy 286.6025403784439/240 IDENTICAL while view panned translate(-124.6 -235.3) scale(1.851) -> translate(-4.6 -175.3) scale(1.851)
+INFO  label gating @fit k=1.0578947368421052: edge-labels total=0 visible=0
+PASS  4a label gating @fit, nothing selected :: k=1.058 — 0 map-edge-label elements in DOM (gated below k=1.5)
+INFO  label gating after select: k=1.851 labels visible=52 texts=["lives in","used in tests","used in tests","used in tests","used in tests","used in tests"]; selected=finding:0 secret#=1 edges-on-track=1
+PASS  4b label gating after select (partial) :: k=1.851 — 52 labels visible (track has 1 edges); selected-track labels present
+INFO  label gating after 2x toolbar zoom-in: k 1.851 -> 2.314 -> 2.893; labels visible=52 (total edges=52)
+FAIL  4c label gating zoomed past k=1.5 :: k=2.893 labels 52 -> 52
+INFO  wheel zoom: before=translate(194.4 8.0) scale(1.058) after=translate(-115.9 -286.4) scale(2.602) via page.mouse.wheel
+PASS  6a wheel zoom :: k 1.058 -> 2.602 via page.mouse.wheel
+INFO  toolbar zoom-in: before=translate(-115.9 -286.4) scale(2.602) after=translate(-246.3 -410.2) scale(3.253)
+INFO  reset view: after=translate(194.4 8.0) scale(1.058) vs initial fit=translate(194.4 8.0) scale(1.058)
+PASS  6b toolbar zoom-in + reset :: zoom-in k 2.602 -> 3.253; reset back to translate(194.4 8.0) scale(1.058) (fit translate(194.4 8.0) scale(1.058))
+INFO  breadcrumb after Go to: ["This repo","Secret 1","test-pub…ll.ts"]; selected finding:0 -> null; detail starts "scripts/test-public-full.ts · 1 finding live in this file\n\nPin Filter list to th"
+FAIL  6c traverse Next+Go to :: crumbs ["This repo","Secret 1"] -> ["This repo","Secret 1","test-pub…ll.ts"]; selected finding:0 -> null
+INFO  redaction: map-area sk-ant-=false BEGIN=false; whole-page sk-ant-=false BEGIN=false
+PASS  6d redaction (map area) :: no 'sk-ant-' literal, no '-----BEGIN' in map plane/detail/breadcrumb; whole-page sk-ant-=false BEGIN=false
+INFO  360px self-scan: documentElement.scrollWidth=360
+INFO  screenshot saved: selfscan-360-light-recheck2.png
+PASS  6e 360px overflow self-scan light :: scrollWidth=360 (<=360, no horizontal overflow)
+INFO  --- SELF-SCAN 360px (responsive zoom target) ---
+FATAL page.waitForSelector: Timeout 120000ms exceeded.
+Call log:
+  - waiting for locator('.view-toggle button:text("Map")') to be visible
+
+    at waitFinalReport (/tmp/p18/recheck2.cjs:48:14)
+    at /tmp/p18/recheck2.cjs:405:9
+INFO  browser launched: executablePath=/home/hatch/.cache/ms-playwright/chromium-1255/chrome-linux64/chrome
+INFO  --- SUPPLEMENTAL: SELF-SCAN 1280 light ---
+INFO  self-scan suppl: Map toggle present
+INFO  self-scan suppl: WARNING — progress card still present after 300s (provisional report)
+INFO  scan wait took 44.4s; final=false; Showing 18 of 18 secrets · 6 files. Of the 18 secrets, 18 look like test keys — still listed and still counted, with a test-key fix instead of "rotate it".
+INFO  fit view transform (initial): translate(194.4 8.0) scale(1.058)
+INFO  map nodes=20 findings=12 files=7 edges=52 edge-labels=0
+INFO  edge click target: {"x":698.5775756835938,"y":712.2390441894531,"id":"own-15","aria":"Connection: Secret 16 lives in test-results/phase14-self-scan-inventory.md line 270"}
+INFO  elementFromPoint at target: line. node=undefined edge=own-5 text=
+INFO  pointer events: ["pointerdown target=line. node=null edge=own-5","pointerup target=svg. node=null edge=null","click target=svg. node=null edge=null"]; svg identity same after click=true
+INFO  detail after mouse edge-click: "Secret Hardcoded password / secret assignment lives in scripts/test-scanner.ts:95 — this is the file the secret itself sits in.\n\nscripts/test-scanner.ts:95 · lives in\n\nShow Secret 6"
+PASS  1b edge midpoint click (re-probe) :: panel shows edge phrase + file:line: "Secret Hardcoded password / secret assignment lives in scripts/test-scanner.ts:95 — this is the file the secret itself sits in.\n\nscripts/test-scanner.ts:95 · lives in\n\nShow Secret 6"
+INFO  richest finding track: {"secret":8,"edges":11}
+INFO  selected finding:7 (selected=null), k after zoomToNode=1.851
+INFO  after Reset view: k=1.058 selected=null labels total=0 visible=0 (track edges=11)
+FAIL  4b label gating: selected track only, k<1.5 :: k=1.058 selected=null labels=0 track=11 total=52
+INFO  label gating zoom-only: k 1.058 -> 1.322 -> 1.653; labels 0 -> 0 -> 52 (total edges=52)
+PASS  4c label gating: zoom past k=1.5, nothing selected :: k=1.653 — labels 0 -> 52 (all 52 edges labelled once k>=1.5)
+INFO  breadcrumb after Go to: ["This repo","Secret 1","test-pub…ll.ts"]; detail before="Secret 1 — Database URL with credentials · scripts/test-publ" after="scripts/test-public-full.ts · 1 finding live in this file\n\nPin Filter list to this file\n\nConnected t"
+PASS  6c traverse Next+Go to (corrected) :: breadcrumb 2 -> 3 crumbs ["This repo","Secret 1","test-pub…ll.ts"]; detail switched to the traversed node
+INFO  360px fit view (after resize + Reset view): translate(8.0 52.2) scale(0.720)
+INFO  360px finding:0 screen point: (242.4, 646.6)
+INFO  360px after node click: selected=finding:0 translate(8.0 52.2) scale(0.720) -> translate(-209.1 -113.4) scale(1.260); node centre inPlane=true; repo centre inPlane=true; plane={"width":306,"height":380}
+PASS  5 responsive zoom target @360px :: k=1.260 (<2, expected ~1.5); selected node + repo centre both inside the 306x380 plane
+INFO  360px overflow (same page, selected state): scrollWidth=360
+INFO  screenshot saved: selfscan-360-selected-recheck2.png
+INFO  screenshot saved: selfscan-360-light-recheck2.png (overwrites provisional-report shot with settled-report shot)
+INFO  screenshot saved: selfscan-360-dark-recheck2.png
+INFO  360px self-scan dark: documentElement.scrollWidth=360
+PASS  6e 360px overflow self-scan dark :: scrollWidth=360 (<=360, no horizontal overflow)
+INFO  screenshot saved: selfscan-1280-dark-recheck2.png
+INFO  self-scan reduced-motion: WARNING — Map toggle not present after 180s
+FATAL page.click: Timeout 30000ms exceeded.
+Call log:
+  - waiting for locator('.view-toggle button:text("Map")')
+
+    at openMap (/tmp/p18/recheck3.cjs:57:14)
+    at /tmp/p18/recheck3.cjs:377:9
+INFO  browser launched: executablePath=/home/hatch/.cache/ms-playwright/chromium-1255/chrome-linux64/chrome
+INFO  --- FINAL PASS: SELF-SCAN 1280 light ---
+INFO  Map toggle present=true
+INFO  scan quiet=true after 28.1s; Showing 37 of 37 secrets · 7 files. Of the 37 secrets, 37 look like test keys — still listed and still counted, with a test-key fix instead of "rotate it".
+INFO  final report? progress gone=true
+INFO  fit view transform (initial): translate(194.4 8.0) scale(1.058)
+INFO  map nodes=21 findings=12 files=8 edges=92 edge-labels=0
+INFO  screenshot saved: selfscan-1280-light-recheck2.png (fit, nothing selected)
+INFO  360px fit view: translate(8.0 52.2) scale(0.720)
+INFO  360px fit, nothing selected: labels visible=0
+INFO  screenshot saved: selfscan-360-light-recheck2.png (fit, nothing selected)
+INFO  richest finding track: {"secret":8,"edges":11,"nodeId":"finding:7"}
+INFO  4b attempt 1: k=1.260 labels=11 (track=11, total=92) crumbs=["This repo","Secret 8"] detail="Secret 8 — Hardcoded password / secret assignment "
+PASS  4b label gating: selected track only, k<1.5 :: k=1.260 — 11 labels visible, exactly the 11 edges of the selected Secret 8 track (total edges 92); all other edges unlabelled at fit-adjacent zoom
+INFO  screenshot saved: selfscan-360-selected-recheck2.png
+INFO  screenshot saved: selfscan-360-dark-recheck2.png (fit, nothing selected)
+INFO  360px self-scan dark: documentElement.scrollWidth=360
+PASS  6e 360px overflow self-scan dark :: scrollWidth=360 (<=360, no horizontal overflow)
+INFO  screenshot saved: selfscan-1280-dark-recheck2.png (fit, nothing selected)
+INFO  reduced-motion: Map toggle present=true
+INFO  reduced-motion: world g class on open=""
+FATAL locator.focus: Timeout 30000ms exceeded.
+Call log:
+  - waiting for locator('g[data-node-id="finding:0"]')
+
+    at /tmp/p18/recheck4.cjs:208:55
+
+=== TAIL (recheck5) ===
+INFO  browser launched: executablePath=/home/hatch/.cache/ms-playwright/chromium-1255/chrome-linux64/chrome
+INFO  --- REDUCED MOTION (tail) ---
+INFO  reduced-motion: Map toggle present=true
+INFO  reduced-motion: world g class on open=""
+INFO  reduced-motion: mouse click selected=null
+INFO  reduced-motion: DOM-focus+Enter fallback selected=null
+INFO  reduced-motion: after select (selected=null) world g class=""
+PASS  6f reduced motion :: world <g> class="" on open, "" after select (selected=null) — no map-animated (jump cuts)
+INFO  --- TECHDIRECT 1280 light (control) ---
+INFO  techdirect settled (progress gone)=true
+INFO  techdirect: {"hasMapToggle":false,"secretsLine":null,"noSecretsMsg":false,"score":null}
+INFO  360px techdirect: documentElement.scrollWidth=360
+PASS  6e 360px overflow techdirect :: scrollWidth=360 (<=360)
+INFO  done (tail). 2 PASS, 0 FAIL
+
+=== TECHDIRECT PROPER CONTROL (td2/td3, unlogged scripts) ===
+INFO  techdirect proper control: completion marker "No leaked secrets were found" reached in 2.8s (resumed scan); provisional score 91/A at that point
+INFO  techdirect: H2 "Leaked secrets (0)" renders, but SecretsList never mounts (no .view-toggle, no .map-plane, no .map-toolbar) — FileMap fallback still NOT VERIFIABLE via TechDirect (same as round 1)
+INFO  360px techdirect (settled page): documentElement.scrollWidth=360

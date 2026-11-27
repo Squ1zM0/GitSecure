@@ -1,0 +1,110 @@
+INFO  browser launched: /home/hatch/.cache/ms-playwright/chromium-1255/chrome-linux64/chrome
+INFO  360px load: FINAL report settled in 14.2s (37 secrets, progress card gone, final report saved in sessionStorage, score-100 text=true)
+INFO  360px fit view: translate(32.0 75.0) scale(0.600)
+INFO  360px map counts: nodes=21 edges=92
+INFO  richest finding track: Secret 8 with 11 edges (nodeId finding:7)
+PASS  4d label gating at fit (360) :: 0 edge labels with nothing selected
+PASS  4f 360px overflow (fit, light) :: scrollWidth=360
+PASS  360px fit redaction :: no sk-ant- / -----BEGIN in page text or HTML
+INFO  clickNode finding:7: centre (184.2,449.2), elementFromPoint top = finding:7
+INFO  clickNode finding:7: selected on attempt 1, detail starts: "Secret 8 — Hardcoded password / secret assignment · scripts/test-scanner.ts:106 · Likely test key · This file reads this"
+INFO  S8 selected: view translate(-100.0 75.6) scale(1.260)
+PASS  4a click finding selects + zooms (360, S8) :: detail panel shows Secret 8; k 0.600 -> 1.260
+INFO  ITEM1 S8 selected: 2 label(s) rendered, 2 in viewport: ["lives in","used in tests ×10"]
+INFO    label "lives in" at (223.6,542.4) 36.3x15 pointer-events-none=true
+INFO    label "used in tests ×10" at (164.6,485.3) 89.4x15 pointer-events-none=true
+INFO  ITEM1 S8 selected: overlapping pairs (in-viewport, >1px both axes) = 0; no overlaps
+INFO  ITEM1 counted cluster labels: ["used in tests ×10"]
+PASS  1a cluster label count on S8 track :: 2 label(s): ["lives in","used in tests ×10"] (was 11 in recheck3)
+PASS  1b zero overlapping label bboxes on S8 track :: 2 in-viewport labels, 0 overlapping pairs
+INFO  ITEM1 cluster labels pointer-events:none = true
+INFO  screenshot saved: selfscan-360-selected-recheck4.png
+INFO  ITEM3 elementFromPoint at cluster label centre (209.3,449.8): line -> test-19-scripts/test-history.ts-449
+INFO  ITEM3 detail after clicking cluster label: "Secret Hardcoded password / secret assignment lives in test-results/phase14-self-scan-inventory.md:314 and is read by scripts/test-history.ts:449 in a test — it proves the value is exercised, not that production uses it."
+FAIL  3 edge click through cluster label :: detail after click: "Secret Hardcoded password / secret assignment lives in test-results/phase14-self-scan-inventory.md:314 and is read by scripts/test-history.ts:449 in a test — it proves the value is exercised, not that"
+INFO  after Reset view: translate(32.0 75.0) scale(0.600) (fit was translate(32.0 75.0) scale(0.600))
+INFO  after Escape+Reset, detail panel: "Click a finding node to follow its track — the secret, the files that use it, and the file it lives "
+INFO  ITEM2 zoomed in with 5 toolbar clicks: k=1.831
+INFO  ITEM2 zoomed k>1.5: 18 label(s) rendered, 18 in viewport: ["lives in ×3","used in tests ×18","used in tests ×16","lives in ×2","used in tests ×10","used in tests ×9","used in tests","lives in ×2","used in tests ×4","used in tests ×2","used in tests ×8","lives in ×3","used in tests ×2","used in tests ×8","used in tests","used in tests","lives in","lives in"]
+INFO    label "lives in ×3" at (249.2,350.9) 75.9x23 pointer-events-none=true
+INFO    label "used in tests ×18" at (157.3,251.6) 130x23 pointer-events-none=true
+INFO    label "used in tests ×16" at (245.7,295.1) 130x23 pointer-events-none=true
+INFO    label "lives in ×2" at (316.6,485) 75.9x23 pointer-events-none=true
+INFO    label "used in tests ×10" at (291.5,404.9) 130x23 pointer-events-none=true
+INFO    label "used in tests ×9" at (179.7,354.3) 120.6x23 pointer-events-none=true
+INFO    label "used in tests" at (297,360.9) 97.5x23 pointer-events-none=true
+INFO    label "lives in ×2" at (286.8,596.1) 75.9x23 pointer-events-none=true
+INFO    label "used in tests ×4" at (222.5,453.5) 121.1x23 pointer-events-none=true
+INFO    label "used in tests ×2" at (290.7,532.6) 120.6x23 pointer-events-none=true
+INFO    label "used in tests ×8" at (100.6,383.8) 120.6x23 pointer-events-none=true
+INFO    label "lives in ×3" at (176.7,483.1) 75.9x23 pointer-events-none=true
+INFO    label "used in tests ×2" at (90,472.7) 120.6x23 pointer-events-none=true
+INFO    label "used in tests ×8" at (198.2,620.8) 120.6x23 pointer-events-none=true
+INFO    label "used in tests" at (161.5,554.4) 97.5x23 pointer-events-none=true
+INFO    label "used in tests" at (134.8,623.3) 97.5x23 pointer-events-none=true
+INFO    label "lives in" at (74.3,625.3) 52.7x23 pointer-events-none=true
+INFO    label "lives in" at (202.5,405.6) 52.8x23 pointer-events-none=true
+INFO  ITEM2 zoomed k>1.5: overlapping pairs (in-viewport, >1px both axes) = 6; worst area 1001.6px² ("lives in ×3" vs "used in tests ×9", 51.1x19.6)
+INFO  ITEM2 counted cluster labels at zoom: ["lives in ×3","used in tests ×18","used in tests ×16","lives in ×2","used in tests ×10","used in tests ×9","lives in ×2","used in tests ×4","used in tests ×2","used in tests ×8","lives in ×3","used in tests ×2","used in tests ×8"]
+PASS  2 cluster labels at zoom k>1.5 :: k=1.831, 18 labels, counted: ["lives in ×3","used in tests ×18","used in tests ×16","lives in ×2","used in tests ×10","used in tests ×9","lives in ×2","used in tests ×4","used in tests ×2","used in tests ×8","lives in ×3","used in tests ×2","used in tests ×8"]
+FAIL  2b zero overlapping label bboxes at zoom :: 6 overlapping pairs, worst 1001.6px² ("lives in ×3" vs "used in tests ×9")
+INFO  360px back to fit: translate(32.0 75.0) scale(0.600), labels=0
+PASS  4c Reset view returns to fit (360) :: back to translate(32.0 75.0) scale(0.600)
+INFO  screenshot saved: selfscan-360-light-recheck4.png
+INFO  360px overflow at end: scrollWidth=360
+INFO  1280px load: FINAL report settled in 28.3s (37 secrets, progress card gone, final report saved in sessionStorage, score-100 text=true)
+INFO  1280px fit view: translate(219.7 32.0) scale(0.932)
+PASS  4d label gating at fit (1280) :: 0 edge labels with nothing selected
+INFO  clickNode finding:0: centre (564.6,449.1), elementFromPoint top = finding:0
+INFO  clickNode finding:0: selected on attempt 1, detail starts: "Secret 1 — Database URL with credentials · scripts/test-public-full.ts:128 · Likely test key · No references recorded. P"
+PASS  4a click finding selects + zooms (1280, S1) :: detail "Secret 1…"; k 0.932 -> 1.851
+INFO  4b drag start (verified background, element=svg): (299.0,254.2)
+INFO  4b drag (+120,+60): translate delta (120.0,60.0), k 0.932 -> 0.932
+PASS  4b background drag pans (1280) :: delta exactly (+120.0,+60.0), k unchanged
+PASS  4c Reset view returns to fit (1280) :: back to translate(219.7 32.0) scale(0.932)
+PASS  1280px redaction :: no sk-ant- / -----BEGIN in page text or HTML
+INFO  screenshot saved: selfscan-1280-light-recheck4.png
+INFO  1280px scrollWidth=1280
+---
+CORRECTION + SUPPLEMENT (same session, after main run)
+The main-run FAIL on item 3 was a HARNESS assertion bug, not a product failure: the assertion required the literal text 'Secret 8' in the edge detail panel, but edgeDetailText names the finding by TITLE ('Secret Hardcoded password / secret assignment ...'), so 'Secret 8' never appears. The detail shown WAS the correct edge detail (scripts/test-history.ts:449, test kind). Re-tested with the corrected assertion in the supplement run: PASS. Full supplement log: headless-run-recheck4-supplement.log
+---
+INFO  360px supplement load: FINAL settled in 13.2s
+INFO  (c) S8 selected k=1.260 labels=["lives in","used in tests ×10"]
+INFO  (c) caption/node: {"caption":{"text":"70 uses","x":182.9,"y":533.2,"w":44.6,"h":17},"nodeCircle":{"x":149.8,"y":475.6,"w":60.5,"h":60.5}}
+INFO  (c) caption "70 uses" vs label "lives in": overlap x=3.9 y=7.8 OVERLAP
+INFO  (c) caption "70 uses" vs label "used in tests ×10": overlap x=44.6 y=-32.9 no overlap
+INFO  (c) S8 node circle vs label "lives in": overlap x=-13.3 y=-6.3 no overlap
+INFO  (c) S8 node circle vs label "used in tests ×10": overlap x=45.7 y=15.0 OVERLAP (label tucks under node)
+INFO  (b) elementFromPoint at "used in tests ×10" centre (209.3,449.8): line -> test-19-scripts/test-history.ts-449
+INFO  (b) detail after clicking cluster label: "Secret Hardcoded password / secret assignment lives in test-results/phase14-self-scan-inventory.md:314 and is read by scripts/test-history.ts:449 in a test — it proves the value is exercised, not that production uses it. scripts/test-histor"
+PASS  3 edge click through cluster label (corrected) :: edge detail shown with file:line — "Secret Hardcoded password / secret assignment lives in test-results/phase14-self-scan-inventory.md:314 and is read by scripts/test-history.ts:449 in a test — it"
+INFO  (a) zoomed with 5 clicks: k=1.831 (threshold 70/k = 38.2 world units)
+INFO  (a) zoomed labels: 18 rendered, 18 in viewport
+INFO    label "lives in ×3" at (249.2,350.9) 75.9x23
+INFO    label "used in tests ×18" at (157.3,251.6) 130x23
+INFO    label "used in tests ×16" at (245.7,295.1) 130x23
+INFO    label "lives in ×2" at (316.6,485) 75.9x23
+INFO    label "used in tests ×10" at (291.5,404.9) 130x23
+INFO    label "used in tests ×9" at (179.7,354.3) 120.6x23
+INFO    label "used in tests" at (297,360.9) 97.5x23
+INFO    label "lives in ×2" at (286.8,596.1) 75.9x23
+INFO    label "used in tests ×4" at (222.5,453.5) 121.1x23
+INFO    label "used in tests ×2" at (290.7,532.6) 120.6x23
+INFO    label "used in tests ×8" at (100.6,383.8) 120.6x23
+INFO    label "lives in ×3" at (176.7,483.1) 75.9x23
+INFO    label "used in tests ×2" at (90,472.7) 120.6x23
+INFO    label "used in tests ×8" at (198.2,620.8) 120.6x23
+INFO    label "used in tests" at (161.5,554.4) 97.5x23
+INFO    label "used in tests" at (134.8,623.3) 97.5x23
+INFO    label "lives in" at (74.3,625.3) 52.7x23
+INFO    label "lives in" at (202.5,405.6) 52.8x23
+INFO  (a) overlapping pairs = 6
+INFO    OVERLAP "lives in ×3" [249.2,350.9,75.9,23] vs "used in tests ×9" [179.7,354.3,120.6,23] area=1001.6px² (51.1x19.6)
+INFO    OVERLAP "lives in ×3" [249.2,350.9,75.9,23] vs "used in tests" [297,360.9,97.5,23] area=365.3px² (28.1x13)
+INFO    OVERLAP "used in tests ×9" [179.7,354.3,120.6,23] vs "used in tests" [297,360.9,97.5,23] area=54.1px² (3.3x16.4)
+INFO    OVERLAP "used in tests ×8" [100.6,383.8,120.6,23] vs "lives in" [202.5,405.6,52.8,23] area=22.4px² (18.7x1.2)
+INFO    OVERLAP "lives in ×3" [176.7,483.1,75.9,23] vs "used in tests ×2" [90,472.7,120.6,23] area=427.1px² (33.9x12.6)
+INFO    OVERLAP "used in tests ×8" [198.2,620.8,120.6,23] vs "used in tests" [134.8,623.3,97.5,23] area=699.1px² (34.1x20.5)
+FAIL  2b zero overlapping label bboxes at zoom (supplement) :: 6 pairs, worst 1001.6px²
+INFO  screenshot saved: selfscan-360-zoomed-recheck4.png

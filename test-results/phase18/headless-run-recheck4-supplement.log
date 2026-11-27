@@ -1,0 +1,39 @@
+INFO  360px supplement load: FINAL settled in 13.2s
+INFO  (c) S8 selected k=1.260 labels=["lives in","used in tests ×10"]
+INFO  (c) caption/node: {"caption":{"text":"70 uses","x":182.9,"y":533.2,"w":44.6,"h":17},"nodeCircle":{"x":149.8,"y":475.6,"w":60.5,"h":60.5}}
+INFO  (c) caption "70 uses" vs label "lives in": overlap x=3.9 y=7.8 OVERLAP
+INFO  (c) caption "70 uses" vs label "used in tests ×10": overlap x=44.6 y=-32.9 no overlap
+INFO  (c) S8 node circle vs label "lives in": overlap x=-13.3 y=-6.3 no overlap
+INFO  (c) S8 node circle vs label "used in tests ×10": overlap x=45.7 y=15.0 OVERLAP (label tucks under node)
+INFO  (b) elementFromPoint at "used in tests ×10" centre (209.3,449.8): line -> test-19-scripts/test-history.ts-449
+INFO  (b) detail after clicking cluster label: "Secret Hardcoded password / secret assignment lives in test-results/phase14-self-scan-inventory.md:314 and is read by scripts/test-history.ts:449 in a test — it proves the value is exercised, not that production uses it. scripts/test-histor"
+PASS  3 edge click through cluster label (corrected) :: edge detail shown with file:line — "Secret Hardcoded password / secret assignment lives in test-results/phase14-self-scan-inventory.md:314 and is read by scripts/test-history.ts:449 in a test — it"
+INFO  (a) zoomed with 5 clicks: k=1.831 (threshold 70/k = 38.2 world units)
+INFO  (a) zoomed labels: 18 rendered, 18 in viewport
+INFO    label "lives in ×3" at (249.2,350.9) 75.9x23
+INFO    label "used in tests ×18" at (157.3,251.6) 130x23
+INFO    label "used in tests ×16" at (245.7,295.1) 130x23
+INFO    label "lives in ×2" at (316.6,485) 75.9x23
+INFO    label "used in tests ×10" at (291.5,404.9) 130x23
+INFO    label "used in tests ×9" at (179.7,354.3) 120.6x23
+INFO    label "used in tests" at (297,360.9) 97.5x23
+INFO    label "lives in ×2" at (286.8,596.1) 75.9x23
+INFO    label "used in tests ×4" at (222.5,453.5) 121.1x23
+INFO    label "used in tests ×2" at (290.7,532.6) 120.6x23
+INFO    label "used in tests ×8" at (100.6,383.8) 120.6x23
+INFO    label "lives in ×3" at (176.7,483.1) 75.9x23
+INFO    label "used in tests ×2" at (90,472.7) 120.6x23
+INFO    label "used in tests ×8" at (198.2,620.8) 120.6x23
+INFO    label "used in tests" at (161.5,554.4) 97.5x23
+INFO    label "used in tests" at (134.8,623.3) 97.5x23
+INFO    label "lives in" at (74.3,625.3) 52.7x23
+INFO    label "lives in" at (202.5,405.6) 52.8x23
+INFO  (a) overlapping pairs = 6
+INFO    OVERLAP "lives in ×3" [249.2,350.9,75.9,23] vs "used in tests ×9" [179.7,354.3,120.6,23] area=1001.6px² (51.1x19.6)
+INFO    OVERLAP "lives in ×3" [249.2,350.9,75.9,23] vs "used in tests" [297,360.9,97.5,23] area=365.3px² (28.1x13)
+INFO    OVERLAP "used in tests ×9" [179.7,354.3,120.6,23] vs "used in tests" [297,360.9,97.5,23] area=54.1px² (3.3x16.4)
+INFO    OVERLAP "used in tests ×8" [100.6,383.8,120.6,23] vs "lives in" [202.5,405.6,52.8,23] area=22.4px² (18.7x1.2)
+INFO    OVERLAP "lives in ×3" [176.7,483.1,75.9,23] vs "used in tests ×2" [90,472.7,120.6,23] area=427.1px² (33.9x12.6)
+INFO    OVERLAP "used in tests ×8" [198.2,620.8,120.6,23] vs "used in tests" [134.8,623.3,97.5,23] area=699.1px² (34.1x20.5)
+FAIL  2b zero overlapping label bboxes at zoom (supplement) :: 6 pairs, worst 1001.6px²
+INFO  screenshot saved: selfscan-360-zoomed-recheck4.png

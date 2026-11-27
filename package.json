@@ -27,6 +27,7 @@
     "test:deps-phase13": "tsx scripts/test-deps-phase13.ts",
     "test:history": "tsx scripts/test-history.ts",
     "test:history-git": "tsx scripts/scan-history-git-live.ts",
+    "test:map-phase18": "tsx scripts/test-map-phase18.ts",
     "test:public-full": "tsx scripts/test-public-full.ts",
     "test:scanner": "tsx scripts/test-scanner.ts",
     "test:tier3": "tsx scripts/test-tier3.ts",

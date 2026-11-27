@@ -1,0 +1,115 @@
+INFO  browser launched: executablePath=/home/hatch/.cache/ms-playwright/chromium-1255/chrome-linux64/chrome
+INFO  --- A: SELF-SCAN 1280 light ---
+INFO  Map toggle present=true
+INFO  waitFinal poll t=0s line="Showing 18 of 18 secrets · 6 files. Of the 18 secrets, 18 look like test keys — still listed and still counted, with a test-key fix instead of \"rotate it\"." progress=true has37=false
+INFO  waitFinal poll t=12s line="Showing 37 of 37 secrets · 7 files. Of the 37 secrets, 37 look like test keys — still listed and still counted, with a test-key fix instead of \"rotate it\"." progress=true has37=true
+INFO  final report settled=true waited=14.1s line="Showing 37 of 37 secrets · 7 files. Of the 37 secrets, 37 look like test keys — still listed and still counted, with a test-key fix instead of \"rotate it\"." grade=""
+PASS  setup: final report settled :: line="Showing 37 of 37 secrets · 7 files. Of the 37 secrets, 37 look like test keys — still listed and still counted, with a test-key fix instead of \"rotate it\"." waited=14.1s
+INFO  1280 fit view: translate(219.7 32.0) scale(0.932)
+INFO  map nodes=21 findings=12 files=8 edges=92 edge-labels-in-DOM=0
+INFO  captions found: 12
+INFO    caption "70 uses" [x=642.2 y=843.2 w=33.5 h=13.0]
+INFO    caption "70 uses" [x=651.5 y=855.7 w=33.5 h=13.0]
+INFO    caption "62 uses" [x=722.8 y=889.8 w=33.5 h=13.0]
+INFO    caption "62 uses" [x=698.0 y=936.4 w=33.5 h=13.0]
+INFO    caption "62 uses" [x=722.8 y=982.9 w=33.5 h=13.0]
+INFO    caption "62 uses" [x=651.5 y=1017.0 w=33.5 h=13.0]
+INFO    caption "50 uses" [x=642.2 y=1029.5 w=33.5 h=13.0]
+INFO    caption "50 uses" [x=558.3 y=1017.0 w=33.5 h=13.0]
+INFO    caption "0 uses" [x=564.1 y=976.4 w=28.2 h=13.0]
+INFO    caption "0 uses" [x=514.4 y=929.8 w=28.2 h=13.0]
+INFO    caption "0 uses" [x=564.1 y=883.3 w=28.2 h=13.0]
+INFO    caption "0 uses" [x=561.0 y=849.2 w=28.2 h=13.0]
+PASS  fix3 captions separated @1280 fit :: 12 "N uses" captions, 0 overlaps; closest pair gap=0.0px between "70 uses" and "70 uses"
+INFO  screenshot saved: selfscan-1280-light-recheck3.png (fit, nothing selected)
+PASS  regression: edge labels gated at fit, nothing selected :: 0 visible labels at k=0.932 (total edges 92)
+INFO  click finding:0: translate(219.7 32.0) scale(0.932) -> translate(196.1 -235.3) scale(1.851) selected=finding:0 detail="Secret 1 — Database URL with credentials · scripts/test-public-full.ts:128 · Lik"
+PASS  regression: click finding selects + zooms :: selected=finding:0 detail="Secret 1…" k 0.932 -> 1.851
+INFO  zoom past 1.5: 3 toolbar zoom-ins, k=1.819, labels visible=92 of 92
+PASS  regression: labels appear past k=1.5 :: k=1.819 labels=92/92 (was 0 at fit)
+INFO  drag pan: translate(219.7 32.0) scale(0.932) -> translate(219.7 32.0) scale(0.932) (dragged +120,+60)
+FAIL  regression: background drag pans :: delta=(0.0,0.0) expected (120,60)
+INFO  Reset view: translate(219.7 32.0) scale(0.932) vs fit translate(219.7 32.0) scale(0.932)
+PASS  regression: Reset view returns to fit :: back to translate(219.7 32.0) scale(0.932)
+INFO  redaction: innerText sk-ant-=false BEGIN=false; innerHTML sk-ant-=false BEGIN=false
+PASS  regression: redaction :: no sk-ant- / -----BEGIN in page text or HTML
+INFO  --- B: SELF-SCAN 360 light (fresh load) ---
+INFO  Map toggle present=true
+INFO  waitFinal poll t=0s line="Showing 37 of 37 secrets · 7 files. Of the 37 secrets, 37 look like test keys — still listed and still counted, with a test-key fix instead of \"rotate it\"." progress=true has37=true
+INFO  final report settled=true waited=2.0s line="Showing 37 of 37 secrets · 7 files. Of the 37 secrets, 37 look like test keys — still listed and still counted, with a test-key fix instead of \"rotate it\"."
+PASS  setup 360: final report settled :: line="Showing 37 of 37 secrets · 7 files. Of the 37 secrets, 37 look like test keys — still listed and still counted, with a test-key fix instead of \"rotate it\"." waited=2.0s
+INFO  360px fit view: translate(32.0 75.0) scale(0.600)
+INFO  map-plane container box: x=27.0 y=865.8 w=306.0 h=380.0
+INFO  file labels found: 8
+INFO    file label "test-his…ry.ts" [x=161.3 y=952.7 w=37.5 h=8.0]
+INFO    file label "test-usa…11.ts" [x=232.0 y=979.5 w=40.9 h=8.0]
+INFO    file label "test-sca…er.ts" [x=255.8 y=1051.8 w=38.1 h=8.0]
+INFO    file label "phase14-…ry.md" [x=227.6 y=1122.9 w=47.1 h=8.0]
+INFO    file label "test-pub…ll.ts" [x=160.9 y=1151.5 w=38.2 h=8.0]
+INFO    file label "test-tri…10.ts" [x=91.0 y=1122.3 w=37.1 h=8.0]
+INFO    file label "config.js" [x=73.4 y=1051.8 w=23.7 h=8.0]
+INFO    file label "README.md" [x=92.4 y=981.8 w=35.3 h=8.0]
+PASS  fix2 file labels inside plane @360 fit :: all 8 file-node labels inside the map-plane container box
+INFO  360px overflow: documentElement.scrollWidth=360
+PASS  regression: 360px overflow (light) :: scrollWidth=360 == 360
+INFO  screenshot saved: selfscan-360-light-recheck3.png (fit, nothing selected)
+INFO  richest finding track: {"secret":8,"edges":11,"nodeId":"finding:7"}
+INFO  select attempt 1: k=1.260 labels=11 (track=11) crumbs=["This repo","Secret 8"] detail="Secret 8 — Hardcoded password / secret assignment "
+INFO  selected-track labels visible: 11 (track edges=11) at k=1.260
+INFO    edge label "lives in" [x=223.6 y=436.4 w=36.3 h=15.0]
+INFO    edge label "used in tests" [x=131.4 y=367.1 w=67.0 h=15.0]
+INFO    edge label "used in tests" [x=138.9 y=359.6 w=67.0 h=15.0]
+INFO    edge label "used in tests" [x=146.5 y=374.7 w=67.0 h=15.0]
+INFO    edge label "used in tests" [x=154.0 y=367.1 w=67.0 h=15.0]
+INFO    edge label "used in tests" [x=161.6 y=359.6 w=67.0 h=15.0]
+INFO    edge label "used in tests" [x=190.3 y=377.7 w=67.0 h=15.0]
+INFO    edge label "used in tests" [x=208.9 y=385.4 w=67.0 h=15.0]
+INFO    edge label "used in tests" [x=227.6 y=393.2 w=67.0 h=15.0]
+INFO    edge label "used in tests" [x=190.1 y=400.3 w=67.0 h=15.0]
+INFO    edge label "used in tests" [x=208.7 y=408.1 w=67.0 h=15.0]
+INFO  label overlap analysis: 16 overlapping pairs; max labels overlapping any one label=5
+INFO    OVERLAP "used in tests" "used in tests" [x=131.4 y=367.1 w=67.0 h=15.0] x "used in tests" "used in tests" [x=138.9 y=359.6 w=67.0 h=15.0] area=442.5
+INFO    OVERLAP "used in tests" "used in tests" [x=131.4 y=367.1 w=67.0 h=15.0] x "used in tests" "used in tests" [x=146.5 y=374.7 w=67.0 h=15.0] area=386.2
+INFO    OVERLAP "used in tests" "used in tests" [x=131.4 y=367.1 w=67.0 h=15.0] x "used in tests" "used in tests" [x=154.0 y=367.1 w=67.0 h=15.0] area=665.3
+INFO    OVERLAP "used in tests" "used in tests" [x=131.4 y=367.1 w=67.0 h=15.0] x "used in tests" "used in tests" [x=161.6 y=359.6 w=67.0 h=15.0] area=273.7
+INFO    OVERLAP "used in tests" "used in tests" [x=131.4 y=367.1 w=67.0 h=15.0] x "used in tests" "used in tests" [x=190.3 y=377.7 w=67.0 h=15.0] area=36.3
+INFO    OVERLAP "used in tests" "used in tests" [x=138.9 y=359.6 w=67.0 h=15.0] x "used in tests" "used in tests" [x=154.0 y=367.1 w=67.0 h=15.0] area=386.2
+INFO    OVERLAP "used in tests" "used in tests" [x=138.9 y=359.6 w=67.0 h=15.0] x "used in tests" "used in tests" [x=161.6 y=359.6 w=67.0 h=15.0] area=665.3
+INFO    OVERLAP "used in tests" "used in tests" [x=146.5 y=374.7 w=67.0 h=15.0] x "used in tests" "used in tests" [x=154.0 y=367.1 w=67.0 h=15.0] area=442.5
+INFO    OVERLAP "used in tests" "used in tests" [x=146.5 y=374.7 w=67.0 h=15.0] x "used in tests" "used in tests" [x=190.3 y=377.7 w=67.0 h=15.0] area=279.5
+INFO    OVERLAP "used in tests" "used in tests" [x=146.5 y=374.7 w=67.0 h=15.0] x "used in tests" "used in tests" [x=208.9 y=385.4 w=67.0 h=15.0] area=19.7
+INFO    OVERLAP "used in tests" "used in tests" [x=154.0 y=367.1 w=67.0 h=15.0] x "used in tests" "used in tests" [x=161.6 y=359.6 w=67.0 h=15.0] area=442.5
+INFO    OVERLAP "used in tests" "used in tests" [x=154.0 y=367.1 w=67.0 h=15.0] x "used in tests" "used in tests" [x=190.3 y=377.7 w=67.0 h=15.0] area=137.8
+INFO    OVERLAP "used in tests" "used in tests" [x=190.3 y=377.7 w=67.0 h=15.0] x "used in tests" "used in tests" [x=208.9 y=385.4 w=67.0 h=15.0] area=350.9
+INFO    OVERLAP "used in tests" "used in tests" [x=208.9 y=385.4 w=67.0 h=15.0] x "used in tests" "used in tests" [x=227.6 y=393.2 w=67.0 h=15.0] area=350.9
+INFO    OVERLAP "used in tests" "used in tests" [x=227.6 y=393.2 w=67.0 h=15.0] x "used in tests" "used in tests" [x=190.1 y=400.3 w=67.0 h=15.0] area=231.0
+INFO    OVERLAP "used in tests" "used in tests" [x=190.1 y=400.3 w=67.0 h=15.0] x "used in tests" "used in tests" [x=208.7 y=408.1 w=67.0 h=15.0] area=350.9
+FAIL  fix1 selected-track label stagger @360 :: 11 labels, 16 overlapping pairs, max overlap count=5 (>2): "used in tests"@131,367 x "used in tests"@139,360; "used in tests"@131,367 x "used in tests"@146,375; "used in tests"@131,367 x "used in tests"@154,367; "used in tests"@131,367 x "used in tests"@162,360; "used in tests"@131,367 x "used in tests"@190,378; "used in tests"@139,360 x "used in tests"@154,367; "used in tests"@139,360 x "used in tests"@162,360; "used in tests"@146,375 x "used in tests"@154,367; "used in tests"@146,375 x "used in tests"@190,378; "used in tests"@146,375 x "used in tests"@209,385; "used in tests"@154,367 x "used in tests"@162,360; "used in tests"@154,367 x "used in tests"@190,378; "used in tests"@190,378 x "used in tests"@209,385; "used in tests"@209,385 x "used in tests"@228,393; "used in tests"@228,393 x "used in tests"@190,400; "used in tests"@190,400 x "used in tests"@209,408
+INFO  screenshot saved: selfscan-360-selected-recheck3.png (selected track)
+INFO  screenshot saved: selfscan-360-dark-recheck3.png (fit, nothing selected)
+INFO  360px dark overflow: documentElement.scrollWidth=360
+PASS  regression: 360px overflow (dark) :: scrollWidth=360 (<=360)
+INFO  --- C: PINCH ZOOM attempt (touch emulation) ---
+INFO  pinch ctx: Map toggle present=true
+INFO  waitFinal poll t=0s line="Showing 37 of 37 secrets · 7 files. Of the 37 secrets, 37 look like test keys — still listed and still counted, with a test-key fix instead of \"rotate it\"." progress=true has37=true
+INFO  pinch ctx: final settled=true waited=2.0s
+INFO  pinch: k before=0.932
+INFO  pinch out: k 0.932 -> 4.000
+PASS  pinch zoom (touch emulation) :: pinch-out raised k 0.932 -> 4.000 via CDP Input.dispatchTouchEvent two-finger pinch
+INFO  done. 12 PASS, 2 FAIL
+
+=== DRAG RE-PROBE (supplemental) ===
+settled after 2.0s
+centre point (640,917) is under: null
+drag start (331,758) is under: svg (background)
+drag from background point: translate (219.7,32.0) k=0.932 -> (339.7,92.0) k=0.932 delta=(120.0,60.0)
+repo node screen centre before=(640.0,916.5) after=(760.0,976.5) — moves WITH the pan if it is a true background drag
+PASS  regression: background drag pans (re-probe from true background point) :: delta exactly (+120,+60), k unchanged
+
+=== CORRECTION NOTE (Worker C) ===
+The main-run line "FAIL regression: background drag pans :: delta=(0.0,0.0)"
+is SUPERSEDED by the drag re-probe PASS appended above: the main-run drag
+started on the repo node at the SVG centre (a node drag, not a pan), so a
+zero view delta was the correct outcome of that gesture. Re-probe from a
+verified background point: delta exactly (+120.0,+60.0), k unchanged.
+Final tally counting the re-probe: 13 PASS, 1 FAIL (fix1 label stagger).

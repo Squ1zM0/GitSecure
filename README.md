@@ -649,8 +649,12 @@ findings.
   type / advisory / file (counts shown, collapsed by default when the
   list is large); dropdown filters for type and severity plus text
   search by file / advisory / package / name (counts shown are always
-  the true filtered and total counts); a Map view — an SVG spider of
-  the top 24 files by finding count around the repo node, plus a paged
+  the true filtered and total counts); a Map view — a dynamic, pannable,
+  zoomable plane (Phase 18) of the top 24 files by finding count around
+  the repo node, with edge labels ("used in code", "used in tests",
+  "lives in"), click-to-zoom nodes, pin, drag-to-reposition, neighbour
+  traversal with breadcrumb, and a detail panel for every node and edge
+  (Phase 11 usage data: in use vs true dead end), plus a paged
   chip list of all files with secrets (one node per file, never one per
   finding, so it stays fast at phone width); every secret row links to
   the exact file and line on GitHub (`blob/{branch or commit}/{file}
@@ -752,9 +756,16 @@ changed is how the report looks and reads.
   title, file:line, plain-English what + fix in a shaded block, and a
   prominent GitHub file+line link next to the copy-link. Collapsible
   groups get a rotating chevron and a fade on open; filter result
-  counts are `aria-live`. The spider map has a legend, a centre node
+  counts are `aria-live`. The spider map is a dynamic plane (Phase 18):
+  drag to pan, wheel/pinch/button zoom, click a node to zoom in and open
+  its detail panel, pin nodes in place, drag nodes to untangle the map,
+  step along connections with a breadcrumb; every edge carries a short
+  label ("used in code", "used in tests", "lives in") and is clickable
+  for its own plain-English detail. It has a legend, a centre node
   big enough for its label, hover/focus states, and keyboard-reachable
-  nodes (Tab + Enter to filter) plus the file-chip buttons.
+  nodes AND edges (Tab + Enter to select; `[` / `]` to traverse,
+  `Escape` to deselect, `0` to reset, `p` to pin) plus the file-chip
+  buttons.
 - **Loading / error**: loading is a designed screen (spinner + the
   three real scan steps, honest wording); errors keep the
   `errorCopy()` wording in a red-bordered card with a clear next

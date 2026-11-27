@@ -471,6 +471,49 @@ details.group[open ] .group-body { animation: group-in 180ms ease; }
 .map-track-detail { background: var(--surface-muted); border: 1px solid var(--line); border-radius: var(--radius-sm); padding: 10px 14px; margin-top: 10px; }
 .map-track-detail p { margin: var(--space-2) 0; }
 button.file-chip { margin: 3px; padding: 6px 10px; font-size: 13px; font-weight: 600; min-height: 44px; /* Phase 15 finding 12: same ≥44 px rule as copy-btn — no 36 px exception. */ }
+
+/* ---- Phase 18: dynamic usage-map plane --------------------------- */
+/* The plane is a fixed-height viewport: the svg fills it (width and
+ * height 100%, no viewBox — world units are screen pixels through
+ * the one <g transform>), overflow hidden clips panned content, and
+ * touch-action none keeps every gesture inside the box. The old
+ * .map-wrap overflow rule is untouched — FileMap still uses it. */
+.map-plane { height: 420px; border: 1px solid var(--line); border-radius: var(--radius-sm); overflow: hidden; }
+.map-plane svg { display: block; width: 100%; height: 100%; touch-action: none; }
+.map-plane:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
+.map-toolbar { display: flex; gap: 8px; flex-wrap: wrap; margin: 10px 0; }
+.map-toolbar button { min-height: 44px; padding: 6px 12px; }
+/* The world group animates its transform (150 ms) unless reduced
+ * motion is set — then the component omits this class and the view
+ * jump-cuts. (The global reduced-motion rule also forces
+ * transition: none as a backstop.) */
+.map-animated { transition: transform 150ms ease; }
+/* Edge labels: same halo as node labels so an edge passing behind
+ * the text cannot strike it through. Kept as its own rule so the
+ * Phase 15 halo check on .map-node text.map-label still matches. */
+text.map-edge-label { font-size: 9px; fill: var(--text); paint-order: stroke; stroke: var(--surface); stroke-width: 3px; stroke-linejoin: round; }
+/* Edges are focusable buttons: the focus ring lands on the visible
+ * line, the same treatment nodes get. */
+.map-edge-focus:focus-visible { outline: none; }
+.map-edge-focus:focus-visible .map-edge { stroke: var(--focus); stroke-width: 3; }
+/* Neighbours of the selected node get an accent ring. */
+.map-node.map-neighbour circle:not(.map-hit) { stroke: var(--accent); stroke-width: 3; }
+/* The centre node is a button too, without the .map-node fill (its
+ * own .map-centre fill must win). */
+.map-centre-node { cursor: pointer; }
+.map-centre-node:focus-visible { outline: none; }
+.map-centre-node:focus-visible .map-centre { stroke: var(--focus); stroke-width: 3; }
+/* Pinned-node mark: a small SVG pin glyph above the node circle. */
+.map-pinned-mark path { fill: var(--accent); }
+.map-pinned-mark circle { fill: var(--surface); }
+.map-breadcrumb { display: flex; gap: 4px; flex-wrap: wrap; align-items: center; margin: 8px 0; }
+.map-breadcrumb button { min-height: 44px; padding: 6px 10px; }
+.map-hint { font-size: 13px; color: var(--muted); }
+/* Visually-hidden screen-reader summary of the whole map. */
+.map-sr-summary { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+@media (max-width: 360px) {
+  .map-plane { height: 380px; }
+}
 .pager { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
 
 /* ---- loading & error screens -------------------------------------- */

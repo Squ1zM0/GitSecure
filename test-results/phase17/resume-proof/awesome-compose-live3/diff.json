@@ -1,0 +1,38 @@
+{
+  "repo": "docker/awesome-compose",
+  "chunkReport": {
+    "secrets": 30,
+    "historySecrets": 16,
+    "headSecrets": 14,
+    "score": 0,
+    "grade": "F",
+    "historyCommitsScanned": 274,
+    "filesScanned": 429,
+    "commit": "503c0dcef31b07fb77b2d4c5556bfafdf86f4f1a"
+  },
+  "getReport": {
+    "secrets": 30,
+    "historySecrets": 16,
+    "headSecrets": 14,
+    "score": 0,
+    "grade": "F",
+    "historyCommitsScanned": 274,
+    "filesScanned": 429,
+    "commit": "503c0dcef31b07fb77b2d4c5556bfafdf86f4f1a"
+  },
+  "headShaMatch": true,
+  "historyDepthMatch": true,
+  "historyDepthNote": "both reports scanned the same number of history commits",
+  "identityDiff": {
+    "lostCount": 0,
+    "gainedCount": 0,
+    "lost": [],
+    "gained": []
+  },
+  "commitQualifiedDiff": {
+    "lostCount": 0,
+    "gainedCount": 0,
+    "lost": [],
+    "gained": []
+  }
+}

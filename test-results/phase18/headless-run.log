@@ -1,0 +1,74 @@
+INFO  browser launched: executablePath=/home/hatch/.cache/ms-playwright/chromium-1255/chrome-linux64/chrome
+INFO  --- SELF-SCAN 1280 light ---
+INFO  self-scan: final report rendered (progress card gone)
+INFO  scan settled after 12.8s; Showing 37 of 37 secrets · 7 files. Of the 37 secrets, 37 look like test keys — still listed and still counted, with a test-key fix instead of "rotate it".
+INFO  fit view transform (initial): translate(194.4 8.0) scale(1.058)
+INFO  map nodes=21 findings=12 files=8 edges=92 edge-labels=92
+INFO  screenshot saved: selfscan-1280-light.png
+INFO  finding:0 screen point: (548.4, 743.4)
+INFO  mouse node-click: detail="Click a finding node to follow its track — the secret, the files that use it, and the file it lives in." selected=null transform translate(194.4 8.0) scale(1.058) -> translate(194.4 8.0) scale(1.058)
+FAIL  3a node-click (mouse) select+zoom :: mouse click did NOT select: detail="Click a finding node to follow its track — the secret, the files that use it, and the file it lives " selected=null transform unchanged translate(194.4 8.0) scale(1.058) -> translate(194.4 8.0) scale(1.058) (see probes: setPointerCapture retargets click to svg)
+INFO  keyboard Enter control: detail="Secret 1 — Database URL with credentials · scripts/test-public-full.ts:128 · Likely test key · No references recorded.\n\n" selected=finding:0 transform translate(194.4 8.0) scale(1.058) -> translate(179.2 -271.0) scale(2.000)
+PASS  3a-control keyboard Enter select+zoom :: selectNode works via keyboard: "Secret 1", k 1.058 -> 2.000; only the mouse-click path is broken
+INFO  pan drag (+120,+60): before=translate(179.2 -271.0) scale(2.000) after=translate(179.2 -271.0) scale(2.000)
+FAIL  3b drag-pan :: translate did not change: before=translate(179.2 -271.0) scale(2.000) after=translate(179.2 -271.0) scale(2.000) (see probes: pan branch reads mutated g.last inside the setView updater, so dx=dy=0; node-drag in the same handler works)
+INFO  wheel zoom: before=translate(179.2 -271.0) scale(2.000) after=translate(-48.6 -751.5) scale(4.000) via page.mouse.wheel
+PASS  3c wheel-zoom :: k 2.000 -> 4.000 via page.mouse.wheel
+INFO  selected node before pin: finding:0
+INFO  pin button was "Pin", aria-pressed now=true, pin mark=true (after wheel zoom true); world pos {"cx":"113.39745962155615","cy":"240.00000000000003"} -> {"cx":"113.39745962155615","cy":"240.00000000000003"}
+PASS  3d pin + camera move keeps world pos :: aria-pressed=true, pin mark present before+after wheel zoom, cx/cy 113.39745962155615/240.00000000000003 unchanged
+INFO  NOTE 3d: background-drag part of the pin check is vacuous while 3b pan is broken (drag moves neither camera nor node); pin mark + aria-pressed + world-pos stability across a real camera move (wheel) is what was actually verified.
+INFO  breadcrumb before traverse: ["This repo","Secret 1"]; selected=finding:0; neighbour line="Connected to 1 neighbour — 1 of 1: test-pub…ll.ts."
+INFO  after Next neighbour alone: neighbour line="Connected to 1 neighbour — 1 of 1: test-pub…ll.ts."; crumbs=["This repo","Secret 1"] (Next only moves the pointer — breadcrumb grows on "Go to", per markup)
+INFO  breadcrumb after Go to: ["This repo","Secret 1","test-pub…ll.ts"] (separators '›': 2); selected finding:0 -> null
+FAIL  3e traverse Next+Go to :: crumbs ["This repo","Secret 1"] -> ["This repo","Secret 1","test-pub…ll.ts"]; selected finding:0 -> null
+INFO  edge click target: {"x":616,"y":-193.453125,"id":"test-7-scripts/test-history.ts-431","aria":"Connection: Secret 8 used in tests in scripts/test-history.ts line 431"}
+INFO  detail after mouse edge-click: "scripts/test-public-full.ts · 2 findings live in this file\n\nPin Filter list to this file\n\nConnected to 1 neighbour — 1 of 1: Secret 1.\n\nPrevious neighbour Next neighbour Go to Secret 1"
+FAIL  3f edge-click (mouse) detail :: mouse click did not select edge (same setPointerCapture cause as 3a); panel="scripts/test-public-full.ts · 2 findings live in this file\n\nPin Filter list to this file\n\nConnected to 1 neighbour — 1 of 1: Secret 1.\n\nPrevious neigh"
+INFO  keyboard Enter control on edge: "Secret Hardcoded password / secret assignment lives in scripts/test-scanner.ts:106 and is read by scripts/test-history.ts:431 in a test — it proves the value is exercised, not that production uses it.\n\nscripts/test-history.ts:431 · used in tests\n\nShow Secret 8"
+PASS  3f-control keyboard Enter edge detail :: selectEdge works via keyboard: "Secret Hardcoded password / secret assignment lives in scripts/test-scanner.ts:106 and is read by scripts/test-history.ts:431 in a test — it proves the value is exercised, not that production uses it."
+INFO  toolbar zoom-in: before=translate(6.0 -451.0) scale(2.000) after=translate(-94.0 -616.0) scale(2.500)
+INFO  reset view: after=translate(194.4 8.0) scale(1.058) vs initial fit=translate(194.4 8.0) scale(1.058)
+PASS  3g toolbar zoom-in + reset :: zoom-in k 2.000 -> 2.500; reset back to translate(194.4 8.0) scale(1.058) (fit translate(194.4 8.0) scale(1.058))
+INFO  edge labels: total=92 visible=92 code=false test=true own=true
+PASS  3h edge labels :: 92 visible labels; code=false test=true own=true
+INFO  redaction: map-area sk-ant-=false BEGIN=false; whole-page sk-ant-=false BEGIN=false
+PASS  4 redaction (map area) :: no 'sk-ant-' literal, no '-----BEGIN' in map plane/detail/breadcrumb; whole-page sk-ant-=false BEGIN=false
+INFO  360px self-scan: documentElement.scrollWidth=360
+INFO  screenshot saved: selfscan-360-light.png
+PASS  360px overflow self-scan :: scrollWidth=360 (<=360, no horizontal overflow)
+INFO  self-scan dark: final report rendered (progress card gone)
+INFO  screenshot saved: selfscan-1280-dark.png
+INFO  360px self-scan dark: documentElement.scrollWidth=360
+INFO  screenshot saved: selfscan-360-dark.png
+INFO  self-scan reduced-motion: final report rendered (progress card gone)
+INFO  reduced-motion: world g class on open=""
+INFO  reduced-motion: after keyboard select (selected=finding:0) world g class=""
+PASS  3i reduced motion :: world <g> class="" on open, "" after select — no map-animated (jump cuts)
+INFO  --- TECHDIRECT 1280 light (fallback) ---
+INFO  techdirect page settled after 1.6s
+INFO  techdirect: Map toggle=false, FileMap svg=false, UsageMap toolbar=false, usage plane=false, line=null
+FAIL  techdirect fallback FileMap :: {"mapToggle":false,"fileMapSvg":false,"usageToolbar":false,"usagePlane":false,"secretsLine":null}
+INFO  screenshot saved: techdirect-1280-light.png
+INFO  360px techdirect: documentElement.scrollWidth=360
+INFO  screenshot saved: techdirect-360-light.png
+PASS  360px overflow techdirect :: scrollWidth=360 (<=360)
+INFO  done. 10 PASS, 5 FAIL
+
+=== CORRECTIONS (recheck run, headless-recheck.log) ===
+- 3e traverse: CORRECTED to PASS. The final run's FAIL was a harness error:
+  it asserted selection via g.map-node-selected, a class file nodes never get.
+  Re-check: breadcrumb 2 -> 3 crumbs ["This repo","Secret 1","test-pub…ll.ts"]
+  and detail panel switched to the traversed file node. Traverse works.
+- 3f edge mouse-click: FAIL CONFIRMED with an on-screen target (674.5, 648.2,
+  viewport 1280x900; edge test-18-scripts/test-history.ts-431). Click did not
+  select the edge; detail panel unchanged. The final run's target had been
+  off-viewport (y=-193), so this re-check was needed to make the FAIL solid.
+- TechDirect fallback: NOT VERIFIABLE as specified. After a correct 120s wait
+  the completed report (83/B, "Scan complete. No leaked secrets were found")
+  renders NO secrets section at all: ReportView only mounts SecretsList when
+  report.secrets.length > 0, so with 0 secrets there is no FileMap to check.
+  FileMap only renders when secrets exist but none have usage data
+  (ReportLists.tsx:687 `if (!hasUsage) return <FileMap .../>`). TechDirect
+  cannot exercise that branch. The techdirect-*.png screenshots show the
+  completed 83/B report top (no map) — not a fallback map.

@@ -30,6 +30,13 @@
 //      report" button in the score hero (the Markdown itself is
 //      covered by scripts/test-report-markdown.ts).
 //
+//   8. (Phase 18) The usage map is a dynamic plane: toolbar buttons
+//      (Zoom in/out, Reset view, Reset layout), an edge label on every
+//      edge, keyboard-reachable edge groups with file:line aria-labels,
+//      a keyboard hint, a screen-reader summary of the counts by kind,
+//      and an aria-live detail panel; no full secret ever renders in
+//      the map output.
+//
 // Fragments below are redacted placeholders ("abcd…yz"), never a
 // real secret value or a real provider prefix.
 
@@ -336,7 +343,10 @@ const usageMap = renderToString(
 check("phase11 map: renders an SVG usage graph", usageMap.includes("<svg") && usageMap.includes("Usage map"));
 check("phase11 map: legend names solid vs dashed edges and dead ends", usageMap.includes("Used in non-test code") && usageMap.includes("Used in tests only") && usageMap.includes("dead end"));
 check("phase11 map: in-use finding gets code + test edges", usageMap.includes("map-edge-code") && usageMap.includes("map-edge-test"));
-check("phase11 map: edges total 5 (test key: own+code+test, genuine: own+code, dead end: none)", (usageMap.match(/<line/g) ?? []).length === 5);
+check("phase11 map: edges total 5 (test key: own+code+test, genuine: own+code, dead end: none)", (usageMap.match(/class="map-edge map-edge-/g) ?? []).length === 5);
+// Phase 18: every edge renders a second invisible wide line as its
+// hit target, so the <line> count doubles (5 visible + 5 hit).
+check("phase18 map: every edge also renders an invisible wide hit line", (usageMap.match(/<line/g) ?? []).length === 10);
 check("phase11 map: dead-end finding is greyed and labelled", usageMap.includes("map-finding-deadend") && usageMap.includes(">dead end<"));
 check("phase11 map: finding nodes are keyboard reachable", usageMap.includes('role="button"') && usageMap.includes("tabindex=\"0\""));
 check("phase11 map: track hint renders when nothing is selected", usageMap.includes("Click a finding node to follow its track"));
@@ -349,6 +359,40 @@ const noUsageMap = renderToString(
 ).replace(/<!-- -->/g, "");
 check("phase11 map: degrades gracefully with no usage data (file-count spider)", noUsageMap.includes("Map of files holding secrets") && !noUsageMap.includes("map-edge"));
 check("phase11 CSS: verdict sections, dead-end pill, map edges and track detail styled", css.includes(".verdict-test") && css.includes(".pill.dead-end") && css.includes(".map-edge-test") && css.includes(".map-edge-own") && css.includes(".map-finding-deadend") && css.includes(".map-track-detail"));
+
+// --- 2e. Phase 18: dynamic usage-map plane --------------------------
+// The map is now a pannable/zoomable plane: toolbar buttons, labelled
+// edges, keyboard-reachable edge groups, a keyboard hint, a
+// screen-reader summary, and an aria-live detail panel. Nothing is
+// selected in a server render, so the panel checks assert the
+// empty-state hint and the panel region itself; selection, drag,
+// pinch and pin are exercised in the browser, not here.
+// Edge labels are gated by zoom (fix round, headless evidence: 92
+// labels at fit zoom were an unreadable hairball): at the server
+// render's fit zoom (k≈1.06 < 1.5, nothing selected) the kind labels
+// are correctly ABSENT — the check below asserts the gating, not the
+// labels. Labels appear for the selected track always, and for all
+// edges once zoomed past 1.5 (verified in the browser, not here).
+check("phase18 map: toolbar renders Zoom in/out, Reset view, Reset layout", usageMap.includes('aria-label="Zoom in"') && usageMap.includes('aria-label="Zoom out"') && usageMap.includes('aria-label="Reset view"') && usageMap.includes('aria-label="Reset layout"'));
+check("phase18 map: toolbar buttons are real buttons", (usageMap.match(/<button/g) ?? []).length === 4);
+check("phase18 map: edge kind labels are gated by zoom (absent at fit zoom, nothing selected)", !usageMap.includes(">used in code<") && !usageMap.includes(">used in tests<") && !usageMap.includes(">lives in<"));
+check("phase18 map: edges still render with legend + aria-labels at fit zoom", usageMap.includes("map-edge-code") && usageMap.includes("Used in non-test code"));
+check("phase18 map: edges are keyboard reachable with file:line aria-labels (never a fragment)", usageMap.includes('aria-label="Connection: Secret 1 used in code in src/app.ts line 10"') && usageMap.includes('aria-label="Connection: Secret 1 used in tests in tests/app.test.ts line 5"') && usageMap.includes('aria-label="Connection: Secret 1 lives in tools/testing/selftests/sgx/sign_key.pem line 1"'));
+check("phase18 map: all nodes + edges are keyboard reachable (4 findings + 7 files + repo + 5 edges)", (usageMap.match(/role="button"/g) ?? []).length === 17);
+check("phase18 map: hint names click-to-zoom, drag and pin", usageMap.includes("Click a node to zoom to it") && usageMap.includes("Drag the background to pan") && usageMap.includes("Press p to pin a node"));
+check("phase18 map: detail-panel region renders with aria-live", usageMap.includes('class="map-track-detail"') && usageMap.includes('aria-live="polite"'));
+check("phase18 map: screen-reader summary names the counts by kind", usageMap.includes("Usage map: 4 findings and 7 files drawn. 2 code references, 1 test references, 2 own-file links."));
+// The Phase 11 fixtures carry no literal full secret value anywhere
+// (their fragments are redacted placeholders like "abcd…yz", and the
+// map never renders fragments at all — only titles and file:line).
+// What is actually checkable: no provider-prefixed literal and no PEM
+// header reaches the map output, while a real file:line does (the
+// finding node's title carries its own file:line; a reference renders
+// as "in src/app.ts line 10").
+check("phase18 map: no full secret renders (no sk-ant- literal, no PEM header)", !usageMap.includes("sk-ant-") && !usageMap.includes("-----BEGIN") && usageMap.includes("sign_key.pem:1"));
+check("phase18 CSS: plane, toolbar, animated group, edge labels/focus, neighbour, pin, breadcrumb, hint styled", css.includes(".map-plane") && css.includes(".map-toolbar") && css.includes(".map-animated") && css.includes(".map-edge-label") && css.includes(".map-edge-focus") && css.includes(".map-neighbour") && css.includes(".map-pinned-mark") && css.includes(".map-breadcrumb") && css.includes(".map-hint"));
+check("phase18 CSS: plane is fixed height (420px desktop, 380px at 360px)", /\.map-plane \{[^}]*height: 420px/.test(css) && css.includes("@media (max-width: 360px)") && /\.map-plane \{ height: 380px;/.test(css));
+check("phase18 CSS: toolbar buttons are 44 px", /\.map-toolbar button \{[^}]*min-height: 44px/.test(css));
 
 // --- 5. Phase 12: triage-weighted score explanation ----------------
 // Self-scan detail, measured Phase 13 (test-results/phase13-vuln-inventory.md

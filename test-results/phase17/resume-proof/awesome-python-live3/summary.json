@@ -1,0 +1,22 @@
+{
+  "startedAt": "2026-11-27T02:10:18.319Z",
+  "finishedAt": "2026-11-27T02:16:00.566Z",
+  "repo": "vinta/awesome-python",
+  "base": "https://git-secure.com",
+  "mode": "chunk",
+  "chunkPath": {
+    "calls": 19,
+    "historyChunks": 17,
+    "wallMs": 342224,
+    "wallSeconds": 342.2,
+    "accumulatedFindings": 0,
+    "finalReportSecrets": 0,
+    "headSha": "4c3cb15dc695e95ae64add86b9994add8277f323",
+    "probeOnly": false,
+    "loadedFromDisk": false
+  },
+  "getPath": null,
+  "diff": null,
+  "exitCode": 2,
+  "verdict": "ERROR / INCONCLUSIVE — see error above"
+}
