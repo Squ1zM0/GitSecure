@@ -1,11 +1,11 @@
-// Phase 7 — the score as a proper gauge, not a bare number.
+// Phase 7 - the score as a proper gauge, not a bare number.
 //
 // An SVG arc, 0–100, coloured by grade band (green A/B, amber C, red
-// D/F) with the grade word right beside it — colour + label together,
+// D/F) with the grade word right beside it - colour + label together,
 // never colour alone. Pure presentation: score and grade come from
 // computeScore unchanged.
 //
-// Phase 12 — the triage-weighted score explanation (Freddy's
+// Phase 12 - the triage-weighted score explanation (Freddy's
 // direction, 2026-11-26: an F for 34 test fixtures is a false alarm,
 // so the score must reflect real risk). Test keys deduct nothing,
 // uncertain findings deduct at half weight, genuine leaks at full
@@ -14,19 +14,24 @@
 // deduction size, never present test keys as the biggest problem, and
 // state the rule with the actual numbers. They take the detail as
 // `ScoreDetail | undefined` and fall back to the Phase 7 helpers
-// (biggestProblem / explainScore) when it is absent — an older cached
+// (biggestProblem / explainScore) when it is absent - an older cached
 // report without scoreDetail renders exactly as before, never crashes.
 import { biggestProblem, explainScore, gradeBand, gradeWord, gradeWordWithArticle, type ScoreDetail } from "@/lib/score";
 
 export type { ScoreDetail };
 
-export type ScoreCounts = { secrets: number; vulnerabilities: number; postureIssues: number };
+export type ScoreCounts = { secrets: number; vulnerabilities: number; postureIssues: number; postureHigh?: number };
 
 const plural = (n: number, one: string, many: string) => (n === 1 ? one : many);
 
+/** Phase 19: never call posture issues "small" when a high-severity
+ *  one exists. Callers that know the count pass postureHigh; older
+ *  callers without it keep the old wording. */
+const posturePhrase = (counts: ScoreCounts) => ((counts.postureHigh ?? 0) > 0 ? "security-hygiene" : "small security-hygiene");
+
 /** The test-key note: what happened to the secrets that did not count
  *  in full. Only speaks when there are NO genuine (full-weight)
- *  secrets — when a real leak exists, the explanation component states
+ *  secrets - when a real leak exists, the explanation component states
  *  the full split instead. Empty when there is nothing to say (no
  *  detail, or every secret counted at full weight). */
 export function testKeyNote(detail: ScoreDetail | undefined): string {
@@ -40,7 +45,7 @@ export function testKeyNote(detail: ScoreDetail | undefined): string {
     return `The ${ex} look like test keys and do not count toward the score; the ${half} uncertain ${plural(half, "one counts", "ones count")} at half weight.`;
   }
   if (half > 0) {
-    return `No genuine leaks were found — the ${half} uncertain ${plural(half, "secret counts", "secrets count")} at half weight until a human checks ${plural(half, "it", "them")}.`;
+    return `No genuine leaks were found - the ${half} uncertain ${plural(half, "secret counts", "secrets count")} at half weight until a human checks ${plural(half, "it", "them")}.`;
   }
   return "";
 }
@@ -65,21 +70,21 @@ function driverKind(detail: ScoreDetail): DriverKind {
 }
 
 /** The driver as a "Biggest problem: …" core sentence (no trailing
- *  period — the caller adds it and the test-key note). With no detail
+ *  period - the caller adds it and the test-key note). With no detail
  *  this is unused; the caller falls back to biggestProblem instead. */
 function verdictCore(detail: ScoreDetail, counts: ScoreCounts): string {
   switch (driverKind(detail)) {
     case "secrets":
       if (detail.secretsFullWeight > 0) {
-        return `${detail.secretsFullWeight} genuine leaked ${plural(detail.secretsFullWeight, "secret", "secrets")} — rotate and remove these first`;
+        return `${detail.secretsFullWeight} genuine leaked ${plural(detail.secretsFullWeight, "secret", "secrets")} - rotate and remove these first`;
       }
-      return `${detail.secretsHalfWeight} uncertain ${plural(detail.secretsHalfWeight, "secret", "secrets")} — counted at half weight; rotate ${plural(detail.secretsHalfWeight, "it", "them")} if ${plural(detail.secretsHalfWeight, "it turns", "they turn")} out to be real`;
+      return `${detail.secretsHalfWeight} uncertain ${plural(detail.secretsHalfWeight, "secret", "secrets")} - counted at half weight; rotate ${plural(detail.secretsHalfWeight, "it", "them")} if ${plural(detail.secretsHalfWeight, "it turns", "they turn")} out to be real`;
     case "vulns":
-      return `${counts.vulnerabilities} known ${plural(counts.vulnerabilities, "flaw", "flaws")} in dependencies — upgrade the affected packages`;
+      return `${counts.vulnerabilities} known ${plural(counts.vulnerabilities, "flaw", "flaws")} in dependencies - upgrade the affected packages`;
     case "posture":
-      return `${counts.postureIssues} small security-hygiene ${plural(counts.postureIssues, "issue", "issues")} to fix`;
+      return `${counts.postureIssues} ${posturePhrase(counts)} ${plural(counts.postureIssues, "issue", "issues")} to fix`;
     case "unpinned":
-      return "unpinned dependency versions — pin them to exact versions";
+      return "unpinned dependency versions - pin them to exact versions";
     case "none":
       return "";
   }
@@ -87,21 +92,21 @@ function verdictCore(detail: ScoreDetail, counts: ScoreCounts): string {
 
 /** The hero verdict, Phase 12-aware. With a scoreDetail, the driver
  *  is picked by deduction size, so an all-test-key report never says
- *  "N leaked secrets — rotate and remove these first"; it names the
+ *  "N leaked secrets - rotate and remove these first"; it names the
  *  real driver and says the test keys are excluded. Without one, the
  *  Phase 7 wording is used unchanged. */
 export function adjustedVerdict(detail: ScoreDetail | undefined, counts: ScoreCounts): string {
   if (!detail) return biggestProblem(counts);
   const core = verdictCore(detail, counts);
-  if (core === "") return "Nothing found to fix — this repo looks clean in this scan.";
+  if (core === "") return "Nothing found to fix - this repo looks clean in this scan.";
   const note = testKeyNote(detail);
   return `Biggest problem: ${core}.${note ? ` ${note}` : ""}`;
 }
 
 /** The runner-up deduction: the second-largest component, in plain
- *  English with its point cost. Phase 15 finding 13 — the old
+ *  English with its point cost. Phase 15 finding 13 - the old
  *  explanation named only the top driver (TechDirect's hero said the
- *  points lost came from "3 small security-hygiene issues" and never
+ *  points lost came from "4 security-hygiene issues" and never
  *  mentioned its 4 dependency vulnerabilities). Returns "" when no
  *  other component deducts anything. Ties break in the same order as
  *  driverKind (secrets, vulnerabilities, posture, unpinned). */
@@ -123,15 +128,15 @@ function runnerUpPhrase(detail: ScoreDetail, counts: ScoreCounts): string {
   switch (best.kind) {
     case "secrets":
       if (detail.secretsFullWeight > 0) {
-        return ` Plus ${detail.secretsFullWeight} genuine leaked ${plural(detail.secretsFullWeight, "secret", "secrets")}, which cost ${points} — rotating and removing those would raise the score further.`;
+        return ` Plus ${detail.secretsFullWeight} genuine leaked ${plural(detail.secretsFullWeight, "secret", "secrets")}, which cost ${points} - rotating and removing those would raise the score further.`;
       }
-      return ` Plus ${detail.secretsHalfWeight} uncertain ${plural(detail.secretsHalfWeight, "secret", "secrets")}, counted at half weight, which cost ${points} — checking ${plural(detail.secretsHalfWeight, "it", "them")} and rotating any real ${plural(detail.secretsHalfWeight, "one", "ones")} would raise the score further.`;
+      return ` Plus ${detail.secretsHalfWeight} uncertain ${plural(detail.secretsHalfWeight, "secret", "secrets")}, counted at half weight, which cost ${points} - checking ${plural(detail.secretsHalfWeight, "it", "them")} and rotating any real ${plural(detail.secretsHalfWeight, "one", "ones")} would raise the score further.`;
     case "vulns":
-      return ` Plus ${counts.vulnerabilities} known ${plural(counts.vulnerabilities, "flaw", "flaws")} in dependencies, which cost ${points} — upgrading those would raise the score further.`;
+      return ` Plus ${counts.vulnerabilities} known ${plural(counts.vulnerabilities, "flaw", "flaws")} in dependencies, which cost ${points} - upgrading those would raise the score further.`;
     case "posture":
-      return ` Plus ${counts.postureIssues} small security-hygiene ${plural(counts.postureIssues, "issue", "issues")}, which cost ${points} — fixing those would raise the score further.`;
+      return ` Plus ${counts.postureIssues} ${posturePhrase(counts)} ${plural(counts.postureIssues, "issue", "issues")}, which cost ${points} - fixing those would raise the score further.`;
     case "unpinned":
-      return ` Plus unpinned dependency versions, which cost ${points} — pinning them to exact versions would raise the score further.`;
+      return ` Plus unpinned dependency versions, which cost ${points} - pinning them to exact versions would raise the score further.`;
     case "none":
       return "";
   }
@@ -141,23 +146,23 @@ function runnerUpPhrase(detail: ScoreDetail, counts: ScoreCounts): string {
  *  driver logic as adjustedVerdict, in explainScore's phrasing. */
 export function adjustedExplainScore(score: number, grade: string, detail: ScoreDetail | undefined, counts: ScoreCounts): string {
   if (!detail) return explainScore({ score, grade, ...counts });
-  if (score >= 100) return "100 out of 100 (grade A) is a perfect score — nothing was found to fix in this scan.";
+  if (score >= 100) return "100 out of 100 (grade A) is a perfect score - nothing was found to fix in this scan.";
   let driver: string;
   switch (driverKind(detail)) {
     case "secrets":
       driver =
         detail.secretsFullWeight > 0
-          ? `Most of the points lost come from ${detail.secretsFullWeight} genuine leaked ${plural(detail.secretsFullWeight, "secret", "secrets")} — rotating and removing those would raise the score the most.`
-          : `Most of the points lost come from ${detail.secretsHalfWeight} uncertain ${plural(detail.secretsHalfWeight, "secret", "secrets")}, counted at half weight — checking ${plural(detail.secretsHalfWeight, "it", "them")} and rotating any real ${plural(detail.secretsHalfWeight, "one", "ones")} would raise the score.`;
+          ? `Most of the points lost come from ${detail.secretsFullWeight} genuine leaked ${plural(detail.secretsFullWeight, "secret", "secrets")} - rotating and removing those would raise the score the most.`
+          : `Most of the points lost come from ${detail.secretsHalfWeight} uncertain ${plural(detail.secretsHalfWeight, "secret", "secrets")}, counted at half weight - checking ${plural(detail.secretsHalfWeight, "it", "them")} and rotating any real ${plural(detail.secretsHalfWeight, "one", "ones")} would raise the score.`;
       break;
     case "vulns":
-      driver = `Most of the points lost come from ${counts.vulnerabilities} known ${plural(counts.vulnerabilities, "flaw", "flaws")} in dependencies — upgrading the affected packages would raise the score.`;
+      driver = `Most of the points lost come from ${counts.vulnerabilities} known ${plural(counts.vulnerabilities, "flaw", "flaws")} in dependencies - upgrading the affected packages would raise the score.`;
       break;
     case "posture":
-      driver = `The points lost come from ${counts.postureIssues} small security-hygiene ${plural(counts.postureIssues, "issue", "issues")} — fixing those would raise the score.`;
+      driver = `The points lost come from ${counts.postureIssues} ${posturePhrase(counts)} ${plural(counts.postureIssues, "issue", "issues")} - fixing those would raise the score.`;
       break;
     case "unpinned":
-      driver = "Most of the points lost come from unpinned dependency versions — pinning them to exact versions would raise the score.";
+      driver = "Most of the points lost come from unpinned dependency versions - pinning them to exact versions would raise the score.";
       break;
     case "none":
       driver = "Only a few points were lost, from minor issues in the scan.";
@@ -167,7 +172,7 @@ export function adjustedExplainScore(score: number, grade: string, detail: Score
   return `${score} out of 100 (grade ${grade}) is ${gradeWordWithArticle(grade)} score. ${driver}${runnerUpPhrase(detail, counts)}${note ? ` ${note}` : ""}`;
 }
 
-/** The score explanation as plain text (pure — no JSX), so the
+/** The score explanation as plain text (pure - no JSX), so the
  *  on-page ScoreExplanation and the downloadable Markdown report
  *  (src/lib/report-markdown.ts) say exactly the same thing. */
 export function scoreExplanationText(detail: ScoreDetail): string {
@@ -184,11 +189,11 @@ export function scoreExplanationText(detail: ScoreDetail): string {
 /** The score explanation, rendered next to the dial in the report
  *  hero. States the rule in plain English with the actual numbers
  *  from the detail: how many secrets were excluded as test keys, how
- *  many counted at half weight, how many at full weight — and BOTH
+ *  many counted at half weight, how many at full weight - and BOTH
  *  scores, the adjusted score and the would-be score under the old
  *  full-weight rule, so the reader can see the test-key adjustment
  *  and verify it. Renders nothing when the detail is absent (older
- *  cached report) — the existing explainScore line is the fallback. */
+ *  cached report) - the existing explainScore line is the fallback. */
 export function ScoreExplanation({ detail }: { detail: ScoreDetail | undefined }) {
   if (!detail) return null;
   return <p className="score-explain">{scoreExplanationText(detail)}</p>;

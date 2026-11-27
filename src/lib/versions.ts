@@ -1,4 +1,4 @@
-// Pure version helpers (Phase 15 finding 15) — shared by the
+// Pure version helpers (Phase 15 finding 15) - shared by the
 // on-page VulnerabilitiesList and the downloadable Markdown report
 // (src/lib/report-markdown.ts), so both reconcile the same way.
 // No DOM, no React: unit-testable with tsx alone.
@@ -9,7 +9,7 @@ import type { Vulnerability } from "./types";
  *  compare numerically ("4.3.2" > "3.15.0", "4.3.2" > "4.3.1"); a
  *  trailing non-numeric segment is a pre-release and sorts below the
  *  release ("1.0.0-alpha" < "1.0.0"). Anything else falls back to
- *  lexical order. Display only — OSV data is never rewritten. */
+ *  lexical order. Display only - OSV data is never rewritten. */
 export function compareVersions(a: string, b: string): number {
   const parts = (v: string) => v.replace(/^[vV]/, "").split(/[.+-]/);
   const pa = parts(a);
@@ -33,11 +33,11 @@ export function compareVersions(a: string, b: string): number {
 }
 
 /** Per package + installed version, the single recommended fix
- *  version — the max of the advisory fixed versions — for groups
+ *  version - the max of the advisory fixed versions - for groups
  *  where advisories disagree (TechDirect's js-yaml 4.1.1 carried four
  *  LOW findings saying 4.3.2, 3.15.0, 4.3.1, and 4.2.0). Groups with
  *  one distinct fixed version (or none) are absent: their Fix lines
- *  are already unambiguous. Presentation only — each row keeps its
+ *  are already unambiguous. Presentation only - each row keeps its
  *  own id, severity, plainEnglish, and upgrade fields; only the
  *  rendered Fix line is reconciled. */
 export function recommendedFixVersions(vulns: Vulnerability[]): Map<string, { recommended: string; advisoryCount: number }> {

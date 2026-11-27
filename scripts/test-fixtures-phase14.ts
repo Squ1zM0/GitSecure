@@ -164,12 +164,13 @@ async function main() {
   // ".github/workflows/", so the unprefixed fixture-relative key would
   // surface an extra unpinned-action finding the real scan never
   // reports (test-tier3.ts asserts that finding separately, via the
-  // relative map). The 9 items below are the inventory's Tier 3 set.
+  // relative map). The 10 items below are the inventory's Tier 3 set.
   const t3prefixed = new Map([...t3gen].map(([k, v]) => [`tests/fixtures/fake-repo-tier3/${k}`, v] as [string, string]));
   const infraTitles = infraFindings(t3prefixed).map((f) => f.title).sort();
   const expectedInfra = [
     "Docker base image is not pinned to a version",
     "Dockerfile downloads a file with ADD",
+    "Dockerfile has no HEALTHCHECK",
     "Dockerfile runs as root",
     "Kubernetes container image is not pinned to a version",
     "Kubernetes container runs as root (UID 0)",
@@ -179,14 +180,14 @@ async function main() {
     "Terraform provider random has no version constraint",
   ].sort();
   check(
-    "generated Tier 3 fixtures yield the same 9 infra posture items",
+    "generated Tier 3 fixtures yield the same 10 infra posture items",
     infraTitles.length === expectedInfra.length && infraTitles.every((t, i) => t === expectedInfra[i]),
     infraTitles.join("; "),
   );
   // The relative-key map (as test-tier3.ts uses it) additionally
   // surfaces the unpinned-action finding — real detector behaviour,
   // just path-gated out of the repo scan. Recorded here so the
-  // 9-vs-10 difference is never mistaken for drift.
+  // 10-vs-11 difference is never mistaken for drift.
   check(
     "generated Tier 3 (relative keys): unpinned setup-node action finding also present",
     infraFindings(t3gen).some((f) => f.title === "GitHub Action is not pinned"),
@@ -195,7 +196,7 @@ async function main() {
   // The whole generated set through buildPosture, with the real repo
   // files that clear the non-fixture items present, and fixture maps
   // keyed with repo-prefixed paths exactly as the real scan sees them:
-  // exactly the 13 fixture-driven posture items from the inventory,
+  // exactly the 14 fixture-driven posture items from the inventory,
   // nothing else.
   const prefixMap = (m: Map<string, string>, prefix: string) =>
     new Map([...m].map(([k, v]) => [`${prefix}${k}`, v] as [string, string]));
@@ -212,6 +213,7 @@ async function main() {
     "env-committed",
     "infra-docker-base-image-is-not-pinned-to-a-version",
     "infra-dockerfile-downloads-a-file-with-add",
+    "infra-dockerfile-has-no-healthcheck",
     "infra-dockerfile-runs-as-root",
     "infra-kubernetes-container-image-is-not-pinned-to-a-version",
     "infra-kubernetes-container-runs-as-root-uid-0-",
@@ -224,7 +226,7 @@ async function main() {
     "vite-vite-variables-are-public-by-design",
   ].sort();
   check(
-    "generated fixtures through buildPosture give exactly the 13 fixture-driven posture items",
+    "generated fixtures through buildPosture give exactly the 14 fixture-driven posture items",
     postureIds.length === expectedPostureIds.length && postureIds.every((id, i) => id === expectedPostureIds[i]),
     postureIds.join(", "),
   );

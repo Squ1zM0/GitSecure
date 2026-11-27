@@ -9,7 +9,7 @@ export function redactSecret(value: string): string {
   return `${v.slice(0, 4)}…${v.slice(-2)}`;
 }
 
-/** True if `text` still contains `secret` verbatim — used by tests to prove
+/** True if `text` still contains `secret` verbatim - used by tests to prove
  *  no full secret leaks into a report. */
 export function leaksSecret(text: string, secret: string): boolean {
   if (!secret || secret.length < 8) return false;

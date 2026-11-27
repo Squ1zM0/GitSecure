@@ -1,9 +1,9 @@
-// Secret triage (Phase 10) — a layered post-processing pipeline that
+// Secret triage (Phase 10) - a layered post-processing pipeline that
 // annotates every secret finding WITHOUT changing the detectors, the
 // findings list, the counts, or the score.
 //
 // The problem it solves: GitSecure cried CRITICAL on intentional test
-// keys — the Linux kernel's SGX self-test signing key
+// keys - the Linux kernel's SGX self-test signing key
 // (tools/testing/selftests/sgx/sign_key.pem) and the device-tree test
 // data in drivers/of/unittest-data/tests-phandle.dtsi are not leaks,
 // they are test fixtures. But a scanner must never hide a real leak,
@@ -13,22 +13,22 @@
 // and a different Fix for likely-test findings. A likely-test finding
 // still counts in counts.secrets; Phase 12: it deducts nothing from
 // the score (uncertain deducts half, genuine / untriaged deduct full)
-// — the Phase 10 rule that triage never changes the score was
+// - the Phase 10 rule that triage never changes the score was
 // overturned by Freddy, 2026-11-26, because an F for 34 test fixtures
 // is a false alarm. Nothing is ever removed, so relabelling a finding
-// cannot hide it — only the weight changes.
+// cannot hide it - only the weight changes.
 //
 // The three layers (Freddy's direction, 2026-11-25):
-//   1. Static context — path, filename, and content signals.
-//   2. Cryptographic inspection — parse the key/value where the format
+//   1. Static context - path, filename, and content signals.
+//   2. Cryptographic inspection - parse the key/value where the format
 //      allows: type and size, fingerprint against a small built-in list
-//      of famous published test keys (FINGERPRINTS ONLY — never the
+//      of famous published test keys (FINGERPRINTS ONLY - never the
 //      keys themselves), known example values (hashes only), weak/short
 //      keys, and whether the key's public half is committed in the
 //      same repo. No credential is ever live-validated, stored, or
 //      logged; triage only ever sees the file content the scanner
 //      already held, and only redacted fragments leave the scanner.
-//   3. The scanner's own evidence — the detector result (type,
+//   3. The scanner's own evidence - the detector result (type,
 //      confidence, fragment) is an input, not the verdict: a
 //      high-confidence match in a production path stays high; the same
 //      match in a self-test path with matching test signals is
@@ -44,7 +44,7 @@
 //     nothing suggesting a test is most likely real).
 //   otherwise -> uncertain (keeps detector severity, says so).
 //
-// Phase 11 — usage feedback (see usage.ts): after the verdict above,
+// Phase 11 - usage feedback (see usage.ts): after the verdict above,
 // a finding's usage can move it. A likely-test finding referenced
 // from non-test code upgrades to at least uncertain (to
 // likely-genuine-leak when the reference is in a production-ish
@@ -76,7 +76,7 @@ import type { ScannedLine } from "./secrets";
 /** Published test keys, by SHA-256 of their DER bytes. */
 export const KNOWN_TEST_KEY_FINGERPRINTS: { sha256: string; name: string }[] = [
   {
-    // Linux kernel SGX self-test signing key — the key Freddy's
+    // Linux kernel SGX self-test signing key - the key Freddy's
     // screenshot flagged as CRITICAL. It signs SGX test enclaves and
     // nothing else (tools/testing/selftests/sgx/sign_key.pem, RSA
     // 3072, PKCS#1). Verified 2026-11-25 by fetching the file from
@@ -91,7 +91,7 @@ export const KNOWN_EXAMPLE_VALUE_HASHES: { sha256: string; name: string }[] = [
   {
     // The AWS documentation's example access key ID, printed in
     // every AWS guide (the textbook example). It is not a real
-    // credential — it is the textbook example. Hash verified
+    // credential - it is the textbook example. Hash verified
     // 2026-11-25 against the assembled string.
     sha256: "1a5d44a2dca19669d72edf4c4f1c27c4c1ca4b4408fbb17f6ce4ad452d78ddb3",
     name: "AWS documentation example access key ID",
@@ -103,7 +103,7 @@ function sha256Hex(data: string | Buffer): string {
 }
 
 // ---------------------------------------------------------------------------
-// Layer 1 — static context signals
+// Layer 1 - static context signals
 // ---------------------------------------------------------------------------
 
 /** Path segments that say "this lives with the tests". A segment
@@ -156,7 +156,7 @@ export function isTestFilePath(path: string): boolean {
  *  (Phase 11 rule (b)). */
 const PROD_USAGE_SEGMENTS = new Set(["src", "lib", "app", "config", "deploy", "scripts"]);
 
-/** Is this a documentation / example file? (Non-test only — a file
+/** Is this a documentation / example file? (Non-test only - a file
  *  under tests/ or examples/ is test, not docs, for usage purposes.) */
 export function isDocsPath(path: string): boolean {
   if (isTestFilePath(path)) return false;
@@ -215,11 +215,11 @@ const PROD_PATH_SEGMENTS = new Set(["prod", "production", "deploy", "deployment"
 const PROD_FILENAME_TOKENS = new Set(["prod", "production", "live"]);
 
 // ---------------------------------------------------------------------------
-// Layer 2 — cryptographic inspection (minimal DER parsing)
+// Layer 2 - cryptographic inspection (minimal DER parsing)
 //
 // Only the shapes the detectors can produce: RSA / EC private keys
 // (PKCS#1, PKCS#8, SEC1) and RSA / EC public keys (SPKI, X.509 cert).
-// A parse failure is not a signal either way — the finding simply gets
+// A parse failure is not a signal either way - the finding simply gets
 // no crypto signals, and the other layers decide.
 // ---------------------------------------------------------------------------
 
@@ -338,7 +338,7 @@ function parsePrivateKeyDer(der: Buffer): ParsedKey | null {
   if (!top || top.tag !== 0x30) return null;
   const first = readTlv(top.value, 0);
   if (!first) return null;
-  // PKCS#1 RSA: SEQ { INT version, INT n, INT e, ... } — the second
+  // PKCS#1 RSA: SEQ { INT version, INT n, INT e, ... } - the second
   // child is the modulus.
   if (first.tag === 0x02) {
     const second = readTlv(top.value, first.next);
@@ -400,7 +400,7 @@ export function extractPemBlock(
   kinds: string[] = ["PRIVATE KEY", "RSA PRIVATE KEY", "EC PRIVATE KEY", "OPENSSH PRIVATE KEY", "PGP PRIVATE KEY"],
 ): { der: Buffer; label: string } | null {
   const lines = content.split("\n");
-  // The line number is the file line (HEAD) — but for history diffs
+  // The line number is the file line (HEAD) - but for history diffs
   // the content is only the added lines, so the number can point past
   // the end. In that case, and when no block is found at/after it,
   // scan from the start: the BEGIN line of a private key is the
@@ -428,7 +428,7 @@ export function extractPemBlock(
 }
 
 /** Parse the private key in `content` (a whole file, or the added
- *  lines of a history diff — either way the PEM block is in there).
+ *  lines of a history diff - either way the PEM block is in there).
  *  Returns null when there is no parseable private key. */
 export function parsePrivateKeyInContent(content: string, lineNo?: number): ParsedKey | null {
   const block = extractPemBlock(content, lineNo);
@@ -445,7 +445,7 @@ export function parsePrivateKeyInContent(content: string, lineNo?: number): Pars
 
 /** Collect the public-key identities committed in one file's content:
  *  every "BEGIN PUBLIC KEY" block and every X.509 certificate's
- *  SubjectPublicKeyInfo. Used repo-wide (HEAD only — history commits
+ *  SubjectPublicKeyInfo. Used repo-wide (HEAD only - history commits
  *  cannot see the repo's other files) so a private key whose public
  *  half ships with it can be recognised as a fixture. */
 export function collectPublicKeyIdentities(content: string): Set<string> {
@@ -495,7 +495,7 @@ export interface TriageContext {
    *  held for detection; it never fetches anything itself. */
   content?: string;
   /** The added lines around the finding (history path), each with its
-   *  file line number — used for the raw-value recovery and the
+   *  file line number - used for the raw-value recovery and the
    *  nearby-lines content signals. */
   lines?: ScannedLine[];
   /** Public-key identities committed anywhere in the repo (HEAD only). */
@@ -542,7 +542,7 @@ function lineTextFor(finding: SecretFinding, ctx: TriageContext): string | null 
 }
 
 /** Recover the raw matched value for a finding, from the line it sits
- *  on — needed for the example-value hash and the Stripe test-mode
+ *  on - needed for the example-value hash and the Stripe test-mode
  *  check. The raw value never leaves this function except as a hash:
  *  it is never stored, logged, or put on the finding. */
 function recoverRawValue(finding: SecretFinding, ctx: TriageContext): string | null {
@@ -561,13 +561,13 @@ function recoverRawValue(finding: SecretFinding, ctx: TriageContext): string | n
 
 export interface TriageResult {
   triage: SecretTriage;
-  /** The parsed key's public identity, when one was read — the caller
+  /** The parsed key's public identity, when one was read - the caller
    *  (HEAD scan) uses it for the repo-wide counterpart check. */
   keyIdentity: string | null;
 }
 
 /** Triage one finding. Pure except for the crypto hash (node:crypto,
- *  no I/O). Every input finding gets an output annotation — triage
+ *  no I/O). Every input finding gets an output annotation - triage
  *  never drops a finding. */
 export function triageFinding(finding: SecretFinding, ctx: TriageContext = {}): TriageResult {
   const signals: Signal[] = [];
@@ -612,7 +612,7 @@ export function triageFinding(finding: SecretFinding, ctx: TriageContext = {}): 
   }
   // Phase 11 usage signals (Layer 1). With a real usage annotation,
   // test-only references are the old +2 signal; a non-test reference
-  // is NOT a point signal here — the post-verdict upgrade rules
+  // is NOT a point signal here - the post-verdict upgrade rules
   // below handle it (a likely-test finding referenced from non-test
   // code is upgraded, not merely nudged by -2). Without usage, the
   // legacy flags behave exactly as they did in Phase 10.
@@ -639,7 +639,7 @@ export function triageFinding(finding: SecretFinding, ctx: TriageContext = {}): 
     if (example) {
       decisiveTest = `it matches a published example value (${example.name})`;
       // 0 points: the match is decisive on its own, so it must not
-      // double-count — but it IS a signal that produced the verdict,
+      // double-count - but it IS a signal that produced the verdict,
       // so it belongs in the recorded list.
       signals.push({ id: "known-example-value", points: 0, text: decisiveTest });
     }
@@ -653,7 +653,7 @@ export function triageFinding(finding: SecretFinding, ctx: TriageContext = {}): 
       );
       if (known) {
         decisiveTest = `its fingerprint matches a published test key (${known.name})`;
-        // 0 points: decisive on its own — but recorded, because it is
+        // 0 points: decisive on its own - but recorded, because it is
         // the signal that produced the verdict.
         signals.push({ id: "known-test-key", points: 0, text: decisiveTest });
       }
@@ -701,20 +701,20 @@ export function triageFinding(finding: SecretFinding, ctx: TriageContext = {}): 
   //   (b) it upgrades further to `likely-genuine-leak` when the
   //       referencing non-test code is in a production-ish path
   //       (src/, lib/, app/, config/, deploy/, scripts/, or a repo
-  //       root config file — see isProductionPath) AND the detector
+  //       root config file - see isProductionPath) AND the detector
   //       type is a credential type (see CREDENTIAL_TYPES);
   //   (c) a finding with zero references anywhere is a true dead
   //       end: the `usage-dead-end` signal above already added +2
   //       points toward likely-test-key, and the explanation says so
   //       plainly (see usageNotes below).
   // A decisive fingerprint / example-value match is NOT overridden
-  // by a single non-test reference in docs/examples — only
+  // by a single non-test reference in docs/examples - only
   // production-path usage upgrades it; a docs reference leaves it
   // likely-test-key but records the reference. Usage feeds the verdict,
   // and the verdict feeds the score (Phase 12).
   const usageNotes: string[] = [];
   if (ctx.usage?.deadEnd) {
-    usageNotes.push("Nothing in this repo references this key — a true dead end.");
+    usageNotes.push("Nothing in this repo references this key - a true dead end.");
   }
   let upgradedTo: TriageVerdict | null = null;
   let upgradeRef: { file: string; line: number } | null = null;
@@ -754,7 +754,7 @@ export function triageFinding(finding: SecretFinding, ctx: TriageContext = {}): 
   if (verdict === "likely-test-key") {
     explanation =
       `This looks like an intentional test key: ${testReasons.join("; ")}.` +
-      ` It is still listed and still counted — if it ever signs real artifacts or grants real access, treat it as compromised and rotate it.`;
+      ` It is still listed and still counted - if it ever signs real artifacts or grants real access, treat it as compromised and rotate it.`;
     fix = finding.type === "private-key" || finding.type === "env-file" ? TEST_KEY_FIX : TEST_VALUE_FIX;
     adjustedSeverity = "low";
     adjustedConfidence = "low";
@@ -770,8 +770,8 @@ export function triageFinding(finding: SecretFinding, ctx: TriageContext = {}): 
     const mixed = [...testReasons, ...prodReasons].join("; ");
     explanation =
       mixed.length > 0
-        ? `This could be a test key or a real leak: ${mixed} — not enough evidence either way, so a human should check it.`
-        : `Not enough evidence to tell whether this is a test value or a real leak — a human should check it.`;
+        ? `This could be a test key or a real leak: ${mixed} - not enough evidence either way, so a human should check it.`
+        : `Not enough evidence to tell whether this is a test value or a real leak - a human should check it.`;
     fix = finding.fix;
   }
   if (usageNotes.length > 0) explanation += ` ${usageNotes.join(" ")}`;
@@ -789,7 +789,7 @@ export function triageFinding(finding: SecretFinding, ctx: TriageContext = {}): 
   };
 }
 
-/** Annotate every finding in place. Returns the same array — the
+/** Annotate every finding in place. Returns the same array - the
  *  length never changes, so a triage pass can never drop a finding
  *  (proved by the Phase 10 regression test). */
 export function triageFindings(
@@ -805,7 +805,7 @@ export function triageFindings(
 /** Fill in a triage annotation for any finding that lacks one (a
  *  history finding that arrived from an older client/cursor, or a
  *  finding built before triage existed). Path + detector signals only
- *  — no content is available — but the invariant "every finding
+ *  - no content is available - but the invariant "every finding
  *  carries a triage annotation" holds for every report. */
 export function ensureTriage(findings: SecretFinding[]): SecretFinding[] {
   for (const f of findings) {

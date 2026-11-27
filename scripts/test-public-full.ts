@@ -1,7 +1,7 @@
 // Public-full test for Phase 4. Run: npm run test:public-full
 //
 // Phase 4 flipped the model: the site only scans public repos, so
-// EVERY caller gets the full report — no login flow, no owner gate.
+// EVERY caller gets the full report - no login flow, no owner gate.
 // This script proves, with no network:
 //   1. No sign-in / owner-gate copy or code remains anywhere in src or
 //      on the human pages (no "Honest limits" section, no "owner only",
@@ -19,7 +19,7 @@ import { leaksSecret } from "../src/lib/redact";
 
 let failures = 0;
 function check(name: string, ok: boolean, extra = "") {
-  console.log(`${ok ? "PASS" : "FAIL"}  ${name}${extra ? ` — ${extra}` : ""}`);
+  console.log(`${ok ? "PASS" : "FAIL"}  ${name}${extra ? ` - ${extra}` : ""}`);
   if (!ok) failures++;
 }
 
@@ -54,7 +54,7 @@ check("home page says everyone gets the full report", /everyone gets the .*full 
 const reportPage = src("src/app/[owner]/[repo]/page.tsx");
 // Phase 9: the report rendering moved from the page into ReportView
 // (so the chunk driver can swap a provisional report for the finished
-// one without a reload) — the rendering checks read that file now.
+// one without a reload) - the rendering checks read that file now.
 const reportView = src("src/components/ReportView.tsx");
 check("report page has no sign-in copy", !/sign in/i.test(reportPage));
 check("report page has no 'Owner view' banner", !/Owner view/i.test(reportPage));
@@ -78,7 +78,7 @@ check("scanner mentions no '200 KB' / '3 MB' cap", !/200 KB|3 MB/.test(scanSrc))
 
 // --- 2. No file-count cap: scan.ts uses the whole file list ---
 // Non-streaming: the whole recursive tree, sorted. Streaming (huge
-// repos): the whole tarball file list — the tree truncates past ~71k
+// repos): the whole tarball file list - the tree truncates past ~71k
 // entries, so the tarball is the complete list there. Neither path
 // slices the list.
 check("scanner fetches the whole tree (no slice cap on chosen)", /chosen = \[\.\.\.allFiles\]\.sort\(/.test(scanSrc) && /chosen = streamedPaths/.test(scanSrc) && !/chosen = [^\n]*\.slice\(/.test(scanSrc));
@@ -97,7 +97,7 @@ check("Phase 5: MCP notes state no 100-finding cap", !/At most 100 secret findin
 check("Phase 5: MCP notes state no 50-detail cap", !/up to 50 advisories per scan/i.test(mcpSrc));
 check("Phase 5: report page renders lists progressively (Show more)", /Show more/.test(reportView) || /ReportLists/.test(reportView));
 check("Phase 5: report page lists dependencies, not just counts", /DependenciesList/.test(reportView));
-check("Phase 5: report page passes owner/repo/branch to the secrets list (GitHub links)", /SecretsList secrets=\{report\.secrets\} owner=\{report\.owner\} repo=\{report\.repo\} branch=\{report\.branch\}/.test(reportView));
+check("Phase 5: report page passes owner/repo/branch to the secrets list (GitHub links)", /SecretsList secrets=\{report\.secrets\} posture=\{report\.posture\} owner=\{report\.owner\} repo=\{report\.repo\} branch=\{report\.branch\}/.test(reportView));
 
 // --- 2c. Phase 5 navigation: groups, filters, map, anchors, GitHub links ---
 const listsSrc = src("src/components/ReportLists.tsx");
@@ -113,10 +113,10 @@ check("nav: every secret row links to the exact GitHub file + line", /githubBlob
 check("nav: every finding has an in-page anchor + copy-link button", /findingAnchorId\("secret", entry\.idx\)/.test(listsSrc) && /CopyLinkButton/.test(listsSrc) && /findingAnchorId\("vuln", entry\.idx\)/.test(listsSrc));
 check("nav: link helper builds blob URLs with file + line", /blob\//.test(linksSrc) && /#L\$\{line\}/.test(linksSrc));
 check("nav: link helper uses the commit for history findings", /commit !== "HEAD"/.test(linksSrc));
-check("nav: map tooltips carry only file + count, never a fragment", /\$\{f\.file\} — \$\{f\.count\} finding/.test(listsSrc));
+check("nav: map tooltips carry only file + count, never a fragment", /\$\{f\.file\} - \$\{f\.count\} finding/.test(listsSrc));
 
 // --- 3. Full report carries detail AND redaction still holds ---
-// Fake secrets assembled from fragments at runtime (never literal —
+// Fake secrets assembled from fragments at runtime (never literal -
 // GitHub push protection blocks literal secret-pattern values).
 const FAKE = "FAKE";
 const FAKE_SECRETS = [

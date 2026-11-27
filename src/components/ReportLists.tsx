@@ -1,6 +1,6 @@
 // Phase 5: progressive rendering + real navigation for huge reports.
 //
-// The API and MCP responses always carry the COMPLETE lists — no caps.
+// The API and MCP responses always carry the COMPLETE lists - no caps.
 // The human page must stay usable when a list has thousands of entries
 // (DefinitelyTyped: 61,814 files, 9,401 dependencies, secrets well over
 // 100), so each list renders in chunks of PAGE_SIZE with "Show more" /
@@ -8,7 +8,7 @@
 // is in the report, the count shown is the true total, and every entry
 // is reachable on the page.
 //
-// Navigation (added for the DefinitelyTyped case — hundreds to
+// Navigation (added for the DefinitelyTyped case - hundreds to
 // thousands of findings):
 //   - Collapsible groups by type / advisory / file, with counts,
 //     collapsed by default when the list is large.
@@ -26,12 +26,12 @@
 //     with a copy-link button, so one finding can be shared. A shared
 //     anchor link opens the page with that finding expanded and scrolled
 //     into view, even past the first 100.
-// Phase 11: the triage verdicts become SECTIONS, not just a filter —
+// Phase 11: the triage verdicts become SECTIONS, not just a filter -
 // likely-test findings live in their own collapsed "Likely test keys"
 // section, genuine leaks in their own open section, uncertain findings
-// in their own open section — and the spider map becomes a usage
+// in their own open section - and the spider map becomes a usage
 // graph (finding -> the files that reference it). Redaction unchanged:
-// only the redacted fragment ever appears — never a full secret,
+// only the redacted fragment ever appears - never a full secret,
 // including in graph tooltips and link labels.
 
 "use client";
@@ -41,15 +41,26 @@ import type { Dependency, Framework, PostureIssue, SecretFinding, SecretUsage, S
 import { findingAnchorId, githubBlobUrl, osvAdvisoryUrl } from "@/lib/links";
 import { recommendedFixVersions } from "@/lib/versions";
 // Phase 18: all view/transform/traversal math lives in the pure
-// map-view module — the component owns rendering and event wiring.
+// map-view module - the component owns rendering and event wiring.
 import {
+  MAP_CATEGORY_META,
+  MAP_CATEGORY_ORDER,
+  MAP_MAX_FILE_NODES,
+  MAP_MAX_POSTURE_NODES,
+  MAP_MAX_SECRET_NODES,
+  capNote,
+  cappedSlice,
+  categoryLabel,
+  categoryPolygonPoints,
   clusterEdgeLabels,
   edgeDetailText,
   edgeLabelText,
   edgeLabelThresholdWorld,
+  filterByCategory,
   fitView,
   neighboursOf,
   panBy,
+  postureCategoryOf,
   resolveLabelCollisions,
   ringLayout,
   resolveNodePositions,
@@ -62,11 +73,12 @@ import {
   zoomToNode,
   type EdgeKind,
   type EdgeLabelAnchor,
+  type MapCategory,
   type ViewTransform,
 } from "@/lib/map-view";
 
 // Phase 11: usage annotation (SecretUsage on SecretFinding, see
-// src/lib/types.ts). `getUsage` validates the shape — a finding
+// src/lib/types.ts). `getUsage` validates the shape - a finding
 // without `usage` (older report) renders exactly as before, never crashes.
 export function getUsage(s: SecretFinding): SecretUsage | undefined {
   const u = (s as SecretFinding & { usage?: unknown }).usage;
@@ -93,7 +105,7 @@ export function getUsage(s: SecretFinding): SecretUsage | undefined {
 }
 
 /** Phase 15 finding 9: the "Used by" segments for the usage-map
- *  track detail — one segment per list that actually has entries.
+ *  track detail - one segment per list that actually has entries.
  *  A finding used only in tests renders ["in tests: …"] with no empty
  *  "Used by: ;" segment; a finding with no listed references renders
  *  []. Exported for the UI test. */
@@ -106,7 +118,7 @@ export function trackDetailSegments(usage: SecretUsage): string[] {
   return segments;
 }
 
-/** A finding with no triage annotation reads as uncertain — it is
+/** A finding with no triage annotation reads as uncertain - it is
  *  never silently counted as a test key or a genuine leak. */
 function verdictOf(s: SecretFinding): TriageVerdict | "uncertain" {
   return s.triage?.verdict ?? "uncertain";
@@ -146,8 +158,9 @@ const PAGE_SIZE = 100;
 /** Groups start open only when the filtered list is small; a wall of
  *  thousands starts collapsed so the page is traversable. */
 const GROUP_OPEN_BELOW = 50;
-/** How many file nodes the SVG map draws (largest files first). */
-const MAP_NODES = 24;
+/** How many file nodes the SVG map draws (largest files first).
+ *  Phase 19: raised from 24 to 32 (MAP_MAX_FILE_NODES). */
+const MAP_NODES = MAP_MAX_FILE_NODES;
 
 type Indexed<T> = { item: T; idx: number };
 
@@ -204,7 +217,7 @@ function Pager({ total, shown, onMore, onAll }: { total: number; shown: number; 
 function Paged<T>({ items, initialShown = PAGE_SIZE, renderItem }: { items: Indexed<T>[]; initialShown?: number; renderItem: (entry: Indexed<T>) => ReactNode }) {
   const [shown, setShown] = useState(Math.max(PAGE_SIZE, initialShown));
   // When the filter changes the item list is replaced: start over at
-  // the first page (unless an anchor link forced it open — that state
+  // the first page (unless an anchor link forced it open - that state
   // lives in the parent, which passes a fresh initialShown).
   useEffect(() => {
     setShown(Math.max(PAGE_SIZE, initialShown));
@@ -246,7 +259,7 @@ function SecretRow({ entry, owner, repo, branch }: { entry: Indexed<SecretFindin
       : s.triage?.verdict === "likely-genuine-leak"
         ? "Likely genuine leak"
         : s.triage
-          ? "Uncertain — needs a human check"
+          ? "Uncertain - needs a human check"
           : null;
   const triagePill =
     s.triage?.verdict === "likely-test-key"
@@ -255,11 +268,11 @@ function SecretRow({ entry, owner, repo, branch }: { entry: Indexed<SecretFindin
         ? "triage-genuine"
         : "triage-uncertain";
   // The dead-end note in plain English. When the triage explanation
-  // already says it (the usual case — the explanation names the
+  // already says it (the usual case - the explanation names the
   // dead end), don't repeat the sentence; the pill alone marks it.
   const deadEndNote =
     usage?.deadEnd && !(s.triage?.explanation ?? "").toLowerCase().includes("references")
-      ? "Nothing in this repo references this key — a true dead end."
+      ? "Nothing in this repo references this key - a true dead end."
       : null;
   // Phase 15 finding 9: usageRefText returns null when there is
   // nothing to list, so this line never renders an empty "Used by:".
@@ -284,12 +297,12 @@ function SecretRow({ entry, owner, repo, branch }: { entry: Indexed<SecretFindin
       {usageText ? (
         <p className="small usage-line">
           {usageText}
-          {usage?.historyOnly ? " — usage checked against the current files only." : ""}
+          {usage?.historyOnly ? " - usage checked against the current files only." : ""}
         </p>
       ) : null}
-      <p className="small"><code className="inline">{s.file}:{s.line}</code> · commit <code className="inline">{s.commit ?? "HEAD"}</code> · fragment <code className="inline">{s.fragment}</code> (redacted — never the full secret)</p>
+      <p className="small"><code className="inline">{s.file}:{s.line}</code> · commit <code className="inline">{s.commit ?? "HEAD"}</code> · fragment <code className="inline">{s.fragment}</code> (redacted - never the full secret)</p>
       <p className="small finding-actions">
-        {/* Phase 15 finding 2: the link label is just "View on GitHub" —
+        {/* Phase 15 finding 2: the link label is just "View on GitHub" -
           the long path used to be part of the label and pushed a 360 px
           report 66 px wide. The path is already shown in the line
           directly above, so nothing is lost. The CSS also lets
@@ -306,7 +319,7 @@ function SecretRow({ entry, owner, repo, branch }: { entry: Indexed<SecretFindin
 /** File -> findings map: one node per file (top MAP_NODES by count in
  *  the SVG spider, the rest reachable through the paged chip list
  *  below it). Clicking a file filters the list to it. Tooltips carry
- *  only the file path and count — never a secret fragment.
+ *  only the file path and count - never a secret fragment.
  *  Exported for the render test (scripts/test-scanner.ts does not cover
  *  it; the map is verified by a render-to-string check below). */
 export function FileMap({ byFile, onSelectFile }: { byFile: { file: string; count: number }[]; onSelectFile: (file: string) => void }) {
@@ -326,11 +339,11 @@ export function FileMap({ byFile, onSelectFile }: { byFile: { file: string; coun
   return (
     <div>
       <p className="small">
-        Map of files holding secrets — node size is the finding count. Showing the {top.length} largest of {byFile.length} files with secrets. Click a file to filter the list to it.
+        Map of files holding secrets - node size is the finding count. Showing the {top.length} largest of {byFile.length} files with secrets. Click a file to filter the list to it.
       </p>
       <p className="map-legend" aria-label="Map legend">
-        <span><b>●</b> Centre — this repo</span>
-        <span><b>●</b> Bigger node — more findings in that file</span>
+        <span><b>●</b> Centre - this repo</span>
+        <span><b>●</b> Bigger node - more findings in that file</span>
         <span>Every node is keyboard reachable: Tab to it, Enter to filter</span>
       </p>
       <div className="map-wrap">
@@ -357,9 +370,9 @@ export function FileMap({ byFile, onSelectFile }: { byFile: { file: string; coun
                 }}
                 tabIndex={0}
                 role="button"
-                aria-label={`${f.file}, ${f.count} findings — filter the list to this file`}
+                aria-label={`${f.file}, ${f.count} findings - filter the list to this file`}
               >
-                <title>{`${f.file} — ${f.count} finding${f.count === 1 ? "" : "s"}`}</title>
+                <title>{`${f.file} - ${f.count} finding${f.count === 1 ? "" : "s"}`}</title>
                 <line x1={cx} y1={cy} x2={x} y2={y} stroke="#9ecdb2" strokeWidth={1.5} />
                 <circle cx={x} cy={y} r={r} />
                 <text className="map-label" x={x} y={y - r - 4} textAnchor="middle">{label}</text>
@@ -373,7 +386,7 @@ export function FileMap({ byFile, onSelectFile }: { byFile: { file: string; coun
       </div>
       <p>
         {byFile.slice(0, filesShown).map((f) => (
-          <button key={f.file} type="button" className="secondary file-chip" title={`${f.file} — ${f.count} findings`} onClick={() => onSelectFile(f.file)}>
+          <button key={f.file} type="button" className="secondary file-chip" title={`${f.file} - ${f.count} findings`} onClick={() => onSelectFile(f.file)}>
             {baseName(f.file)} ({f.count})
           </button>
         ))}
@@ -394,21 +407,48 @@ export function FileMap({ byFile, onSelectFile }: { byFile: { file: string; coun
 
 // ------------------------------------------------------- Phase 11 map
 
-/** How many finding nodes the usage map draws (most-used first). A
- *  rendering cap, NOT a data cap — every finding stays in the list. */
-const MAP_FINDINGS = 12;
+/** How many secret finding nodes the usage map draws (most-used
+ *  first). A rendering cap, NOT a data cap - every finding stays in
+ *  the list. Phase 19: raised from 12 to 24 (MAP_MAX_SECRET_NODES);
+ *  posture nodes have their own cap, MAP_MAX_POSTURE_NODES. */
+const MAP_FINDINGS = MAP_MAX_SECRET_NODES;
+
+/** How many posture finding nodes the usage map draws (highest
+ *  severity first). Same rule as MAP_FINDINGS: a rendering cap,
+ *  never a data cap. */
+const MAP_POSTURE_FINDINGS = MAP_MAX_POSTURE_NODES;
 
 /** Fix round 2026-11-27 (defect 3): below this zoom, edge labels
  *  for edges OFF the selected track are not rendered. At fit zoom
  *  the self-scan map carries 92 edge labels stacked into an
  *  unreadable hairball at the centre (headless evidence, 1280px
- *  and 360px, light and dark) — a deliberate deviation from the
+ *  and 360px, light and dark) - a deliberate deviation from the
  *  original "labels at every zoom" rule. The selected track's
  *  labels always render, the legend + edge styles (solid/dashed/
  *  thin) still distinguish every edge at fit zoom, and any edge's
  *  meaning is one click away (edge detail) or one zoom-in away
  *  (all labels appear at this zoom). */
 const EDGE_LABEL_MIN_ZOOM = 1.5;
+
+/** Phase 19: the legend glyph for one map category - the same
+ *  shape the plane draws for its nodes (circle for secrets, polygon
+ *  per posture category), so the legend explains the shape, not just
+ *  the name. Rendered at 14x14 in the legend row. */
+function CategoryGlyph({ category }: { category: MapCategory }) {
+  const meta = MAP_CATEGORY_META[category];
+  if (meta.sides === 0) {
+    return (
+      <svg width={14} height={14} viewBox="0 0 14 14" aria-hidden="true">
+        <circle cx={7} cy={7} r={5.5} fill="none" stroke="currentColor" strokeWidth={1.5} />
+      </svg>
+    );
+  }
+  return (
+    <svg width={14} height={14} viewBox="0 0 14 14" aria-hidden="true">
+      <polygon points={categoryPolygonPoints(meta.sides, meta.rotation, 7, 7, 5.5)} fill="none" stroke="currentColor" strokeWidth={1.5} />
+    </svg>
+  );
+}
 
 /** Phase 11 usage graph. Repo node at the centre, finding nodes on an
  *  inner ring, file nodes on an outer ring, EDGES from each finding to
@@ -421,7 +461,7 @@ const EDGE_LABEL_MIN_ZOOM = 1.5;
  *  carries `usage` (older report), this falls back to the Phase 5
  *  file-count spider unchanged.
  *
- *  Phase 15 finding 4 — legibility at 12 findings / 8 files: the
+ *  Phase 15 finding 4 - legibility at 12 findings / 8 files: the
  *  rings are spread (finding 82 -> 100, file 138 -> 140, taller
  *  viewBox), file labels are middle-truncated basenames with an
  *  ellipsis (shortLabel, never a silent mid-word clip) placed
@@ -435,7 +475,7 @@ const EDGE_LABEL_MIN_ZOOM = 1.5;
  *  cannot strike the text through. The "N uses" captions alternate
  *  a sideways step so neighbours' captions stop stacking. Click,
  *  keyboard, dark mode, and reduced-motion behaviour are unchanged. */
-// Phase 18: the usage map is a dynamic visual plane — pannable,
+// Phase 18: the usage map is a dynamic visual plane - pannable,
 // zoomable, draggable nodes, pinnable nodes, traversable neighbours.
 // One <g transform> wraps everything; pan/zoom only change that one
 // transform, nodes never re-lay out per frame. All state is per-view
@@ -460,7 +500,7 @@ const EDGE_LABEL_MIN_ZOOM = 1.5;
 // A pointer cache (Map<pointerId, {x,y}>) drives the two-pointer
 // pinch. Tap vs drag is the 5 px / 500 ms rule; selection happens on
 // pointerup from the id recorded in the gesture at pointerdown time
-// — NOT via onClick on the node/edge groups (fix round 2026-11-27:
+// - NOT via onClick on the node/edge groups (fix round 2026-11-27:
 // setPointerCapture on the svg retargets the click to the svg, so
 // those onClick handlers never fired). Keyboard Enter/Space
 // selection is a separate path (onNodeKeyDown / onEdgeKeyDown) and
@@ -473,16 +513,21 @@ const EDGE_LABEL_MIN_ZOOM = 1.5;
 // findings list, like `selected` always has.
 //
 // Behaviour change (Phase 18, intentional): clicking a file node no
-// longer filters the list immediately — it selects + zooms + shows
+// longer filters the list immediately - it selects + zooms + shows
 // the detail panel first, and filtering happens via the "Filter list
 // to this file" button in that panel.
 export function UsageMap({
   findings,
+  posture = [],
   byFile,
   onSelectFile,
   onShowFinding,
 }: {
   findings: Indexed<SecretFinding>[];
+  /** Phase 19: posture issues for the map (threaded from
+   *  ReportView via SecretsList). Optional so older callers that
+   *  only pass secrets keep working. */
+  posture?: PostureIssue[];
   byFile: { file: string; count: number }[];
   onSelectFile: (file: string) => void;
   onShowFinding?: (idx: number) => void;
@@ -493,10 +538,10 @@ export function UsageMap({
   // fitView with padding 48, not the default 8. fitView fits the
   // 400x380 WORLD, but file labels sit radially OUTWARD from the
   // outer ring (up to ~r+14 world units beyond it), i.e. outside the
-  // fitted rect — at 360px the side labels butted hard against the
+  // fitted rect - at 360px the side labels butted hard against the
   // plane border and read as clipped. 48 screen px of breathing
   // room on every side (raised from 32 in the 2026-11-27 second
-  // pass — Freddy: default a little more zoomed out, rings spread
+  // pass - Freddy: default a little more zoomed out, rings spread
   // wider); the map gets slightly smaller (fit k drops ~9% at
   // 640px, ~11% at 360px) and the labels fit inside. fitView's
   // default stays 8; the zoom-to-node target (zoomTargetK) is
@@ -508,6 +553,19 @@ export function UsageMap({
   const [path, setPath] = useState<string[]>(["repo"]);
   const [neighbourIdx, setNeighbourIdx] = useState(0);
   const [reducedMotion, setReducedMotion] = useState(false);
+  // Phase 19: categories hidden from the plane by the filter
+  // toggles. Plane-only state: it never changes the report counts
+  // or the lists below the map, and a hidden category keeps its
+  // pins and drag positions for when it is shown again.
+  const [hiddenCats, setHiddenCats] = useState<Set<MapCategory>>(new Set());
+  const toggleCategory = (cat: MapCategory) => {
+    setHiddenCats((prev) => {
+      const next = new Set(prev);
+      if (next.has(cat)) next.delete(cat);
+      else next.add(cat);
+      return next;
+    });
+  };
   // Refs the handlers need without re-binding: the live view scale
   // (node drags divide screen deltas by it), the container size in
   // px, the pointer cache, the in-flight gesture, and the press
@@ -580,7 +638,7 @@ export function UsageMap({
   // Most-used findings first so the tracks worth following are the
   // ones drawn; dead ends still appear (greyed) when there is room.
   const usageOf = (e: Indexed<SecretFinding>) => getUsage(e.item);
-  const drawn = useMemo(
+  const drawnSecretsAll = useMemo(
     () =>
       [...findings]
         .sort((a, b) => {
@@ -594,8 +652,65 @@ export function UsageMap({
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [findings],
   );
-  // File nodes: every file a drawn finding is used from, then the
-  // largest files by finding count, capped at MAP_NODES.
+  // The secrets actually on the plane: the category filter hides
+  // the whole secrets category, same as any posture category.
+  const drawn = useMemo(
+    () => (hiddenCats.has("secrets") ? [] : drawnSecretsAll),
+    [drawnSecretsAll, hiddenCats],
+  );
+  // Phase 19: posture nodes, highest severity first (then stable by
+  // index), capped at MAP_POSTURE_FINDINGS. Issues without a
+  // category count as hygiene (see postureCategoryOf), so older
+  // reports still map every issue.
+  const SEVERITY_RANK: Record<string, number> = { critical: 0, high: 1, medium: 2, low: 3, info: 4 };
+  type PostureNode = Indexed<PostureIssue> & { category: MapCategory };
+  const drawnPostureAll = useMemo(() => {
+    const sorted: PostureNode[] = withIndex(posture)
+      .map((e) => ({ ...e, category: postureCategoryOf(e.item) }))
+      .sort((a, b) => (SEVERITY_RANK[a.item.severity] ?? 9) - (SEVERITY_RANK[b.item.severity] ?? 9) || a.idx - b.idx);
+    return cappedSlice(sorted, MAP_POSTURE_FINDINGS).shown;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [posture]);
+  const visiblePosture = useMemo(() => filterByCategory(drawnPostureAll, hiddenCats), [drawnPostureAll, hiddenCats]);
+  // Short in-node label per posture node: category code plus a
+  // per-category number (CR1, CR2, AC1 ...), so nodes of one
+  // category stay distinguishable at a glance.
+  const postureDisplayLabel = useMemo(() => {
+    const counts = new Map<string, number>();
+    const out = new Map<number, string>();
+    for (const e of drawnPostureAll) {
+      const n = (counts.get(e.category) ?? 0) + 1;
+      counts.set(e.category, n);
+      out.set(e.idx, `${MAP_CATEGORY_META[e.category].code}${n}`);
+    }
+    return out;
+  }, [drawnPostureAll]);
+  // Categories on the plane (for the legend and the filter row),
+  // in display order, with the drawn count each holds. The counts
+  // are the drawn counts, not the visible ones, so a toggle label
+  // never changes when it is pressed.
+  const categoriesPresent = useMemo(() => {
+    const out: { category: MapCategory; count: number }[] = [];
+    if (drawnSecretsAll.length > 0) out.push({ category: "secrets", count: drawnSecretsAll.length });
+    for (const cat of MAP_CATEGORY_ORDER) {
+      if (cat === "secrets") continue;
+      const count = drawnPostureAll.filter((e) => e.category === cat).length;
+      if (count > 0) out.push({ category: cat, count });
+    }
+    return out;
+  }, [drawnSecretsAll, drawnPostureAll]);
+  // File nodes: every file a drawn finding is used from, every file
+  // a visible posture issue comes from, then the largest files by
+  // finding count, capped at MAP_NODES. A file node count covers
+  // both secrets and posture issues in that file.
+  const postureFileCounts = useMemo(() => {
+    const counts = new Map<string, number>();
+    for (const e of visiblePosture) {
+      const f = e.item.file;
+      if (typeof f === "string" && f.length > 0) counts.set(f, (counts.get(f) ?? 0) + 1);
+    }
+    return counts;
+  }, [visiblePosture]);
   const fileNodes = useMemo(() => {
     const refFiles = new Set<string>();
     for (const e of drawn) {
@@ -604,38 +719,47 @@ export function UsageMap({
       for (const r of [...u.referencedBy, ...u.referencedByTests]) refFiles.add(r.file);
       refFiles.add(e.item.file);
     }
+    for (const f of postureFileCounts.keys()) refFiles.add(f);
     return [
-      ...[...refFiles].map((file) => ({ file, count: byFile.find((f) => f.file === file)?.count ?? 0 })),
+      ...[...refFiles].map((file) => ({
+        file,
+        count: (byFile.find((f) => f.file === file)?.count ?? 0) + (postureFileCounts.get(file) ?? 0),
+      })),
       ...byFile.filter((f) => !refFiles.has(f.file)),
     ].slice(0, MAP_NODES);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [drawn, byFile]);
+  }, [drawn, byFile, postureFileCounts]);
   const nodeIdOfFinding = (idx: number) => `finding:${idx}`;
+  const nodeIdOfPosture = (idx: number) => `posture:${idx}`;
   const nodeIdOfFile = (file: string) => `file:${file}`;
   const labelOf = (id: string): string => {
     if (id === "repo") return "This repo";
     if (id.startsWith("finding:")) return `Secret ${Number(id.slice("finding:".length)) + 1}`;
+    if (id.startsWith("posture:")) return `Posture ${Number(id.slice("posture:".length)) + 1}`;
     if (id.startsWith("file:")) return shortLabel(id.slice("file:".length));
     return id;
   };
   // Ring layout is the STARTING arrangement (world 400x380, centre
-  // (200,190), findings r=100, files r=140, same angle math as the
-  // static map); overrides win for dragged/pinned nodes.
+  // (200,190), secrets r=100, posture r=140, files r=170, same
+  // angle math as the static map); overrides win for dragged/pinned
+  // nodes. The posture ring sits between the secrets and the files
+  // so its short "found in" edges never cross the secrets ring.
   const cx = 200;
   const cy = 190;
   const basePositions = useMemo(() => {
     const base = new Map<string, { x: number; y: number }>();
     base.set("repo", { x: cx, y: cy });
-    for (const [i, p] of ringLayout(drawn.length, cx, cy, 124).entries()) base.set(nodeIdOfFinding(drawn[i].idx), p);
+    for (const [i, p] of ringLayout(drawn.length, cx, cy, 100).entries()) base.set(nodeIdOfFinding(drawn[i].idx), p);
+    for (const [i, p] of ringLayout(visiblePosture.length, cx, cy, 140).entries()) base.set(nodeIdOfPosture(visiblePosture[i].idx), p);
     for (const [i, p] of ringLayout(fileNodes.length, cx, cy, 170).entries()) base.set(nodeIdOfFile(fileNodes[i].file), p);
     return base;
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [drawn, fileNodes]);
+  }, [drawn, visiblePosture, fileNodes]);
   const positions = useMemo(() => resolveNodePositions(basePositions, overrides), [basePositions, overrides]);
   const drawnIds = useMemo(
-    () => new Set(["repo", ...drawn.map((e) => nodeIdOfFinding(e.idx)), ...fileNodes.map((f) => nodeIdOfFile(f.file))]),
+    () => new Set(["repo", ...drawn.map((e) => nodeIdOfFinding(e.idx)), ...visiblePosture.map((e) => nodeIdOfPosture(e.idx)), ...fileNodes.map((f) => nodeIdOfFile(f.file))]),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [drawn, fileNodes],
+    [drawn, visiblePosture, fileNodes],
   );
 
   // When the findings list is replaced: clear the selection and the
@@ -662,6 +786,12 @@ export function UsageMap({
   type MapEdge = {
     key: string;
     findingIdx: number;
+    /** Phase 19: set on "found in" edges - the posture issue index
+     *  (its own numbering, separate from secret findingIdx). */
+    postureIdx?: number;
+    /** Phase 19: set on "found in" edges - the posture issue title,
+     *  for the edge aria-label and detail. */
+    title?: string;
     fromId: string;
     toId: string;
     kind: EdgeKind;
@@ -670,7 +800,7 @@ export function UsageMap({
     from: { x: number; y: number };
     to: { x: number; y: number };
     // Fix round 2 (defect 1): fraction along the adjusted segment
-    // where this edge's label sits — staggered per finding (see the
+    // where this edge's label sits - staggered per finding (see the
     // assignment below), so a fan of edges from one finding stops
     // stacking all its labels on one midpoint.
     labelT: number;
@@ -691,6 +821,28 @@ export function UsageMap({
         const toId = nodeIdOfFile(r.file);
         if (positions.has(toId)) raw.push({ key: `test-${e.idx}-${r.file}-${r.line}`, findingIdx: e.idx, fromId, toId, kind: "test", refFile: r.file, refLine: r.line });
       }
+    }
+    // Phase 19: every posture node with a file links to that file
+    // with a "found in" edge. An issue with no file (no SECURITY.md,
+    // no .gitignore) has no file to link to, so it draws unconnected
+    // - same as a dead-end secret. The line is 0 when the issue has
+    // no single line.
+    for (const e of visiblePosture) {
+      const f = e.item.file;
+      if (typeof f !== "string" || f.length === 0) continue;
+      const toId = nodeIdOfFile(f);
+      if (!positions.has(toId)) continue;
+      raw.push({
+        key: `found-${e.idx}`,
+        findingIdx: e.idx,
+        postureIdx: e.idx,
+        title: e.item.title,
+        fromId: nodeIdOfPosture(e.idx),
+        toId,
+        kind: "found",
+        refFile: f,
+        refLine: typeof e.item.line === "number" ? e.item.line : 0,
+      });
     }
     // Parallel edges (same finding -> same file, different lines or
     // kinds) get a perpendicular offset of (index - (n-1)/2) * 6 world
@@ -719,18 +871,22 @@ export function UsageMap({
     }
     // Fix round 2 (defect 1): stagger edge labels ALONG their edge
     // instead of all at the midpoint. The ±6 perpendicular offset
-    // separates the LINES, not the ~70px-wide identical label TEXTS —
+    // separates the LINES, not the ~70px-wide identical label TEXTS -
     // in the recheck screenshot, finding S8's 11 "used in tests"
     // edges stacked every label onto one blob over the node. For the
     // edges of one finding (in draw order), cycle the label fraction
     // t through [0.35, 0.5, 0.65] (t = from + (to - from) * t), so
     // neighbouring edges in a fan carry their labels on different
     // arcs. A finding with a single edge keeps the midpoint (t=0.5).
-    const perFinding = new Map<number, MapEdge[]>();
+    // Phase 19: the track key separates secret tracks from posture
+    // tracks - a secret and a posture issue share index numbers, so
+    // a bare findingIdx would stagger them as one track.
+    const perFinding = new Map<string, MapEdge[]>();
     for (const e of out) {
-      const list = perFinding.get(e.findingIdx) ?? [];
+      const trackKey = e.kind === "found" ? `posture:${e.postureIdx}` : `secret:${e.findingIdx}`;
+      const list = perFinding.get(trackKey) ?? [];
       list.push(e);
-      perFinding.set(e.findingIdx, list);
+      perFinding.set(trackKey, list);
     }
     for (const list of perFinding.values()) {
       if (list.length === 1) continue; // labelT already 0.5
@@ -740,9 +896,9 @@ export function UsageMap({
     }
     return out;
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [drawn, positions]);
+  }, [drawn, visiblePosture, positions]);
 
-  // The dynamic plane always renders — even with no findings or no
+  // The dynamic plane always renders - even with no findings or no
   // usage data (2026-11-27, Freddy: the map view needs to exist
   // even when there are no test keys). With no findings it shows
   // just the repo node plus an empty-state note; with findings but
@@ -751,55 +907,62 @@ export function UsageMap({
   // stays exported and tested, but nothing in the app renders it).
 
   const selNodeId = selected?.type === "node" ? selected.id : null;
-  const selFinding = selNodeId?.startsWith("finding:") ? drawn.find((e) => nodeIdOfFinding(e.idx) === selNodeId) ?? null : null;
+  // Phase 19: a node hidden by the category filter is not the
+  // active node - its highlight, neighbours, and detail hide with
+  // it, while the selection itself stays so unhiding restores it.
+  const activeNodeId = selNodeId != null && drawnIds.has(selNodeId) ? selNodeId : null;
+  const selFinding = activeNodeId?.startsWith("finding:") ? drawn.find((e) => nodeIdOfFinding(e.idx) === activeNodeId) ?? null : null;
   const selFindingUsage = selFinding ? usageOf(selFinding) : null;
-  const selFile = selNodeId?.startsWith("file:") ? fileNodes.find((f) => nodeIdOfFile(f.file) === selNodeId) ?? null : null;
+  const selPosture = activeNodeId?.startsWith("posture:") ? visiblePosture.find((e) => nodeIdOfPosture(e.idx) === activeNodeId) ?? null : null;
+  const selFile = activeNodeId?.startsWith("file:") ? fileNodes.find((f) => nodeIdOfFile(f.file) === activeNodeId) ?? null : null;
   const selEdge = selected?.type === "edge" ? edges.find((e) => e.key === selected.id) ?? null : null;
-  const selEdgeFinding = selEdge ? drawn.find((e) => nodeIdOfFinding(e.idx) === selEdge.fromId) ?? null : null;
-  const neighbours = selNodeId
-    ? neighboursOf(selNodeId, edges.map((e) => ({ fromId: e.fromId, toId: e.toId, kind: e.kind })))
+  const selEdgeFinding = selEdge && selEdge.kind !== "found" ? drawn.find((e) => nodeIdOfFinding(e.idx) === selEdge.fromId) ?? null : null;
+  const neighbours = activeNodeId
+    ? neighboursOf(activeNodeId, edges.map((e) => ({ fromId: e.fromId, toId: e.toId, kind: e.kind })))
     : [];
   const currentNeighbour = neighbours.length > 0 ? neighbours[((neighbourIdx % neighbours.length) + neighbours.length) % neighbours.length] : null;
   // The related set stays full-strength; everything else dims (the
   // existing dim behaviour). The repo node is related to everything.
+  // Phase 19: a hidden selection counts as no selection here, so
+  // hiding a category never dims the nodes left on the plane.
   const related = new Set<string>();
-  if (selNodeId && selNodeId !== "repo") {
-    related.add(selNodeId);
+  if (activeNodeId && activeNodeId !== "repo") {
+    related.add(activeNodeId);
     for (const n of neighbours) related.add(n.id);
   } else if (selEdge) {
     related.add(selEdge.fromId);
     related.add(selEdge.toId);
   }
-  const dimNode = (id: string) => selected != null && !(selNodeId === "repo") && !related.has(id);
+  const dimNode = (id: string) => (activeNodeId != null || selEdge != null) && activeNodeId !== "repo" && !related.has(id);
   const edgeActive = (e: MapEdge) =>
-    selected == null || selNodeId === "repo" || (selNodeId != null && (e.fromId === selNodeId || e.toId === selNodeId)) || (selected.type === "edge" && e.key === selected.id);
+    (activeNodeId == null && selEdge == null) || activeNodeId === "repo" || (activeNodeId != null && (e.fromId === activeNodeId || e.toId === activeNodeId)) || (selected?.type === "edge" && e.key === selected.id);
 
   // Fix round 3 (2026-11-27): coincident identical edge labels are
   // COLLAPSED into one counted label instead of rendered per edge.
   // The visible set is the same gating as before (all edges once
   // k >= EDGE_LABEL_MIN_ZOOM, else only the selected track); each
   // visible edge contributes an anchor at its label position (the
-  // adjusted segment point at labelT — the round-2 t-stagger stays,
+  // adjusted segment point at labelT - the round-2 t-stagger stays,
   // it is harmless now), and clusterEdgeLabels merges same-kind
   // anchors within the threshold. A cluster of N renders one
   // label, "used in tests ×11"; a singleton renders the plain kind
   // text. The label is pointer-events: none, so a tap on it falls
-  // through to the edge hit line beneath it — the edges themselves
+  // through to the edge hit line beneath it - the edges themselves
   // stay individually clickable with their own detail.
   //
   // Fix round 4 (2026-11-27): TWO changes here.
-  // (1) Threshold: the round-3 `70 / view.k` was backwards —
+  // (1) Threshold: the round-3 `70 / view.k` was backwards -
   // recheck-4 proved it at k=1.831 (38 world units vs ~71 needed
   // for "used in tests ×18", 6 overlapping pairs). Labels live
   // inside the transformed <g>, so label width and anchor distance
   // both scale with k and the overlap condition is scale-invariant:
   // the threshold is now edgeLabelThresholdWorld(perKindCounts),
-  // counted from this same visible set — a constant for a given
+  // counted from this same visible set - a constant for a given
   // visible set, NOT divided by k. clusterEdgeLabels is unchanged.
   // (2) Push-out: BEFORE clustering, an anchor within (endpoint
   // radius + 14) world units of either endpoint node's centre is
   // pushed outward along the edge direction (away from that
-  // endpoint) until it is exactly that far from the centre — so a
+  // endpoint) until it is exactly that far from the centre - so a
   // label can never sit under its own finding node (recheck-4: 46px
   // of "used in tests ×10" hidden behind the S8 node) or graze a
   // finding caption. Finding radius is the node's `fr`, file radius
@@ -810,7 +973,7 @@ export function UsageMap({
     const visible = edges.filter(
       (e) =>
         view.k >= EDGE_LABEL_MIN_ZOOM ||
-        (selNodeId != null && selNodeId !== "repo" && (e.fromId === selNodeId || e.toId === selNodeId)) ||
+        (activeNodeId != null && activeNodeId !== "repo" && (e.fromId === activeNodeId || e.toId === activeNodeId)) ||
         (selected?.type === "edge" && e.key === selected.id),
     );
     const perKindCounts: { kind: EdgeKind; count: number }[] = [];
@@ -829,6 +992,8 @@ export function UsageMap({
         const refs = u && !u.deadEnd ? u.referencedByTotal + u.referencedByTestsTotal : 0;
         return 11 + Math.min(7, Math.round(Math.sqrt(refs) * 1.2));
       }
+      // Phase 19: posture nodes are fixed-size polygons, radius 12.
+      if (id.startsWith("posture:")) return 12;
       if (id.startsWith("file:")) {
         const f = fileNodes.find((file) => nodeIdOfFile(file.file) === id);
         return 9 + Math.min(15, Math.sqrt(Math.max(f?.count ?? 1, 1)) * 2.2);
@@ -902,6 +1067,15 @@ export function UsageMap({
         blockers.push({ x: pos.x + (i % 2 === 0 ? 20 : -20), y: pos.y + fr + 14, w: caption.length * 4 + 8, h: 14 });
       }
     });
+    // Phase 19: posture nodes and their severity captions are
+    // blockers too, with the same alternating sideways step the
+    // render uses, so a "found in" label never lands on them.
+    visiblePosture.forEach((e, i) => {
+      const pos = positions.get(nodeIdOfPosture(e.idx));
+      if (!pos) return;
+      blockers.push({ x: pos.x, y: pos.y, w: 24, h: 24 });
+      blockers.push({ x: pos.x + (i % 2 === 0 ? 20 : -20), y: pos.y + 12 + 14, w: e.item.severity.length * 4 + 8, h: 14 });
+    });
     const edgeDirs = new Map<string, { x: number; y: number }>();
     for (const c of clusters) {
       const e = edgeByKey.get(c.edgeIds[0]);
@@ -909,11 +1083,11 @@ export function UsageMap({
     }
     return resolveLabelCollisions(clusters, blockers, edgeDirs);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [edges, view.k, selected, positions, drawn, fileNodes]);
+  }, [edges, view.k, selected, positions, drawn, visiblePosture, fileNodes]);
 
   const containerSize = () => sizeRef.current;
   // Fix round 2026-11-27 (defect 4): the zoom-to-node target scales
-  // with the container — k=2 on a 360px viewport leaves most of the
+  // with the container - k=2 on a 360px viewport leaves most of the
   // 400-wide world off-screen, and only Reset view recovers. Target
   // is fitK*1.75, capped at 2 (fitK is the fit scale for this
   // container, so a 360px plane zooms to ~1.5 instead of 2).
@@ -1040,7 +1214,7 @@ export function UsageMap({
         const factor = dist / prev.prevDist;
         // Fix round 2026-11-27 (defect 2 audit): the midpoint pan
         // deltas are hoisted into locals BEFORE setView, never
-        // computed inside the updater — the same stale-read hazard
+        // computed inside the updater - the same stale-read hazard
         // as the pan branch. (This branch read a captured `prev`
         // object, so it was not itself broken; hoisting removes the
         // hazard outright.)
@@ -1081,7 +1255,7 @@ export function UsageMap({
   // pointerup, from the node/edge id recorded in the gesture at
   // pointerdown time. The old code selected via React onClick on
   // the node/edge <g>, but onPointerDown calls setPointerCapture
-  // on the svg, which retargets pointerup AND click to the svg —
+  // on the svg, which retargets pointerup AND click to the svg -
   // so the <g> onClick never fired (headless probe 1: pointerdown
   // target=text, click target=svg). Capture retargets the
   // pointerup target too, which is why the id must come from the
@@ -1099,7 +1273,7 @@ export function UsageMap({
       gestureRef.current = null;
     }
   };
-  // A cancelled gesture (the browser took over) never selects —
+  // A cancelled gesture (the browser took over) never selects -
   // it only cleans up, unlike pointerup.
   const onPointerCancel = (e: React.PointerEvent<SVGSVGElement>) => {
     pointersRef.current.delete(e.pointerId);
@@ -1142,12 +1316,37 @@ export function UsageMap({
       : selFinding?.item.triage?.verdict === "likely-genuine-leak"
         ? "Likely genuine leak"
         : selFinding?.item.triage
-          ? "Uncertain — needs a human check"
+          ? "Uncertain - needs a human check"
           : null;
   const codeRefs = edges.filter((e) => e.kind === "code").length;
   const testRefs = edges.filter((e) => e.kind === "test").length;
   const ownRefs = edges.filter((e) => e.kind === "own").length;
-  const srSummary = `Usage map: ${drawn.length} findings and ${fileNodes.length} files drawn. ${codeRefs} code references, ${testRefs} test references, ${ownRefs} own-file links.`;
+  const foundRefs = edges.filter((e) => e.kind === "found").length;
+  // Phase 19: with no posture issues the summary keeps the exact
+  // legacy wording (older tests assert it verbatim); with posture
+  // it names secrets and posture issues separately, plus the
+  // "found in" links. Either way the counts are what the plane
+  // shows, and the lists below never change.
+  const srSummary =
+    posture.length === 0
+      ? `Usage map: ${drawn.length} findings and ${fileNodes.length} files drawn. ${codeRefs} code references, ${testRefs} test references, ${ownRefs} own-file links.`
+      : `Usage map: ${drawn.length} secrets and ${visiblePosture.length} posture issues drawn across ${fileNodes.length} files. ${codeRefs} code references, ${testRefs} test references, ${ownRefs} own-file links, ${foundRefs} found-in links.`;
+  // Honest cap lines: null when a cap did not bind. The plane
+  // states the cap maxima whenever any of these is non-null. The
+  // file total counts every file holding a finding in the report
+  // (all posture files, not just the drawn ones), matching the
+  // full-total convention of the secret and posture notes.
+  const secretCapNote = capNote(drawnSecretsAll.length, findings.length, "secrets");
+  const postureCapNote = capNote(drawnPostureAll.length, posture.length, "posture issues");
+  const totalFileCount = useMemo(() => {
+    const files = new Set(byFile.map((f) => f.file));
+    for (const p of posture) {
+      if (typeof p.file === "string" && p.file.length > 0) files.add(p.file);
+    }
+    return files.size;
+  }, [byFile, posture]);
+  const fileCapNote = capNote(fileNodes.length, totalFileCount, "files");
+  const anyCapBinds = secretCapNote !== null || postureCapNote !== null || fileCapNote !== null;
   // Small SVG pin glyph (a path, never an emoji) drawn above a pinned
   // node's circle.
   const pinGlyph = (x: number, y: number, r: number) => (
@@ -1161,7 +1360,7 @@ export function UsageMap({
       {neighbours.length > 0 && currentNeighbour ? (
         <>
           <p className="small">
-            Connected to {neighbours.length} {neighbours.length === 1 ? "neighbour" : "neighbours"} — {neighbourIdx + 1} of {neighbours.length}: {labelOf(currentNeighbour.id)}.
+            Connected to {neighbours.length} {neighbours.length === 1 ? "neighbour" : "neighbours"} - {neighbourIdx + 1} of {neighbours.length}: {labelOf(currentNeighbour.id)}.
           </p>
           <p>
             <button type="button" className="secondary" onClick={() => stepNeighbour(-1)} aria-label="Previous neighbour">Previous neighbour</button>{" "}
@@ -1175,16 +1374,53 @@ export function UsageMap({
 
   return (
     <div>
-      <p className="small">
-        Usage map — follow a secret through the repo. Showing {drawn.length} of {findings.length} findings and {fileNodes.length} files. Click a finding to highlight its track; click a file to see its detail, then filter the list from there.
-      </p>
+      {posture.length === 0 ? (
+        <p className="small">
+          Usage map - follow a secret through the repo. Showing {drawn.length} of {findings.length} findings and {fileNodes.length} files. Click a finding to highlight its track; click a file to see its detail, then filter the list from there.
+        </p>
+      ) : (
+        <p className="small">
+          Usage map - follow a finding through the repo. Showing {drawn.length} of {findings.length} secrets and {visiblePosture.length} of {posture.length} posture issues across {fileNodes.length} files. Click a finding to highlight its track; click a file to see its detail, then filter the list from there.
+        </p>
+      )}
+      {anyCapBinds ? (
+        <p className="small">
+          Map caps: {MAP_MAX_SECRET_NODES} secrets, {MAP_MAX_POSTURE_NODES} posture issues, {MAP_MAX_FILE_NODES} files.{secretCapNote ? ` ${secretCapNote}` : ""}{postureCapNote ? ` ${postureCapNote}` : ""}{fileCapNote ? ` ${fileCapNote}` : ""}
+        </p>
+      ) : null}
       <p className="map-legend" aria-label="Map legend">
-        <span><b>●</b> Centre — this repo</span>
+        <span><b>●</b> Centre - this repo</span>
         <span><b>━━</b> Used in non-test code</span>
         <span><b>┄┄</b> Used in tests only</span>
-        <span><b>●</b> Grey node — dead end, nothing references it</span>
+        <span><b>●</b> Grey node - dead end, nothing references it</span>
+        <span><b>━━</b> Found in - posture issue in that file</span>
+        {categoriesPresent.map(({ category, count }) => (
+          <span key={category}>
+            <CategoryGlyph category={category} /> {categoryLabel(category)} ({count})
+          </span>
+        ))}
         <span>Every node is keyboard reachable: Tab to it, Enter to select</span>
       </p>
+      {/* Phase 19: category filter. The row renders only when the
+        plane holds more than one category - a filter with one option
+        is not a filter. Hiding a category only hides its nodes and
+        edges from the plane; the report counts and the lists below
+        never change. */}
+      {categoriesPresent.length > 1 ? (
+        <div className="map-toolbar" role="group" aria-label="Map category filters">
+          {categoriesPresent.map(({ category, count }) => (
+            <button
+              key={category}
+              type="button"
+              className="secondary"
+              aria-pressed={!hiddenCats.has(category)}
+              onClick={() => toggleCategory(category)}
+            >
+              {categoryLabel(category)} ({count})
+            </button>
+          ))}
+        </div>
+      ) : null}
       <div className="map-toolbar" role="group" aria-label="Map controls">
         <button
           type="button"
@@ -1251,7 +1487,7 @@ export function UsageMap({
             {edges.map((e) => {
               const active = edgeActive(e);
               // Fix round 3 (2026-11-27): no per-edge label here
-              // any more — labels render as clusters below (see
+              // any more - labels render as clusters below (see
               // labelClusters). The line itself (solid/dashed/thin)
               // always renders, so every edge stays distinguishable,
               // and the gating (k >= EDGE_LABEL_MIN_ZOOM, else the
@@ -1260,9 +1496,11 @@ export function UsageMap({
               // stays: it positions each edge's anchor along its
               // adjusted segment.
               const aria =
-                e.kind === "own"
-                  ? `Connection: Secret ${e.findingIdx + 1} lives in ${e.refFile} line ${e.refLine}`
-                  : `Connection: Secret ${e.findingIdx + 1} ${edgeLabelText(e.kind)} in ${e.refFile} line ${e.refLine}`;
+                e.kind === "found"
+                  ? `Connection: ${e.title ?? "Posture issue"} found in ${e.refFile}${e.refLine > 0 ? ` line ${e.refLine}` : ""}`
+                  : e.kind === "own"
+                    ? `Connection: Secret ${e.findingIdx + 1} lives in ${e.refFile} line ${e.refLine}`
+                    : `Connection: Secret ${e.findingIdx + 1} ${edgeLabelText(e.kind)} in ${e.refFile} line ${e.refLine}`;
               return (
                 <g
                   key={e.key}
@@ -1286,7 +1524,7 @@ export function UsageMap({
               data-node-id="repo"
               tabIndex={0}
               role="button"
-              aria-label="This repo — select to see the whole map"
+              aria-label="This repo - select to see the whole map"
               onKeyDown={onNodeKeyDown("repo")}
               onFocus={() => {
                 focusedNodeRef.current = "repo";
@@ -1332,7 +1570,7 @@ export function UsageMap({
                   role="button"
                   aria-label={`${f.file}, ${f.count} findings${pinned ? ", pinned" : ""}`}
                 >
-                  <title>{`${f.file} — ${f.count} finding${f.count === 1 ? "" : "s"}`}</title>
+                  <title>{`${f.file} - ${f.count} finding${f.count === 1 ? "" : "s"}`}</title>
                   <circle className="map-hit" cx={x} cy={y} r={24} />
                   <circle cx={x} cy={y} r={r} />
                   {/* The count lives INSIDE the node (on solid fill,
@@ -1350,7 +1588,7 @@ export function UsageMap({
               const u = usageOf(e);
               const dead = u?.deadEnd === true;
               const refs = u && !dead ? u.referencedByTotal + u.referencedByTestsTotal : 0;
-              const isSelected = selNodeId === nodeIdOfFinding(e.idx);
+              const isSelected = activeNodeId === nodeIdOfFinding(e.idx);
               const dimmed = dimNode(nodeIdOfFinding(e.idx));
               const isNeighbour = neighbours.some((n) => n.id === nodeIdOfFinding(e.idx));
               const pinned = pins.has(nodeIdOfFinding(e.idx));
@@ -1364,7 +1602,7 @@ export function UsageMap({
               // the halo keeps it readable where an edge passes
               // behind it. Fix round 2 (defect 3): the step grows
               // from ±14 to ±20 world units and the line moves from
-              // fr+12 to fr+14 below the node — "70 uses" / "62 uses"
+              // fr+12 to fr+14 below the node - "70 uses" / "62 uses"
               // of adjacent nodes overlapped in the centre cluster
               // at fit zoom.
               const captionX = x + (i % 2 === 0 ? 20 : -20);
@@ -1385,18 +1623,67 @@ export function UsageMap({
                   role="button"
                   aria-label={
                     dead
-                      ? `${label}, ${e.item.title}, ${e.item.file} line ${e.item.line} — dead end, nothing references it${pinned ? ", pinned" : ""}`
+                      ? `${label}, ${e.item.title}, ${e.item.file} line ${e.item.line} - dead end, nothing references it${pinned ? ", pinned" : ""}`
                       : u
-                        ? `${label}, ${e.item.title}, ${e.item.file} line ${e.item.line} — used by ${refs} reference${refs === 1 ? "" : "s"}${pinned ? ", pinned" : ""}`
-                        : `${label}, ${e.item.title}, ${e.item.file} line ${e.item.line} — no usage data${pinned ? ", pinned" : ""}`
+                        ? `${label}, ${e.item.title}, ${e.item.file} line ${e.item.line} - used by ${refs} reference${refs === 1 ? "" : "s"}${pinned ? ", pinned" : ""}`
+                        : `${label}, ${e.item.title}, ${e.item.file} line ${e.item.line} - no usage data${pinned ? ", pinned" : ""}`
                   }
                 >
-                  <title>{`${label} — ${e.item.file}:${e.item.line}${dead ? " — dead end" : u ? ` — ${refs} reference${refs === 1 ? "" : "s"}` : " — no usage data"}`}</title>
+                  <title>{`${label} - ${e.item.file}:${e.item.line}${dead ? " - dead end" : u ? ` - ${refs} reference${refs === 1 ? "" : "s"}` : " - no usage data"}`}</title>
                   <circle className="map-hit" cx={x} cy={y} r={24} />
                   <circle cx={x} cy={y} r={fr} />
                   <text x={x} y={y + 4} textAnchor="middle" fontWeight={700}>{`S${e.idx + 1}`}</text>
                   <text className="map-label" x={captionX} y={captionY} textAnchor="middle">{dead ? "dead end" : u ? `${refs} use${refs === 1 ? "" : "s"}` : ""}</text>
                   {pinned ? pinGlyph(x, y, fr) : null}
+                </g>
+              );
+            })}
+            {/* Phase 19: posture nodes on the middle ring. Shape +
+              in-node code carry the category (see MAP_CATEGORY_META);
+              the caption below is the severity, stepping sideways on
+              alternate nodes like the finding captions. Inline SVG
+              presentation (no new CSS): surface fill, accent stroke,
+              focus stroke when selected or a neighbour. A posture
+              issue with no file still draws - it just has no edge. */}
+            {visiblePosture.map((e, i) => {
+              const pos = positions.get(nodeIdOfPosture(e.idx)) ?? { x: cx, y: cy };
+              const { x, y } = pos;
+              const meta = MAP_CATEGORY_META[e.category];
+              const r = 12;
+              const isSelected = activeNodeId === nodeIdOfPosture(e.idx);
+              const dimmed = dimNode(nodeIdOfPosture(e.idx));
+              const isNeighbour = neighbours.some((n) => n.id === nodeIdOfPosture(e.idx));
+              const pinned = pins.has(nodeIdOfPosture(e.idx));
+              const captionX = x + (i % 2 === 0 ? 20 : -20);
+              const captionY = y + r + 14;
+              const fileLoc = typeof e.item.file === "string" && e.item.file.length > 0
+                ? `${e.item.file}${typeof e.item.line === "number" && e.item.line > 0 ? `:${e.item.line}` : ""}`
+                : "no single file";
+              return (
+                <g
+                  key={e.idx}
+                  className={`map-node map-posture-node${isSelected ? " map-node-selected" : ""}${dimmed ? " map-dim" : ""}${isNeighbour ? " map-neighbour" : ""}`}
+                  data-node-id={nodeIdOfPosture(e.idx)}
+                  onKeyDown={onNodeKeyDown(nodeIdOfPosture(e.idx))}
+                  onFocus={() => {
+                    focusedNodeRef.current = nodeIdOfPosture(e.idx);
+                  }}
+                  onBlur={() => {
+                    if (focusedNodeRef.current === nodeIdOfPosture(e.idx)) focusedNodeRef.current = null;
+                  }}
+                  tabIndex={0}
+                  role="button"
+                  aria-label={`${postureDisplayLabel.get(e.idx)}, ${e.item.title}, ${fileLoc} - ${categoryLabel(e.category)}, ${e.item.severity}${pinned ? ", pinned" : ""}`}
+                >
+                  <title>{`${postureDisplayLabel.get(e.idx)} - ${e.item.title} - ${fileLoc} - ${categoryLabel(e.category)}, ${e.item.severity}`}</title>
+                  <circle className="map-hit" cx={x} cy={y} r={24} />
+                  <polygon
+                    points={categoryPolygonPoints(meta.sides, meta.rotation, x, y, r)}
+                    style={{ fill: "var(--surface)", stroke: isSelected || isNeighbour ? "var(--focus)" : "var(--accent)", strokeWidth: isSelected || isNeighbour ? 3 : 2 }}
+                  />
+                  <text x={x} y={y + 3} textAnchor="middle" fontWeight={700} fontSize={8}>{postureDisplayLabel.get(e.idx)}</text>
+                  <text className="map-label" x={captionX} y={captionY} textAnchor="middle">{e.item.severity}</text>
+                  {pinned ? pinGlyph(x, y, r) : null}
                 </g>
               );
             })}
@@ -1408,8 +1695,8 @@ export function UsageMap({
               it. A cluster dims only when none of its edges is on
               the active track.
               Fix round 4 (2026-11-27): these labels render LAST in
-              the SVG — after the centre, file, and finding node
-              groups — so no node can paint over a label (recheck-4:
+              the SVG - after the centre, file, and finding node
+              groups - so no node can paint over a label (recheck-4:
               the S8 node circle hid ~46px of "used in tests ×10").
               The centre keeps its existing rule (painted after the
               edges); labels go after everything. */}
@@ -1438,12 +1725,15 @@ export function UsageMap({
       <p className="small map-hint">
         Click a node to zoom to it. Drag the background to pan, drag a node to move it, pinch to zoom. Edge labels appear as you zoom in, and always for the selected track. Press p to pin a node, [ and ] to step between neighbours, 0 to reset the view, Esc to deselect.
       </p>
-      {findings.length === 0 ? (
-        <p className="small">No secrets in this report, so the map shows just this repo. Scan a repo with secrets to see its findings and files mapped here.</p>
-      ) : !hasUsage ? (
-        <p className="small">These findings carry no usage data, so there are no edges yet — the nodes are the findings and the files that hold them.</p>
+      {categoriesPresent.length > 1 ? (
+        <p className="small map-hint">Category buttons above the plane show or hide each category; the lists below never change.</p>
       ) : null}
-      {selNodeId ? (
+      {findings.length === 0 && posture.length === 0 ? (
+        <p className="small">No secrets in this report and no posture issues either, so the map shows just this repo. Scan a repo with secrets to see its findings and files mapped here.</p>
+      ) : findings.length > 0 && !hasUsage && foundRefs === 0 ? (
+        <p className="small">These findings carry no usage data, so there are no edges yet - the nodes are the findings and the files that hold them.</p>
+      ) : null}
+      {activeNodeId ? (
         <nav className="map-breadcrumb" aria-label="Map breadcrumb">
           {path.map((id, i) => (
             <span key={`${id}-${i}`}>
@@ -1459,11 +1749,11 @@ export function UsageMap({
         {selFinding && selFindingUsage ? (
           <>
             <p>
-              <b>Secret {selFinding.idx + 1} — {selFinding.item.title}</b> · <code className="inline">{selFinding.item.file}:{selFinding.item.line}</code>
+              <b>Secret {selFinding.idx + 1} - {selFinding.item.title}</b> · <code className="inline">{selFinding.item.file}:{selFinding.item.line}</code>
               {triageLabel ? <> · {triageLabel}</> : null}
               {pins.has(nodeIdOfFinding(selFinding.idx)) ? <> · Pinned</> : null}
               {selFindingUsage.deadEnd ? (
-                <> · <span className="pill dead-end">Dead end</span> Nothing in this repo references this key — a true dead end{selFindingUsage.historyOnly ? " (usage checked against the current files only)" : ""}.</>
+                <> · <span className="pill dead-end">Dead end</span> Nothing in this repo references this key - a true dead end{selFindingUsage.historyOnly ? " (usage checked against the current files only)" : ""}.</>
               ) : totalRefs === 0 ? (
                 <> · No references recorded.</>
               ) : trackSegments.length > 0 ? (
@@ -1486,6 +1776,26 @@ export function UsageMap({
             </p>
             {neighbourControls}
           </>
+        ) : selPosture ? (
+          <>
+            <p>
+              <b>{postureDisplayLabel.get(selPosture.idx)} - {selPosture.item.title}</b> · {categoryLabel(selPosture.category)} · {selPosture.item.severity}
+              {typeof selPosture.item.file === "string" && selPosture.item.file.length > 0 ? (
+                <> · <code className="inline">{selPosture.item.file}{typeof selPosture.item.line === "number" && selPosture.item.line > 0 ? `:${selPosture.item.line}` : ""}</code></>
+              ) : (
+                <> · No single file</>
+              )}
+              {pins.has(nodeIdOfPosture(selPosture.idx)) ? <> · Pinned</> : null}
+            </p>
+            <p>{selPosture.item.detail}</p>
+            <p className="fix"><b>Fix:</b> {selPosture.item.fix}</p>
+            <p>
+              <button type="button" className="secondary" aria-pressed={pins.has(nodeIdOfPosture(selPosture.idx))} onClick={() => setPins((prev) => togglePin(prev, nodeIdOfPosture(selPosture.idx)))}>
+                {pins.has(nodeIdOfPosture(selPosture.idx)) ? "Unpin" : "Pin"}
+              </button>
+            </p>
+            {neighbourControls}
+          </>
         ) : selFile ? (
           <>
             <p>
@@ -1500,38 +1810,43 @@ export function UsageMap({
             </p>
             {neighbourControls}
           </>
-        ) : selEdge && selEdgeFinding ? (
+        ) : selEdge ? (
           <>
             <p>
               {edgeDetailText({
-                findingTitle: selEdgeFinding.item.title,
-                findingFile: selEdgeFinding.item.file,
-                findingLine: selEdgeFinding.item.line,
+                findingTitle: selEdge.kind === "found" ? (selEdge.title ?? "Posture issue") : (selEdgeFinding?.item.title ?? ""),
+                findingFile: selEdge.kind === "found" ? selEdge.refFile : (selEdgeFinding?.item.file ?? selEdge.refFile),
+                findingLine: selEdge.kind === "found" ? selEdge.refLine : (selEdgeFinding?.item.line ?? selEdge.refLine),
                 refFile: selEdge.refFile,
                 refLine: selEdge.refLine,
                 kind: selEdge.kind,
               })}
             </p>
             <p className="small">
-              {selEdge.refFile}:{selEdge.refLine} · {edgeLabelText(selEdge.kind)}
+              {selEdge.refFile}{selEdge.refLine > 0 ? `:${selEdge.refLine}` : ""} · {edgeLabelText(selEdge.kind)}
+              {selEdge.kind === "found" && selEdge.postureIdx != null ? ` · ${categoryLabel(postureCategoryOf(drawnPostureAll.find((e) => e.idx === selEdge.postureIdx)?.item ?? {}))}` : ""}
             </p>
             <p>
-              <button type="button" className="secondary" onClick={() => selectNode(selEdge.fromId)}>Show Secret {selEdge.findingIdx + 1}</button>
+              <button type="button" className="secondary" onClick={() => selectNode(selEdge.fromId)}>{selEdge.kind === "found" ? "Show this posture issue" : `Show Secret ${selEdge.findingIdx + 1}`}</button>
             </p>
           </>
-        ) : selNodeId === "repo" ? (
+        ) : activeNodeId === "repo" ? (
           <p>
-            <b>This repo</b> · {drawn.length} findings and {fileNodes.length} files drawn on this map. Select a finding or a file to follow its connections.
+            {posture.length === 0 ? (
+              <><b>This repo</b> · {drawn.length} findings and {fileNodes.length} files drawn on this map. Select a finding or a file to follow its connections.</>
+            ) : (
+              <><b>This repo</b> · {drawn.length} secrets and {visiblePosture.length} posture issues drawn on this map. Select a finding or a file to follow its connections.</>
+            )}
           </p>
         ) : (
-          <p className="small">Click a finding node to follow its track — the secret, the files that use it, and the file it lives in.</p>
+          <p className="small">Click a finding node to follow its track - the secret, the files that use it, and the file it lives in.</p>
         )}
       </div>
     </div>
   );
 }
 
-export function SecretsList({ secrets, owner, repo, branch, defaultTestSectionOpen = false }: { secrets: SecretFinding[]; owner: string; repo: string; branch: string; defaultTestSectionOpen?: boolean }) {
+export function SecretsList({ secrets, owner, repo, branch, posture = [], defaultTestSectionOpen = false }: { secrets: SecretFinding[]; owner: string; repo: string; branch: string; posture?: PostureIssue[]; defaultTestSectionOpen?: boolean }) {
   const [groupBy, setGroupBy] = useState<"none" | "type" | "file">("none");
   const [typeFilter, setTypeFilter] = useState("all");
   const [sevFilter, setSevFilter] = useState("all");
@@ -1542,7 +1857,7 @@ export function SecretsList({ secrets, owner, repo, branch, defaultTestSectionOp
   // just the repo node, instead of hiding the map entirely.
   const [view, setView] = useState<"list" | "map">(secrets.length === 0 ? "map" : "list");
   // Phase 11 verdict sections. Genuine leaks and uncertain findings
-  // are open by default — they are the ones that need a human. Likely
+  // are open by default - they are the ones that need a human. Likely
   // test keys are collapsed by default: still listed, still counted,
   // one click away, never mixed in with the genuine leaks.
   const [genuineOpen, setGenuineOpen] = useState(true);
@@ -1715,11 +2030,11 @@ export function SecretsList({ secrets, owner, repo, branch, defaultTestSectionOp
       </div>
       <p className="small" aria-live="polite">
         Showing {filtered.length} of {secrets.length} secrets{fileQuery !== "" ? ` matching “${fileQuery}”` : ""} · {fileCount} file{fileCount === 1 ? "" : "s"}.
-        {testKeyCount > 0 ? ` Of the ${secrets.length} secrets, ${testKeyCount} look${testKeyCount === 1 ? "s" : ""} like test keys — still listed and still counted, with a test-key fix instead of "rotate it".` : ""}
+        {testKeyCount > 0 ? ` Of the ${secrets.length} secrets, ${testKeyCount} look${testKeyCount === 1 ? "s" : ""} like test keys - still listed and still counted, with a test-key fix instead of "rotate it".` : ""}
         {genuineCount > 0 || uncertainCount > 0 ? ` ${genuineCount} look${genuineCount === 1 ? "s" : ""} like genuine leaks, ${uncertainCount} uncertain.` : ""}
       </p>
       {view === "map" ? (
-        <UsageMap findings={filtered} byFile={byFile} onSelectFile={selectFile} onShowFinding={showFinding} />
+        <UsageMap findings={filtered} posture={posture} byFile={byFile} onSelectFile={selectFile} onShowFinding={showFinding} />
       ) : (
         <>
           {secrets.length === 0 && (
@@ -1739,7 +2054,7 @@ export function SecretsList({ secrets, owner, repo, branch, defaultTestSectionOp
             <details className="group verdict-section verdict-uncertain" open={uncertainEffectiveOpen} onToggle={(e) => setUncertainOpen(e.currentTarget.open)}>
               <summary>
                 <span className="chevron" aria-hidden="true">▸</span>
-                Uncertain — needs a human check <span className="count-badge">({uncertainEntries.length} finding{uncertainEntries.length === 1 ? "" : "s"})</span>
+                Uncertain - needs a human check <span className="count-badge">({uncertainEntries.length} finding{uncertainEntries.length === 1 ? "" : "s"})</span>
               </summary>
               <p className="small">Triage could not call these either way. Check each one by hand before deciding.</p>
               <div className="group-body">{renderSectionItems(uncertainEntries)}</div>
@@ -1751,7 +2066,7 @@ export function SecretsList({ secrets, owner, repo, branch, defaultTestSectionOp
                 <span className="chevron" aria-hidden="true">▸</span>
                 Likely test keys <span className="count-badge">({testEntries.length} finding{testEntries.length === 1 ? "" : "s"})</span>
               </summary>
-              <p className="small">These look like intentional test keys. They are still listed and still counted in the score — expand to check each one and its test-key fix.</p>
+              <p className="small">These look like intentional test keys. They are still listed and still counted in the score - expand to check each one and its test-key fix.</p>
               <div className="group-body">{renderSectionItems(testEntries)}</div>
             </details>
           )}
@@ -1768,13 +2083,13 @@ export function FrameworksList({ frameworks }: { frameworks: Framework[] }) {
   return (
     <>
       {/* Phase 15 finding 2 (real-DT follow-up): report-list li wraps
-        anywhere — a framework name/version can be a 40-char SHA with no
+        anywhere - a framework name/version can be a 40-char SHA with no
         break opportunity, and the live DT provisional report was 411 px
         wide at a 360 px viewport because of it. */}
       <ul className="report-list">
         {visible.map((f, i) => (
           <li key={`${f.name}-${f.sourceFile}-${i}`}>
-            <b>{f.name}</b> — {f.version ?? "version could not be determined"} ({f.versionSource})
+            <b>{f.name}</b> - {f.version ?? "version could not be determined"} ({f.versionSource})
             {f.unpinned ? " · unpinned version" : ""} · <code className="inline">{f.sourceFile}</code>
           </li>
         ))}
@@ -1801,7 +2116,7 @@ function VulnRow({ entry, reconciledFix }: { entry: Indexed<Vulnerability>; reco
   const anchor = findingAnchorId("vuln", entry.idx);
   return (
     <div className={`finding sev-${v.severity}`} id={anchor}>
-      <p className="finding-title"><span className={`pill ${v.severity}`}>{v.severity}</span><b>{v.id}</b> — {v.packageName} {v.installedVersion ?? ""}</p>
+      <p className="finding-title"><span className={`pill ${v.severity}`}>{v.severity}</span><b>{v.id}</b> - {v.packageName} {v.installedVersion ?? ""}</p>
       <p>{v.plainEnglish}</p>
       <p className="small finding-actions">
         <a className="github-link" href={osvAdvisoryUrl(v.id)} target="_blank" rel="noreferrer">View advisory on OSV.dev</a>
@@ -1849,7 +2164,7 @@ export function VulnerabilitiesList({ vulnerabilities }: { vulnerabilities: Vuln
     if (!v.fixedVersion) return null;
     const rec = reconciled.get(`${v.packageName}@${v.installedVersion ?? ""}`);
     if (!rec) return null;
-    return `Upgrade ${v.packageName} to ${rec.recommended} or later — this covers all ${rec.advisoryCount} advisories for this version.`;
+    return `Upgrade ${v.packageName} to ${rec.recommended} or later - this covers all ${rec.advisoryCount} advisories for this version.`;
   };
   const renderVuln = (entry: Indexed<Vulnerability>) => <VulnRow key={`${entry.item.id}-${entry.item.packageName}-${entry.idx}`} entry={entry} reconciledFix={fixFor(entry.item)} />;
   return (
@@ -1938,7 +2253,7 @@ export function DependenciesList({ dependencies }: { dependencies: Dependency[] 
       <p className="small" aria-live="polite">
         Showing {filtered.length} of {dependencies.length} dependencies.
       </p>
-      {/* Phase 15 finding 2 (real-DT follow-up): same as FrameworksList —
+      {/* Phase 15 finding 2 (real-DT follow-up): same as FrameworksList -
         a dependency name/version can be a 40-char SHA with no break
         opportunity. */}
       <ul className="report-list">

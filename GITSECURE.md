@@ -1,20 +1,20 @@
-# GitSecure — Cobalt side project (MVP approved, 2026-11-25)
+# GitSecure - Cobalt side project (MVP approved, 2026-11-25)
 
 Mirror-site concept: `github.com/{owner}/{repo}` -> `git-secure.com/{owner}/{repo}`
-No install, no config — swap the URL, get a security report.
+No install, no config - swap the URL, get a security report.
 
 ## Decisions (Freddy, 2026-11-25, 12:59 PM MST)
 - GREEN LIGHT: build the MVP in the background, solo, no intervention.
-- Repo: https://github.com/Squ1zM0/GitSecure — public, created
+- Repo: https://github.com/Squ1zM0/GitSecure - public, created
   2026-11-25T19:56:43Z, default branch main. MVP pushed 2026-11-25,
   commit 090972850ebacc034d7fe82100871ea981f04af4, 36 files, verified by
   read-back. Connector: custom.github-gitsecure (fine-grained token,
   Contents read/write on GitSecure only; permissions admin/maintain/push).
-- Domain: git-secure.com — prices Freddy gave: $22 / $10 (recorded as given;
+- Domain: git-secure.com - prices Freddy gave: $22 / $10 (recorded as given;
   do NOT buy without a separate explicit go-ahead; start on Vercel subdomain).
 - Report visibility, FLIPPED (Freddy, 2026-11-25, 3:38 PM MST): the site
   only scans PUBLIC repos, so the full detail that used to be owner-only
-  now goes to ANYONE who calls — no login flow, no OAuth. Rationale: it is
+  now goes to ANYONE who calls - no login flow, no OAuth. Rationale: it is
   all information already public in the repo. The redaction rule is NOT
   flipped: a secret is still never shown in full, only a redacted fragment.
 - PHASE 3 DONE 2026-11-25: plain/fluid human flow (loading state, input
@@ -25,28 +25,28 @@ No install, no config — swap the URL, get a security report.
   initialize 200 (gitsecure 0.1.0) and tools/list returns exactly
   scan_repo, get_report, list_checks.
 - PHASE 4 (Freddy, 2026-11-25, ~3:38–3:39 PM MST): full report for
-  EVERYONE (no login flow — owner gate + Auth.js deleted), "Honest
+  EVERYONE (no login flow - owner gate + Auth.js deleted), "Honest
   limits" section removed from the site, and the HEAD file scan made
-  UNLIMITED — no file-count cap at all (no 250, no 1,000, no 5,000).
+  UNLIMITED - no file-count cap at all (no 250, no 1,000, no 5,000).
   See "Phase 4 status" below. Redaction rule unchanged. Pushed
   2026-11-25 as 836180c9 (+ eb69e148 cleanup push for stale files the
   helper left behind), verified live: home 200 with no Honest limits,
   live scan API TechDirect full 83/B with filesScanned 2,802, live MCP
   scan_repo full with redacted detail.
 - PHASE 5 (Freddy, 2026-11-25, "Shouldn't be capped at 100."): no
-  result-count caps anywhere (secrets, advisories, dependencies — the
+  result-count caps anywhere (secrets, advisories, dependencies - the
   DefinitelyTyped proof case), OSV query/detail as time budgets that
   never drop a finding, plus real navigation on the report page for
   huge lists: collapsible groups, type/severity/file filters, a file
   map, a GitHub blob link on every secret and an in-page anchor per
   finding. See "Phase 5 status" below.
-- PHASE 6 (Freddy, 2026-11-25, "Continue development yourself, Auto —
+- PHASE 6 (Freddy, 2026-11-25, "Continue development yourself, Auto -
   you know the vision."): Tier 3 infra fingerprinting (Docker /
   Kubernetes / Terraform / GitHub Actions / CI configs) and the
   API-based full-history path that fixes the Vercel no-git live caveat
   (live history fell back to 5 commits; now it pages the commits API
   for the full history). See "Phase 6 status" below.
-- PHASE 7 (built 2026-11-25, solo, design only): UI/UX redesign —
+- PHASE 7 (built 2026-11-25, solo, design only): UI/UX redesign -
   coherent identity, real dark mode, score dial, report hero with a
   one-sentence verdict, actionable finding cards, usable spider map,
   designed loading/error screens, motion + accessibility. No scan
@@ -54,15 +54,15 @@ No install, no config — swap the URL, get a security report.
   First phase visually verified in a real headless Chromium (earlier
   phases could not render the UI). See "Phase 7 status" below.
 - PHASE 8 (built 2026-11-25, solo, NOT pushed): git-protocol history
-  + per-commit cache — replaces the REST-API history path (which stopped
+  + per-commit cache - replaces the REST-API history path (which stopped
   at 56/62 TechDirect commits on the 60 req/hour unauthenticated quota)
   with isomorphic-git over the git protocol (0 REST calls, 62/62 live),
   caches findings per commit SHA, and removes the 1000-commit / 50 MB /
   45 s history caps (only an emergency memory guard remains). No
-  GITHUB_TOKEN — Freddy's ruling. See "Phase 8 status" below.
+  GITHUB_TOKEN - Freddy's ruling. See "Phase 8 status" below.
 - PHASE 8 (built 2026-11-25, solo): async scan jobs + the remaining
   caps removed, from Freddy's screenshot of the live TechDirect
-  report's "Scan limits" section — "Fix all of the scan limits as
+  report's "Scan limits" section - "Fix all of the scan limits as
   much as you can so you don't have limit limits." The 55 s scan
   timeout is gone (jobs run to completion in the background), the OSV
   query/detail time budgets are gone (every dep queried, every
@@ -71,8 +71,8 @@ No install, no config — swap the URL, get a security report.
   History internals (git-protocol path + per-commit cache) belong to
   the history worker; this phase only calls its exported interface
   and states no history numbers. See "Phase 8 status" below. NOT
-  pushed, NOT deployed — another worker owns the push.
-- PHASE 10 (built 2026-11-25, solo): layered secret triage — test keys
+  pushed, NOT deployed - another worker owns the push.
+- PHASE 10 (built 2026-11-25, solo): layered secret triage - test keys
   vs genuine leaks, from Freddy's direction: "Distinguishing intentional
   test keys from genuine credential leaks requires a layered triage
   pipeline combining static context analysis, cryptographic
@@ -80,14 +80,14 @@ No install, no config — swap the URL, get a security report.
   of the live torvalds/linux report flagging the Linux SGX self-test
   signing key as CRITICAL. See "Phase 10 status" below.
 - PHASE 12 (built 2026-11-26, two workers: scoring core + score
-  explanation UI/docs): triage-weighted scoring — Freddy's direction:
+  explanation UI/docs): triage-weighted scoring - Freddy's direction:
   "But that live proof with an F scored inaccurate because every
   single one is a test, so we need to make sure that the scoring
   system is accurate if finding tests." Phase 10's rule "triage never
   changes the score" is OVERTURNED: likely-test-key ×0, uncertain
   ×0.5, genuine leak ×1, and the report hero explains the adjustment
   with the actual numbers and both scores. See "Phase 12 status"
-  below. NOT pushed — the coordinator integrates and pushes.
+  below. NOT pushed - the coordinator integrates and pushes.
 - DEPLOYED 2026-11-25 by Freddy: live at https://gitsecure.vercel.app/,
   verified live by Cobalt (home page + live TechDirect scan 83/B, matching
   the local test). Vercel MCP still returns 403 on team scope
@@ -98,13 +98,13 @@ No install, no config — swap the URL, get a security report.
 
 ## Why
 Other mirrors in the TechDirect sweep read / summarise / diagram / podcast a repo.
-None check whether it is safe. Proof it matters: 2026-11-06 AIoN incident —
+None check whether it is safe. Proof it matters: 2026-11-06 AIoN incident -
 a Discord webhook sat in a public commit in SqulzMD/aion-index (commit
 620105ba80e15f1c515b1f797404d06d5ffd5ae7, from 2026-02-03) until a bot flagged
 it and deleted it. GitSecure would have caught it in February.
 
 ## Pillars
-1. **Leaked secrets — HEAD + full history.** Discord/Slack webhooks, AWS keys,
+1. **Leaked secrets - HEAD + full history.** Discord/Slack webhooks, AWS keys,
    GitHub PATs, Stripe/OpenAI/database URLs, private keys, .env, hardcoded
    passwords. Deleting a file does not delete the commit.
 2. **Framework / stack fingerprinting + flaw watch (added 2026-11-25).**
@@ -119,47 +119,47 @@ it and deleted it. GitSecure would have caught it in February.
 Each finding: what it is, where (file:line:commit), severity, exact fix
 (rotate/revoke, move to GitHub Secrets, rewrite history, upgrade to X).
 
-## Framework fingerprinting — how it works
+## Framework fingerprinting - how it works
 - **Detection sources:** package.json / lockfiles, requirements.txt / Pipfile,
   Gemfile, go.mod, composer.json, pom.xml / build.gradle, Cargo.toml,
   Dockerfile, framework config files (next.config, vite.config, angular.json,
   etc.), imports, and directory conventions. Monorepos get a per-package stack.
 - **Coverage goal (2026-11-25, Freddy): anything and everything, for every
-  user — not just one stack.** Vite, Rust, JS/TS, and all dependencies, plus
+  user - not just one stack.** Vite, Rust, JS/TS, and all dependencies, plus
   every other ecosystem we can fingerprint reliably. Architecture must be
   pluggable: adding an ecosystem = adding a detector + an advisory source,
   not rebuilding the scanner. Launch in tiers (below) so "everything" is a
   roadmap, not a day-one promise.
-- **Tier 1 (MVP):** JS/TS — npm / pnpm / yarn / bun, package.json + lockfiles;
+- **Tier 1 (MVP):** JS/TS - npm / pnpm / yarn / bun, package.json + lockfiles;
   Next.js, React, Vue, Angular, Svelte, Vite, Express, Nest, Nuxt, Astro.
   Vite specifics: vite.config, plugins, dev-server exposure, SSR config,
   `VITE_`-prefixed env vars leaking into the client bundle.
-  Python — requirements / Pipfile / poetry, Django, Flask, FastAPI.
-  Rust — Cargo.toml / Cargo.lock, crates.io; RustSec Advisory DB,
+  Python - requirements / Pipfile / poetry, Django, Flask, FastAPI.
+  Rust - Cargo.toml / Cargo.lock, crates.io; RustSec Advisory DB,
   `cargo audit` / `cargo deny` equivalents, unsafe-code and yanked-crate flags.
 - **Tier 2:** Go (go.mod, Gin/Echo/Fiber), Ruby (Gemfile, Rails), PHP
   (composer.json, Laravel/Symfony/WordPress), Java/Kotlin (Maven/Gradle,
   Spring), .NET (NuGet, ASP.NET), Swift/Kotlin mobile, Elixir, Dart/Flutter.
-- **Tier 3 — infra / everything else:** Docker / Docker Compose, Kubernetes
+- **Tier 3 - infra / everything else:** Docker / Docker Compose, Kubernetes
   manifests, Terraform, GitHub Actions, Vercel / Supabase / Postgres config,
   CMSs, static-site generators, CI pipelines, shell scripts.
 - **Dependencies, all of them:** direct + transitive, dev vs prod, lockfile
   drift (manifest and lock out of sync), unpinned / `*` / `latest`, abandoned
   / yanked / typosquat-suspect packages, duplicate versions of the same dep.
-  A flaw in a transitive dep counts — that is where most real-world CVEs hide.
-- **Catalog:** build a maintained framework registry — web (Next.js, React,
+  A flaw in a transitive dep counts - that is where most real-world CVEs hide.
+- **Catalog:** build a maintained framework registry - web (Next.js, React,
   Vue, Angular, Svelte, Django, Flask, Laravel, Rails, Express, FastAPI...),
   mobile, CMS, runtime (Node, Python, Go, PHP, Rust...), infra (Docker,
   Supabase, Vercel, Postgres...). Each entry: how to detect it, where its
   version lives, its advisory sources, its EOL dates.
-- **Helping every user:** reports in plain English, not CVE-speak — what it
+- **Helping every user:** reports in plain English, not CVE-speak - what it
   is, what it lets an attacker do, what to upgrade to, in what order. A
   non-technical repo owner should be able to act on it, not just a senior dev.
 - **Flaw mapping:** version -> OSV.dev / GitHub Advisory DB / NVD / framework
   security advisories. Report: CVE/advisory ID, affected versions, fixed
   version, severity, what breaks if exploited, upgrade path.
   Example from our own stack: Price-Cal is Next 14.2.5 / React 18.3.1;
-  Leave Tracker is Next 15.5 / React 18.2 — GitSecure should be able to say
+  Leave Tracker is Next 15.5 / React 18.2 - GitSecure should be able to say
   exactly that, then say whether that Next version has a known flaw and what
   version fixes it.
 - **Watch, not just scan:** a one-off scan goes stale the day a new CVE drops.
@@ -186,12 +186,12 @@ Discord webhook detector), framework fingerprinting module + registry,
 one-page report UI, test on own repos (TechDirect, Price-Cal, Voices By Fred;
 aion-index commit as regression test), deploy on Vercel, iterate.
 
-## Decisions needed from Freddy (only these — 1 and 2 answered 2026-11-25)
+## Decisions needed from Freddy (only these - 1 and 2 answered 2026-11-25)
 1. DONE: repo Squ1zM0/GitSecure, domain git-secure.com.
 2. DONE, then FLIPPED (Phase 4, Freddy 2026-11-25): was "full detail
-   owner-only; public gets score + counts" — now everyone gets the full
+   owner-only; public gets score + counts" - now everyone gets the full
    report, no login flow, because the site only scans public repos.
-3. ANSWERED 2026-11-27 (Freddy): stays free — no paid monitoring / alerts / badge.
+3. ANSWERED 2026-11-27 (Freddy): stays free - no paid monitoring / alerts / badge.
 
 ## Phases
 - MVP: secret scan (HEAD + history), framework fingerprint + known-flaw check,
@@ -199,29 +199,29 @@ aion-index commit as regression test), deploy on Vercel, iterate.
 - **Phase 2 (built and pushed 2026-11-25, commit 870f889f, live on Vercel):**
   full-history clone scanning, Tier 2 frameworks (Go/Ruby/PHP/Java/.NET),
   full OSV advisory detail, real GitHub OAuth owner gate (code complete,
-  credentials pending — REMOVED in Phase 4, see below). Details in
+  credentials pending - REMOVED in Phase 4, see below). Details in
   "Phase 2 status". LIVE
   CAVEAT (verified 2026-11-25): the Vercel serverless runtime has no git
   binary, so live scans fall back to API patches of the 5 most recent
   commits and say so in the report; full-history (62 commits on TechDirect)
   works locally where git exists. Fixing that in production needs either
-  a GITHUB_TOKEN in Vercel or an API-based history path — a Phase 3 item,
+  a GITHUB_TOKEN in Vercel or an API-based history path - a Phase 3 item,
   not a Phase 2 blocker. **FIXED in Phase 6 (2026-11-25): the API history
-  path now scans the full history on Vercel too — see "Phase 6 status".**
+  path now scans the full history on Vercel too - see "Phase 6 status".**
 - V1: + dependencies, workflows, posture checks.
 - V2: stack watch / alerts, GitHub App, private repos, CI badge.
 
-## Phase 3 Part A — functionality polish (built 2026-11-25, pushed + live 2026-11-25 as commit 1a0387ea)
+## Phase 3 Part A - functionality polish (built 2026-11-25, pushed + live 2026-11-25 as commit 1a0387ea)
 
-Polish only — no scanner logic, scores, or public/full split changed.
+Polish only - no scanner logic, scores, or public/full split changed.
 TechDirect still 83/B, verified locally and on the production server.
 
 - **Loading state** (`src/app/[owner]/[repo]/loading.tsx`): streams instantly
-  while the ~15 s live scan runs — "Scanning the repo… Checking files…
+  while the ~15 s live scan runs - "Scanning the repo… Checking files…
   then the full history, then dependencies for known flaws." Report-page
   time-to-first-byte on the production server fell from ~22 s to ~0.05 s
   (full page still ~15 s). Static progress text describing the steps in
-  order, not a live per-step indicator — the scan is one server-side job.
+  order, not a live per-step indicator - the scan is one server-side job.
 - **Home form** (`src/app/page.tsx`): button disables and reads "Scanning…"
   while navigating; pasted github.com / git-secure.com URLs accepted with
   any trailing path (`/tree/main`, `/issues/…`, trailing slash, `.git`);
@@ -240,21 +240,21 @@ TechDirect still 83/B, verified locally and on the production server.
   to 504), 502 GitHub upstream error, 500 unknown. The scan API returns
   the status; the report page shows the matching plain-English message
   with a "Scan another repo" action. Caveat: the report *page* itself
-  still returns HTTP 200 for a failed scan — Next.js App Router pages
+  still returns HTTP 200 for a failed scan - Next.js App Router pages
   cannot set a response status; only the API carries the honest status.
 - **Report page**: "Scan another repo" link at the top and a button at the
   bottom; the technical history-depth string is now plain English under
-  the score ("History checked: 62 commits, newest first" — full limits
+  the score ("History checked: 62 commits, newest first" - full limits
   list below unchanged); one plain line explains the score and what would
   raise it (`explainScore` in `src/lib/score.ts`, e.g. "83 out of 100
   (grade B) is a good score. Most of the points lost come from 4 known
-  flaws in dependencies — upgrading the affected packages would raise
+  flaws in dependencies - upgrading the affected packages would raise
   the score.").
 - **Plain English**: "CVSS" and "OSV.dev" explained in plain words on
   first use everywhere in the human UI ("a free public database of known
   software flaws", "a severity score"); the only remaining "CVSS" is a
   code comment in `src/lib/osv.ts`. Vulnerability lines now read as one
-  plain sentence — what the flaw is, what it affects, and what to upgrade
+  plain sentence - what the flaw is, what it affects, and what to upgrade
   to (advisory summary folded into `plainEnglish` in `src/lib/osv.ts`;
   the report page no longer renders the summary twice). "Honest limits
   (Phase 2)" renamed to "Honest limits" (home page + README).
@@ -273,12 +273,12 @@ TechDirect still 83/B, verified locally and on the production server.
   400. No literal secret-pattern values committed (fixtures still use
   `__SECRET_n__` placeholders; test-assembled fakes only).
 
-## Phase 3 Part B — MCP server for LLMs (built 2026-11-25, pushed + live 2026-11-25 as commit 1a0387ea)
+## Phase 3 Part B - MCP server for LLMs (built 2026-11-25, pushed + live 2026-11-25 as commit 1a0387ea)
 
 No scanner logic, scores, or public/full split changed. TechDirect still
 83/B, verified locally and over MCP.
 
-- **Endpoint:** `/mcp` (canonical) + `/api/mcp` (alias) — Next.js App
+- **Endpoint:** `/mcp` (canonical) + `/api/mcp` (alias) - Next.js App
   Router routes (`src/app/mcp/route.ts`, `src/app/api/mcp/route.ts`,
   handler in `src/lib/mcp.ts`). Official MCP TypeScript SDK
   `@modelcontextprotocol/sdk` **1.32.2** (exact pin in package.json, no
@@ -289,31 +289,31 @@ No scanner logic, scores, or public/full split changed. TechDirect still
   (`enableJsonResponse: true`) so a ~15 s scan comes back as one
   response; no in-memory session state, no git binary required (the scan
   path already falls back to API patches when git is unavailable). Routes
-  export only `maxDuration = 60` — Next 16 with `cacheComponents`
+  export only `maxDuration = 60` - Next 16 with `cacheComponents`
   rejects the `runtime` and `dynamic` route segment configs (build
   failed twice on those before they were removed).
-- **Tools:** `scan_repo` (owner, repo — live scan, public report),
-  `get_report` (owner, repo — same public report; a fresh live scan each
-  time, documented as read/refresh — GitSecure never stores reports),
-  `list_checks` (no args — the four checks in plain English plus the
+- **Tools:** `scan_repo` (owner, repo - live scan, public report),
+  `get_report` (owner, repo - same public report; a fresh live scan each
+  time, documented as read/refresh - GitSecure never stores reports),
+  `list_checks` (no args - the four checks in plain English plus the
   honest limits). Descriptions say when to use each, what it returns,
   and what it does NOT return. Input schemas validate owner/repo with
   the same rules as the site (letters/numbers/dots/hyphens/underscores);
   bad input, missing/private repos, and rate limits return
   plain-English errors, never a stack trace.
-- **HARD RULE — MCP returns PUBLIC reports only, always:** every MCP
+- **HARD RULE - MCP returns PUBLIC reports only, always:** every MCP
   response goes through `toPublicReport`. No tool accepts a `full`
   parameter or any owner-mode flag. Proved by `npm run test:mcp`, which
   scans Squ1zM0/GitSecure (0/F, 6 known-fake findings) over MCP and
   asserts the response contains no file names, line numbers, or secret
   fragments. **SUPERSEDED IN PHASE 4:** MCP now returns the full report
   like the web flow (secrets still redacted); `toPublicReport` is gone
-  and the dogfood score is 1/F — see "Phase 4 status" above.
-- **Human view:** `src/components/McpSection.tsx` — "Use with your AI
+  and the dogfood score is 1/F - see "Phase 4 status" above.
+- **Human view:** `src/components/McpSection.tsx` - "Use with your AI
   assistant (MCP)". Full version on the home page: MCP server URL
   (https://git-secure.com/mcp) plus copyable config snippets for
   Claude, Cursor, VS Code, and Windsurf/Cline (snippets in
-  `src/lib/mcp-config.ts`, all valid JSON — the test parses each one),
+  `src/lib/mcp-config.ts`, all valid JSON - the test parses each one),
   plus one plain line explaining the LLM gets the public score and
   counts only, never full detail. Compact version on the report page:
   URL + Claude snippet + link to the home page for the rest. Copy
@@ -330,7 +330,7 @@ No scanner logic, scores, or public/full split changed. TechDirect still
   no file names / line numbers / fragments), `get_report` TechDirect
   83/B, bad format + missing repo plain-English errors with no stack
   trace, all four snippets valid JSON, plain GET /mcp refused with a
-  4xx (406 without an SSE Accept header — stateless, no stream held).
+  4xx (406 without an SSE Accept header - stateless, no stream held).
   Raw curl initialize on both `/mcp` and `/api/mcp` returns 200.
 - **Verification (2026-11-25):** `npm run build` exit 0;
   `test:scanner` 48/48, `test:history` 9/9, `test:owner-gate` 20/20,
@@ -340,16 +340,16 @@ No scanner logic, scores, or public/full split changed. TechDirect still
 - **Limits that remain:** a scan over MCP takes the same ~15 s as on the
   web (one JSON response, no streaming progress); the MCP client timeout
   in the test is 120 s. A GET that asks for `text/event-stream` opens a
-  standalone SSE stream the transport holds open — MCP clients use POST,
+  standalone SSE stream the transport holds open - MCP clients use POST,
   so this is not probed in the test (a probe hung until killed).
-  Dogfood score correction: GitSecure itself is 0/F now, not 3/F — the
+  Dogfood score correction: GitSecure itself is 0/F now, not 3/F - the
   Phase 2 push changed the repo's contents (see dogfooding note above),
   not the scanner.
 
-## Phase 4 status — full report for everyone + unlimited file scan (built 2026-11-25, Freddy's word ~3:38–3:39 PM MST)
+## Phase 4 status - full report for everyone + unlimited file scan (built 2026-11-25, Freddy's word ~3:38–3:39 PM MST)
 
 - **Visibility flip.** The site only scans public repos, so the full
-  detail that used to be owner-only now goes to ANYONE who calls — no
+  detail that used to be owner-only now goes to ANYONE who calls - no
   login flow. Scan API `/api/scan/[owner]/[repo]` returns the full
   report to anyone (no sign-in, no `?full` flag, no owner check); the
   report page shows the full detail to anyone; MCP `scan_repo` /
@@ -360,56 +360,56 @@ No scanner logic, scores, or public/full split changed. TechDirect still
   report shape now (`FullReport`); `toPublicReport` is gone. Home "What
   you see" card rewritten as "What you get"; footer, MCP copy, README
   and this spec updated. The GitHub OAuth App steps are obsolete and
-  deleted from the README — nobody needs to create one.
+  deleted from the README - nobody needs to create one.
 - **"Honest limits" section removed** from the home page and everywhere
   in the UI (Freddy: "No need for it."). Not moved to a footer or modal.
   Scan limits live in code comments and developer docs only now (README
-  "How scans run" section — called "Scan limits" until Phase 8 renamed
-  it — `src/lib/scan.ts` header).
+  "How scans run" section - called "Scan limits" until Phase 8 renamed
+  it - `src/lib/scan.ts` header).
 - **Unlimited HEAD scan.** Removed `MAX_FILES = 250`, `MAX_FILE_BYTES =
-  200_000`, `MAX_TOTAL_BYTES = 3_000_000` and the `slice(0, MAX_FILES)` —
+  200_000`, `MAX_TOTAL_BYTES = 3_000_000` and the `slice(0, MAX_FILES)` -
   the scan now reads the whole non-skipped tree, manifests and configs
   first. Binary / dist / node_modules / `.next` skipping stays
-  (generated/vendored paths, not source files — not a cap). GitHub tree
+  (generated/vendored paths, not source files - not a cap). GitHub tree
   pagination: the recursive tree call returns the whole tree in one
   response (up to 100k entries); a truncated flag is reported honestly.
   No other numeric file cap remains (grep-verified: no `MAX_FILES`,
   no `slice(0, N)` on the file list, no "250 files" in the scanner).
-  The 55 s scan timeout inside the 60 s route limit still exists — on
+  The 55 s scan timeout inside the 60 s route limit still exists - on
   timeout the report says how many files had been fetched (live progress
   tracker in `scan.ts`), never pretending it finished. History caps
-  unchanged (1,000 commits / 50 MB / 45 s). [Phase 4 record — both
+  unchanged (1,000 commits / 50 MB / 45 s). [Phase 4 record - both
   superseded in Phase 8: the timeout is gone (async jobs) and the
   history caps are gone (git-protocol history, no caps).]
 - **Tarball read (needed to make unlimited actually complete).** The
   first unlimited build fetched each file separately from
-  raw.githubusercontent.com — 2,802 fetches took ~120 s at 10-way AND
+  raw.githubusercontent.com - 2,802 fetches took ~120 s at 10-way AND
   at 40-way concurrency (measured: ~25 requests/s from one client, so
   concurrency was never the bottleneck), which blew the 55 s route
   timeout and made the proof-case repo un-scannable live. Fix, same
   scan, different transport: one tarball download from codeload
   (`fetchHeadFilesViaTarball` in `src/lib/scan.ts`, minimal tar reader,
-  gunzip via node:zlib, entries never written to disk) — TechDirect's
+  gunzip via node:zlib, entries never written to disk) - TechDirect's
   1.7 MB tarball downloads in ~1.4 s and the whole scan is ~12 s.
   If the tarball is unavailable the scan falls back to per-file fetches
   and still scans everything, just slower (the report says so in
   `limits`). The 500 MB tarball download guard is a memory guard with
-  that same fallback, not a scan cap — no file is ever skipped because
+  that same fallback, not a scan cap - no file is ever skipped because
   of it.
 - **Redaction unchanged and re-tested.** Secrets are still fragments
   only (first 4 chars … last 2), never stored, never live-validated.
   Proved by `test:scanner` (full-report checks incl. a fragment with a
-  JSON-escaped `"` — compared against the parsed report, not raw JSON),
+  JSON-escaped `"` - compared against the parsed report, not raw JSON),
   `test:public-full` (fixture scan, no full fake secret), and `test:mcp`
   (GitSecure dogfood over MCP, no full fake secret).
 - **Verification (2026-11-25):** `npm run build` exit 0 (after clearing
   a stale `.next` cache that still referenced the deleted auth route);
-  `test:scanner` 56/56 (was 48 — more checks added), `test:history` 9/9,
+  `test:scanner` 56/56 (was 48 - more checks added), `test:history` 9/9,
   `test:public-full` 32/32 (new, replaces `test:owner-gate`),
-  `test:techdirect` 83/B with filesScanned = 2,802 — the full scannable
+  `test:techdirect` 83/B with filesScanned = 2,802 - the full scannable
   tree, proved against an independent tree-API count (2,802 in the tree;
   local scan ~12 s via the tarball path), `test:mcp` 51/51 against a
-  local production server (was 49 — two checks added: filesScanned
+  local production server (was 49 - two checks added: filesScanned
   > 250 and fixed versions present). No literal secret-pattern values
   committed (grep-verified; fixtures still use `__SECRET_n__`
   placeholders, test-assembled fakes only).
@@ -417,7 +417,7 @@ No scanner logic, scores, or public/full split changed. TechDirect still
   (57 files, verified by read-back). **Then a second push was needed,
   eb69e1486926da02b9c6ca3d5afdf6ca897a0b5d:** the push helper
   (`gh-push-gitsecure.py`) passed `base_tree` when creating the new
-  tree, so files deleted locally silently PERSISTED on the remote —
+  tree, so files deleted locally silently PERSISTED on the remote -
   the first push left `src/lib/auth.ts`, `src/lib/owner.ts`, the
   NextAuth route and `scripts/test-owner-gate.ts` on main, and the
   stale auth route (importing `next-auth`, no longer a dependency)
@@ -431,39 +431,39 @@ No scanner logic, scores, or public/full split changed. TechDirect still
   live scan API `Squ1zM0/TechDirect` 200, kind full, 83/B,
   filesScanned = 2,802, all detail fields present, js-yaml + fixed
   versions present, "Scanned all 2802 files in the tree" in limits
-  (history 5 commits — the known Vercel no-git fallback); live MCP
+  (history 5 commits - the known Vercel no-git fallback); live MCP
   initialize 200 (protocol 2025-03-26, gitsecure 0.1.0), `scan_repo`
   Squ1zM0/GitSecure returns kind full with file names, line numbers
   and redacted fragments, no full fake secret. Live dogfood is 9/F
   with 5 secrets (not the local 1/F with 6): the Vercel history
   fallback only scans the 5 most recent commits, so the AWS example
-  key in the old README commit is out of the window — the known live
+  key in the old README commit is out of the window - the known live
   history caveat, not a scanner change.
 
-## Phase 5 status — no result-count caps + navigation for huge reports (built 2026-11-25, Freddy's word: "Shouldn't be capped at 100.")
+## Phase 5 status - no result-count caps + navigation for huge reports (built 2026-11-25, Freddy's word: "Shouldn't be capped at 100.")
 
 - **Trigger.** Freddy's screenshot of a live DefinitelyTyped report:
   61,814 files, 9,401 dependencies, grade F, "100 possible leaked
   secrets". The 100 was the cap, not the count.
 - **Caps removed.**
-  - Secrets: `dedupedAll.slice(0, 100)` in `src/lib/scan.ts` is gone —
+  - Secrets: `dedupedAll.slice(0, 100)` in `src/lib/scan.ts` is gone -
     the dedupe is now exported `dedupeSecrets()` with no cap. HEAD +
     history findings are ALL listed (history was only ever truncated
     by that same slice; `src/lib/history.ts` itself never capped
     findings). `counts.secrets` is the true total.
   - Dependencies: `deps.slice(0, 200)` in the report assembly is gone
-    — all dependencies listed. The report page gained a Dependencies
+    - all dependencies listed. The report page gained a Dependencies
     section (it had none).
-  - Advisories: `VULN_CAP = 100` in `src/lib/osv.ts` is gone — every
+  - Advisories: `VULN_CAP = 100` in `src/lib/osv.ts` is gone - every
     advisory OSV returns is listed.
   - Posture / frameworks: never capped; grep-verified still uncapped.
     The only remaining `slice(0, 5)` is inside one VITE_ posture
-    detail string (first 5 variable names + "+N more") — an honest
+    detail string (first 5 variable names + "+N more") - an honest
     inline summary, not a findings cap.
   - OSV query/detail: the hidden `slice(0, 60)` on queryable deps and
     the fixed `DETAIL_CAP = 50` are gone. Queries run in batches of
     1,000 inside a 15 s budget (measured: 1,000-query batch ~2.9 s,
-    100-query batch ~1.5 s — big batches are far more efficient);
+    100-query batch ~1.5 s - big batches are far more efficient);
     detail fetches run in batches of 8 inside a 12 s budget for every
     unique advisory ID. A budget can leave an advisory ID-only or a
     dep unchecked for flaws, but never drops a finding, and the report
@@ -477,21 +477,21 @@ No scanner logic, scores, or public/full split changed. TechDirect still
 - **Report-page navigation** (`src/components/ReportLists.tsx`, link
   helpers in `src/lib/links.ts`, styles in `src/app/globals.css`):
   - Collapsible groups by secret type / file, advisory / package,
-    posture title / severity — counts on every group, collapsed by
+    posture title / severity - counts on every group, collapsed by
     default when the filtered list is large (>50).
   - Filters: dropdowns for type and severity, text search by file
     name (secrets), advisory/package (vulns), title/detail (posture),
     ecosystem + direct/transitive + name (dependencies). Every count
     line shows the true filtered count of the true total.
-  - Map view (secrets): an SVG spider — repo node in the centre, the
+  - Map view (secrets): an SVG spider - repo node in the centre, the
     top 24 files by finding count around it, node size ∝ count, plus a
     paged chip list of every file with secrets. One node per file,
     never one per finding; works at phone width (SVG scales,
     `overflow-x: auto`, min-width 320px). Clicking a file filters the
-    list to it. Tooltips carry file + count only — never a fragment.
+    list to it. Tooltips carry file + count only - never a fragment.
   - Direct links: every secret row links to the exact file and line on
     GitHub (`github.com/{owner}/{repo}/blob/{branch|commit}/{file}
-    #L{line}` — HEAD findings use the branch, history findings use
+    #L{line}` - HEAD findings use the branch, history findings use
     their commit sha); every vulnerability links to its OSV.dev
     advisory page; every finding has an in-page anchor (`#secret-12`,
     `#vuln-3`, `#posture-2`, `#dep-5`) plus a copy-link button
@@ -509,7 +509,7 @@ No scanner logic, scores, or public/full split changed. TechDirect still
   `test:scanner` 68/68, `test:history` 9/9, `test:public-full` 56/56,
   `test:techdirect` 83/B with filesScanned = 2,802 (13.3 s),
   `test:mcp` 51/51 against a local production server. Dogfood moved
-  1/F (6 secrets) → 0/F (8 secrets, 196 vulns) — honest: the fake
+  1/F (6 secrets) → 0/F (8 secrets, 196 vulns) - honest: the fake
   database URL is now found at HEAD and in its introducing commits,
   and all 202 pinned deps are now OSV-checked (Tier 2 fixtures carry
   many real advisories). Test assertions updated with the measured
@@ -520,7 +520,7 @@ No scanner logic, scores, or public/full split changed. TechDirect still
 - **Live verification (2026-11-25, after 7ed620e0):** home 200;
   live scan API `Squ1zM0/TechDirect` 200, 83/B, filesScanned 2,802
   (2.8 s); live scan API `DefinitelyTyped/DefinitelyTyped` 200, 0/F,
-  kind full, **403 secrets listed (counts.secrets 403 — the old "100"
+  kind full, **403 secrets listed (counts.secrets 403 - the old "100"
   was the cap, not the count)**, filesScanned 61,814, dependencies
   9,401 listed, vulnerabilities 92 listed, frameworks 4, posture 1,
   history 5 commits (Vercel no-git fallback, known caveat), 28–36 s.
@@ -528,7 +528,7 @@ No scanner logic, scores, or public/full split changed. TechDirect still
   92/92); longest fragment 7 chars (redacted); no truncation line in
   limits. Secret types: hardcoded-password 301, private-key 41,
   generic-high-entropy 24, database-url 20, jwt-token 9, aws-access-key
-  5, slack-token 2, github-token 1 — across 225 files, all HEAD.
+  5, slack-token 2, github-token 1 - across 225 files, all HEAD.
   Live DT report page 200: Group by / type / severity / file-name
   filters, List/Map toggle, "Showing 403 of 403 secrets",
   "Showing 9401 of 9401 dependencies", anchors secret-0…secret-99
@@ -539,7 +539,7 @@ No scanner logic, scores, or public/full split changed. TechDirect still
   the real file. Live MCP initialize 200 (protocol 2025-03-26,
   gitsecure 0.1.0).
 
-## Phase 6 status — Tier 3 fingerprinting + API-based full history (built 2026-11-25, Freddy: "Continue development yourself, Auto — you know the vision.")
+## Phase 6 status - Tier 3 fingerprinting + API-based full history (built 2026-11-25, Freddy: "Continue development yourself, Auto - you know the vision.")
 
 Two spec items, in order:
 
@@ -550,7 +550,7 @@ Two spec items, in order:
   + container images), Terraform (`required_providers` / `provider`
   blocks + `required_version`), GitHub Actions (`uses: owner/action@ref`),
   Vercel preset, Supabase config. Versions are read honestly or
-  reported null — `latest` / missing tag, a Terraform range (`~> 5.0`),
+  reported null - `latest` / missing tag, a Terraform range (`~> 5.0`),
   a 40-char SHA ref, and a K8s manifest version are all null, never
   guessed; `latest`/missing/branch refs are unpinned. Risky patterns
   are posture findings with a plain-English detail ending in an exact
@@ -578,7 +578,7 @@ Two spec items, in order:
   fragments only. Rate limit (429 / 403 with an empty bucket) stops
   gracefully: findings so far kept, note says a `GITHUB_TOKEN` raises
   the limit. One bad commit never fails the scan. The report says
-  which path was used (`History scan (GitHub API — no git binary in
+  which path was used (`History scan (GitHub API - no git binary in
   this runtime)` vs `(ephemeral git clone)`). The old 5-commit patch
   fallback only runs if the API path also fails. Tested against a
   local mock GitHub API (`test:history` 9 → 23 checks): planted secret
@@ -597,28 +597,28 @@ Two spec items, in order:
   match with local, no stale files).
 - **Live verification (2026-11-25, after c58d7b07):** home 200; live scan
   API `Squ1zM0/TechDirect` 200, 83/B, filesScanned 2,802,
-  historyCommitsScanned **56 via the API path** (was 5 — the Vercel
-  no-git fallback is gone; the report says "History scan (GitHub API —
+  historyCommitsScanned **56 via the API path** (was 5 - the Vercel
+  no-git fallback is gone; the report says "History scan (GitHub API -
   no git binary in this runtime)"). NOT all 62: the scan stops at 56
   because the unauthenticated GitHub API limit is 60 requests/hour and
   a full 62-commit API history needs ~65 requests from Vercel (repo +
   tree + commits list + API list + 62 detail fetches), so the quota
-  runs out first — the report says so honestly ("GitHub API rate limit
-  was hit — scanned 56 commits before stopping. Setting a GITHUB_TOKEN
-  raises the limit."). The code is correct — the same API path run
-  from a machine with quota scans all 62 in ~6 s — the fix is setting
+  runs out first - the report says so honestly ("GitHub API rate limit
+  was hit - scanned 56 commits before stopping. Setting a GITHUB_TOKEN
+  raises the limit."). The code is correct - the same API path run
+  from a machine with quota scans all 62 in ~6 s - the fix is setting
   a `GITHUB_TOKEN` env var in Vercel (5,000/hour), which needs
   dashboard access (Vercel MCP is 403, so Cobalt cannot set it). Live
   Tier 3 example (`actions/checkout`) could NOT be verified live in
   this session: the two TechDirect verification scans consumed the
   shared unauthenticated quota, so the checkout scan answers 429
-  "request limit was hit" — same root cause, same fix. Tier 3 is
+  "request limit was hit" - same root cause, same fix. Tier 3 is
   verified locally end-to-end instead (`actions/checkout`: 3 GitHub
   Action frameworks with versions, 27 vulnerabilities) and by
   `test:tier3` 40/40. Live MCP initialize 200 (protocol 2025-03-26,
   gitsecure 0.1.0).
 
-## Phase 7 status — UI/UX redesign, design only (built 2026-11-25, solo)
+## Phase 7 status - UI/UX redesign, design only (built 2026-11-25, solo)
 
 No scan behaviour, caps, scoring, redaction, or API/MCP contracts
 changed. `parseInput()` byte-identical, `errorCopy()` wording kept,
@@ -633,20 +633,20 @@ helpers added: `gradeBand`, `gradeWord`, `biggestProblem` in
   button redefined for dark. Primary buttons use `--on-accent` text
   (white on dark green in light mode, dark green on light green in
   dark mode) so contrast holds in both themes. Inline code uses
-  `overflow-wrap: break-word` — it wraps only when it must, never
+  `overflow-wrap: break-word` - it wraps only when it must, never
   mid-word.
 - **Score dial** (`src/components/ScoreDial.tsx`): SVG arc 0–100 with
   the score and grade in the middle, colour-coded by band (green A/B,
-  amber C, red D/F) with the grade word beside it — colour + label
+  amber C, red D/F) with the grade word beside it - colour + label
   together, never colour alone. `role="img"` with a full accessible
   label ("Security score 83 out of 100, grade B, good").
 - **Report hero** (`src/app/[owner]/[repo]/page.tsx`): dial +
-  grade chip ("Grade B — good") + one-sentence verdict (the biggest
+  grade chip ("Grade B - good") + one-sentence verdict (the biggest
   problem) + summary + `explainScore` + counts as a clean stat grid
   (2 columns at phone width, 3 on desktop). The secrets stat only
-  turns red when its count is above zero — a 0 no longer looks like
+  turns red when its count is above zero - a 0 no longer looks like
   an alarm.
-- **Home** (`src/app/page.tsx`): hero first screen — lede, the
+- **Home** (`src/app/page.tsx`): hero first screen - lede, the
   mirror-URL strip as a designed element (struck-through github.com →
   git-secure.com), one big scan input. "What it checks" is four
   scannable cards. Error is a styled box (`role=alert`); scanning
@@ -660,7 +660,7 @@ helpers added: `gradeBand`, `gradeWord`, `biggestProblem` in
   it, hover/focus states, nodes keyboard-reachable (Tab, Enter/Space
   to filter) with focus-visible rings, plus the file-chip buttons
   below. "Show more" pager unchanged in behaviour, now a flex row.
-- **Loading / error**: `loading.tsx` is a designed screen — spinner +
+- **Loading / error**: `loading.tsx` is a designed screen - spinner +
   the three real scan steps, honest wording ("A full scan usually
   takes about 15 seconds… there is nothing to click"). Error pages
   keep the `errorCopy()` wording in a red-bordered card with a "Scan
@@ -679,12 +679,12 @@ helpers added: `gradeBand`, `gradeWord`, `biggestProblem` in
   on-accent button text, no mid-word code breaks), no "Honest limits"
   / sign-in copy on the human pages, no literal secret-pattern values
   in the UI files.
-- **Visual verification — actually done this phase, in a real
+- **Visual verification - actually done this phase, in a real
   headless Chromium** (Playwright 1.65.1 + cached Chromium headless
   shell, local production server): home, loading (captured mid-scan),
   TechDirect report, and an error page at 1280px light AND dark and
   at 360px, plus the GitSecure dogfood report (0/F, 8 secrets) with
-  the secrets list and spider map — clicking a map node filters the
+  the secrets list and spider map - clicking a map node filters the
   list live (2 of 8 secrets, 1 file). Zero horizontal overflow on
   every render. Screenshots in `test-results/phase7/`:
   home-desktop-light/dark, home-360, loading-desktop,
@@ -706,7 +706,7 @@ helpers added: `gradeBand`, `gradeWord`, `biggestProblem` in
   fixtures still use `__SECRET_n__` placeholders, test-assembled
   fakes only). Dogfood note: local GitSecure scan is 0/F with 8
   secrets, 196 vulns, 30 frameworks, 202 deps, 15 posture issues, 62
-  files, 13 history commits — the file count moved 68 → 62 because
+  files, 13 history commits - the file count moved 68 → 62 because
   the Phase 6 push changed the repo's contents; the 8 secret findings
   are the same known-fake fixtures.
 - **Code pushed 2026-11-25, commit 146ffb855cba973d8bffcefaa39c42dde5dc78db**
@@ -717,54 +717,54 @@ helpers added: `gradeBand`, `gradeWord`, `biggestProblem` in
   the new hero + "What it checks" cards, no "Honest limits" / sign-in
   copy; live TechDirect report 200, 83/B, new dial + stat grid +
   verdict in served HTML, filesScanned 2,802, history 56 commits via
-  the API path (the known unauthenticated-quota limit — Freddy's
+  the API path (the known unauthenticated-quota limit - Freddy's
   ruling stands, no GITHUB_TOKEN); live DefinitelyTyped report 200,
   0/F, "Showing 403 of 403 secrets", 61,814 files, dial aria-label
   "Security score 0 out of 100, grade F, needs urgent attention".
   Deployment state checked by live serving (Vercel MCP still 403 on
   the team scope, so the dashboard could not be checked).
 
-## Phase 8 status — async scan jobs + remaining caps removed (built 2026-11-25, solo, NOT pushed)
+## Phase 8 status - async scan jobs + remaining caps removed (built 2026-11-25, solo, NOT pushed)
 
 Trigger: Freddy's screenshot of the live TechDirect report's "Scan
-limits" section — "Fix all of the scan limits as much as you can so
+limits" section - "Fix all of the scan limits as much as you can so
 you don't have limit limits."
 
 - **Async scan jobs** (`src/lib/jobs.ts`, `src/app/api/scan/jobs/[jobId]/route.ts`,
   `src/components/ScanProgress.tsx`, `src/lib/progress.ts`).
   A scan now runs as a job: the API (`GET /api/scan/[owner]/[repo]`),
   the report page, and MCP all start (or join) one and wait up to
-  ~50 s for it — the fast path, so TechDirect still answers 200 in a
+  ~50 s for it - the fast path, so TechDirect still answers 200 in a
   single request (~12 s direct, ~19 s over the live API). If the job
   is still running, the API answers **202 with a jobId and live
   progress**; the client polls `GET /api/scan/jobs/{jobId}` until the
   job is done (200, report included) or errors. The report page shows
-  honest live progress while a job runs — current step, files scanned
+  honest live progress while a job runs - current step, files scanned
   so far ("1,200 of 2,802 files scanned"), commits checked so far,
-  dependencies checked — then reloads the finished report. MCP tools
+  dependencies checked - then reloads the finished report. MCP tools
   poll the job server-side for ~50 s; a still-running large repo comes
   back as plain English with live progress and the job ID, and
   `get_report` picks up the SAME job (jobs dedupe by owner/repo)
   instead of starting over.
 - **Job store: in-memory only, documented.** No durable store, no paid
   service, no database. A job does NOT survive a cold start, a redeploy,
-  or a poll that lands on a different serverless instance — an unknown
+  or a poll that lands on a different serverless instance - an unknown
   ID answers 404 `job-not-found` telling the client to start the scan
   again. Finished jobs are kept 10 minutes (so the report page can
   reload without re-scanning), then dropped. That is the only sense in
   which GitSecure "stores" a report: in memory, for minutes, never on
-  disk. Job IDs are `crypto.randomUUID()` — random, and carrying no
+  disk. Job IDs are `crypto.randomUUID()` - random, and carrying no
   owner, repo, or secret fragment. The job is kept alive past the 202
   response with Next.js `after()` (route + page). Progress flows from
   `scanRepo`'s `onProgress` callback; the progress types live in
   `src/lib/progress.ts`, which imports nothing, so the browser bundle
-  never pulls in `node:child_process` — the first build failed on
+  never pulls in `node:child_process` - the first build failed on
   exactly that (ScanProgress imported `stepLabel` from scan.ts), and
   the split fixed it.
 - **55 s timeout: gone.** `scanRepoWithTimeout` and `SCAN_TIMEOUT_MS`
   are deleted; `scanRepo` runs to completion in the background job.
   Individual GitHub fetches still have short abort timeouts (12 s in
-  ghJson, 10 s per raw file, 30 s tarball) — a hung upstream fails
+  ghJson, 10 s per raw file, 30 s tarball) - a hung upstream fails
   that fetch, not the scan.
 - **OSV budgets: gone** (`src/lib/osv.ts`). `checkDependencies` takes
   no budget by default: every pinned dep is queried in batches of
@@ -772,27 +772,27 @@ you don't have limit limits."
   progress reported per batch. An explicit budget can still be passed;
   the report only mentions uncovered deps/advisories when one ran out.
   Proved by the new test with stubbed slow OSV (700 ms per detail
-  fetch, 160 advisories ≈ 14 s — past the old 12 s budget): all 160
+  fetch, 160 advisories ≈ 14 s - past the old 12 s budget): all 160
   detailed, detailCapped 0.
 - **Tarball guard: streaming, not a cap** (`src/lib/scan.ts`).
   The download is read chunk by chunk via `getReader()` and aborted
   mid-stream past 500 MB (before: the whole response was buffered
   with `arrayBuffer()` and then checked). Tripping it only switches to
   the per-file fallback, which still scans every file. The decompressed
-  tar is still materialised whole in memory — a physical bound, stated
+  tar is still materialised whole in memory - a physical bound, stated
   in the code comment, not a cap.
 - **"Scan limits" rewritten as "About this scan"** (`buildLimits` in
   `src/lib/scan.ts`, pure and tested; heading changed in
   `src/app/[owner]/[repo]/page.tsx`). A complete scan says so once
-  with the exact counts — files, history commits, dependencies
-  checked, advisories with full detail — and nothing else. A partial
+  with the exact counts - files, history commits, dependencies
+  checked, advisories with full detail - and nothing else. A partial
   scan states exactly what it could not cover, one line per fact.
   The standing facts stay (public repos only; secrets never
   stored/logged/shown in full). The old cap lines are gone from the
   UI, README.md, and this spec's live-truth sections (the historical
   Phase 2–7 sections keep their records of what was built then).
 - **History: wired to the git-protocol orchestrator (integration).**
-  `scan.ts` now calls `scanHistory()` from `history.ts` — git protocol
+  `scan.ts` now calls `scanHistory()` from `history.ts` - git protocol
   first (no REST quota, cached on repeats), then the git-binary clone,
   then the GitHub API as a last resort; only when every path fails does
   it fall back to API patches of the 5 most recent commits. The progress
@@ -807,7 +807,7 @@ you don't have limit limits."
   line carries only the method and the exact count scanned.
 - **Phase 7 UI untouched.** Dial, verdict, stat grid, collapsible
   groups, filters, spider map, GitHub links, copy-link anchors, dark
-  mode, 360 px mobile, ≥44 px tap targets, reduced-motion — all still
+  mode, 360 px mobile, ≥44 px tap targets, reduced-motion - all still
   green (`test:ui-phase7` 52/52, unchanged). `loading.tsx` copy updated
   to say a very large repo keeps running in the background with live
   progress instead of timing out.
@@ -824,7 +824,7 @@ you don't have limit limits."
   `test:jobs-phase8` 44/44 (new), `test:techdirect` 83/B with
   filesScanned = 2,802, history 62 commits, limits now exactly three
   lines ("Scanned all 2802 files in the tree…", "History checked: 62
-  commits, newest first (git protocol — no git binary, no REST
+  commits, newest first (git protocol - no git binary, no REST
   quota).", "Public repos only…"),
   `test:mcp` 51/51 against a local production server. Live against
   that local server: scan API 200 in ~19 s,
@@ -842,15 +842,15 @@ you don't have limit limits."
   start / multi-instance poll can also be observed (an unknown-ID 404
   there is expected behaviour, not a bug).
 
-## Phase 8 status — git-protocol history + per-commit cache (built 2026-11-25, solo, NOT pushed)
+## Phase 8 status - git-protocol history + per-commit cache (built 2026-11-25, solo, NOT pushed)
 
 Fixes the Phase 6 live caveat (history stopped at 56 of 62 TechDirect
 commits because the unauthenticated REST quota is 60 req/hour and one
 API history needs ~65 requests) WITHOUT a GITHUB_TOKEN (Freddy's
-ruling stands — no token, do not raise it).
+ruling stands - no token, do not raise it).
 
 - **Git-protocol history** (`scanHistoryViaGit` in `src/lib/history.ts`,
-  `isomorphic-git` **1.44.19** exact pin + `diff` **8.0.2** exact pin —
+  `isomorphic-git` **1.44.19** exact pin + `diff` **8.0.2** exact pin -
   pure JS, no git binary, no REST API). Clones over the git smart-HTTP
   protocol (github.com, not api.github.com), walks `git.log` newest-first
   with `includeChanges`, diffs each commit against its first parent
@@ -858,9 +858,9 @@ ruling stands — no token, do not raise it).
   skippable-path rules, and redacted fragments as the clone path.
   Merge commits get no diff (matching `git log -p`); the root commit is
   diffed against the empty tree. One shared isomorphic-git object cache
-  across log + readBlob — without it the TechDirect walk took ~40 s,
+  across log + readBlob - without it the TechDirect walk took ~40 s,
   with it ~4 s. Measured live: clone ~4.6 s, log 62 commits ~2.2 s.
-- **Per-commit cache** (in-memory only — no durable store exists in
+- **Per-commit cache** (in-memory only - no durable store exists in
   this project and none was added): findings keyed by commit SHA
   (redacted fragments only, never a secret value), plus the cached HEAD
   tip per `owner/repo@branch`. A re-scan resolves the remote HEAD over
@@ -876,17 +876,17 @@ ruling stands — no token, do not raise it).
   path used. The clone path still works unchanged where a git binary
   exists; the API path is untouched as the last resort.
 - **Caps removed as caps.** The old 1000-commit / 50 MB / 45 s history
-  caps are gone from the clone and git-protocol paths — history runs to
+  caps are gone from the clone and git-protocol paths - history runs to
   the oldest commit, one file at a time, never buffered whole. The only
   remaining limit is `HISTORY_MEMORY_GUARD_BYTES` (500 MB), an emergency
   memory guard: if it ever trips, the result is `truncated: true` with
   a note naming the last commit scanned and that older commits were not
-  checked — a partial scan is never presented as complete. `MAX_HISTORY_
+  checked - a partial scan is never presented as complete. `MAX_HISTORY_
   COMMITS` / `MAX_HISTORY_PATCH_BYTES` / `HISTORY_TIMEOUT_MS` stay
   exported (the API fallback still uses them); they no longer cap the
   clone or git paths.
 - **Verification (2026-11-25):** `npm run build` exit 0;
-  `test:history` 53/53 (was 23 — 30 new: git path over a real smart-HTTP
+  `test:history` 53/53 (was 23 - 30 new: git path over a real smart-HTTP
   server via `git http-backend`, 1005-commit repo past the old cap,
   cache reuse, zero-REST assertion); `test:scanner` 68/68;
   `test:techdirect` 83/B, filesScanned 2,802, history 62 commits.
@@ -894,25 +894,25 @@ ruling stands — no token, do not raise it).
   `scanHistoryViaGit` on Squ1zM0/TechDirect returns **62/62 commits
   with 0 REST history calls** (counted with a fetch wrapper: 0 calls to
   api.github.com; the only git-protocol request counted is the 1
-  info/refs HEAD check — the clone's pack requests go through
+  info/refs HEAD check - the clone's pack requests go through
   isomorphic-git's own HTTP client to github.com, never the REST API),
   10.0 s wall; a second scan in the same process reuses all 62 from
   cache (0 fetched, 419 ms). No literal secret-pattern values committed
   (grep-verified; fixtures still use `__SECRET_n__` placeholders,
   test-assembled fakes only). The memory-guard trip path is NOT directly
-  tested (the guard is a module constant, not an option) — it is code-
+  tested (the guard is a module constant, not an option) - it is code-
   reviewed only. Pushed as cf88fe4c (88 files, remote head and tree
   verified by read-back); live TechDirect 83/B, 62/62 via git protocol,
   second scan 0.33 s (cache working live).
 
-## Phase 8.1 status — giant-repo history fix (built 2026-11-25, integration)
+## Phase 8.1 status - giant-repo history fix (built 2026-11-25, integration)
 
 Found live, after the Phase 8 push (cf88fe4c): the DefinitelyTyped scan
 **500s at ~23 s, reproducibly**, returning a Next.js error page, while
 TechDirect (62 commits) works in ~8 s. Root cause, measured:
 DefinitelyTyped is **818 MB with 91,984 commits** (TechDirect: 3.8 MB,
 62 commits). The Phase 8 git-protocol path clones the whole repo and
-walks every commit inside a 1 GB Vercel function with 512 MB /tmp —
+walks every commit inside a 1 GB Vercel function with 512 MB /tmp -
 the clone OOM-crashes the function before the walk's guards can trip.
 Phase 5 never hit this: live history then was only 5 commits.
 
@@ -945,20 +945,20 @@ Phase 5 never hit this: live history then was only 5 commits.
 - **Live verification (2026-11-25, after push 6f1402ab):**
   DefinitelyTyped scan **200 in 36.4 s, 0/F, 403 secrets listed,
   61,814 files**, history 48 commits via the API path with the honest
-  size-gate + rate-limit notes ("This repo is 818 MB — too large to
-  clone… GitHub API rate limit was hit — scanned 48 commits before
+  size-gate + rate-limit notes ("This repo is 818 MB - too large to
+  clone… GitHub API rate limit was hit - scanned 48 commits before
   stopping."). TechDirect still **83/B, 62/62 via git protocol**
   (one transient 429 on the shared Vercel IP quota during
-  verification, then 200 on retry — the scan correctly answers 429
+  verification, then 200 on retry - the scan correctly answers 429
   instead of crashing when the quota is gone). MCP initialize 200,
   protocol 2025-03-26. Tests after integration: build exit 0;
   scanner 68/68, tier3 40/40, history 56/56 (53 + 3 size-gate),
   public-full 56/56, jobs-phase8 44/44, ui-phase7 52/52, techdirect
   83/B, mcp 51/51, history-git live proof 62/62 with 0 REST calls.
 
-## Phase 9 status — resumable chunked scans, no in-memory jobs (built 2026-11-25, solo)
+## Phase 9 status - resumable chunked scans, no in-memory jobs (built 2026-11-25, solo)
 
-Trigger: Freddy screenshotted the live site failing on torvalds/linux —
+Trigger: Freddy screenshotted the live site failing on torvalds/linux -
 "That scan is no longer running". That was the exact failure Phase 8
 predicted honestly (jobs in-memory only; a poll on another instance
 gets 404 job-not-found). Phase 9 removes the job store entirely: the
@@ -970,7 +970,7 @@ next cursor; the client accumulates and drives the next chunk. A
 restart, cold start, or different instance changes nothing. Progress
 persists in sessionStorage (cursor + accumulated results), so a reload
 or closed tab resumes from the last completed chunk and says so
-("Resumed — picked up where it left off", with counts). HEAD renders
+("Resumed - picked up where it left off", with counts). HEAD renders
 first as a clearly-labelled provisional report; history streams
 newest-first with live progress. MCP gets the same resumability
 (`scan_repo` drives the chunk loop with the cursor; new `resume_scan`
@@ -989,7 +989,7 @@ against the old per-line scan, including cross-line values and
 matches hiding inside a cross-line span); the tar parser uses 1 MB
 gunzip chunks + a memcmp end-of-archive check (parse overhead ~31 s
 → ~2 s over gunzip). Streaming mode skips the recursive-tree call
-(~4 s, and truncated at 71k of ~97k entries for Linux — the tarball
+(~4 s, and truncated at 71k of ~97k entries for Linux - the tarball
 is the complete file list) and always retains manifests/configs even
 when the 100 MB retained-bytes budget runs out. Validated end-to-end
 on microsoft/vscode (1.8 GB, streaming path): HEAD in 25–33 s,
@@ -997,13 +997,13 @@ on microsoft/vscode (1.8 GB, streaming path): HEAD in 25–33 s,
 
 Honest bound: Linux is ~4 GB / ~1M commits; the >100 MB size gate
 still sends history through the API path, 10 commits per chunk, so a
-full history walk takes a very long time even chunked — resumability,
+full history walk takes a very long time even chunked - resumability,
 not instant completion, is the fix, and a partial history is never
 presented as complete. The HEAD chunk needs the 275 MB tarball
 inside ~50 s; codeload delivered it in 8 s one day and ~90 s the
 next from this VM (repeated downloads from one IP get throttled).
 On a slow-download day the HEAD chunk stops cleanly at 50 s and
-retries from its cursor — nothing lost, no dead-end.
+retries from its cursor - nothing lost, no dead-end.
 
 Tests: scanner 73/73, tier3 40/40, history 56/56, public-full 56/56,
 ui-phase7 53/53, cursor-phase9 181/181 (new: interrupted mid-history
@@ -1015,49 +1015,49 @@ Phase 9 400 without a cursor), TechDirect 200 in 8.5 s, 83/B, 2,802
 files, 62/62 history; MCP initialize 200, tools/list shows
 resume_scan. torvalds/linux live: HEAD chunk 504s at ~51 s twice on
 a slow-download day, then the third attempt returned 202 with the
-full HEAD (96,985/96,985 files, 20 secrets — same 20 as the local
+full HEAD (96,985/96,985 files, 20 secrets - same 20 as the local
 disk profile) + 10 history commits; two fresh `POST /api/scan/chunk`
-calls advanced history 10 → 20 → 30 with only the cursor — the
+calls advanced history 10 → 20 → 30 with only the cursor - the
 resume proof. A fresh `GET ?cursor=…` resume then hit the shared
 Vercel IP's unauthenticated GitHub quota (429), not a cursor
 failure. Full Linux history (~1M commits) remains a very long walk;
 the report always says exactly how far it got.
 
-## Phase 10 status — layered secret triage: test keys vs genuine leaks (built 2026-11-25, solo)
+## Phase 10 status - layered secret triage: test keys vs genuine leaks (built 2026-11-25, solo)
 
 Trigger: Freddy's screenshot of the live torvalds/linux report flagging
 `tools/testing/selftests/sgx/sign_key.pem:1` as a CRITICAL private key
-with the fix "treat this key as compromised, rotate it" — but that is
+with the fix "treat this key as compromised, rotate it" - but that is
 the Linux kernel's intentional SGX self-test signing key, and the
 finding above it (`drivers/of/unittest-data/tests-phandle.dtsi`, line
 9) is device-tree test data too. GitSecure cried CRITICAL on test keys.
 
 - **The pipeline (`src/lib/triage.ts`).** A post-processing layer over
-  the existing detectors — the detectors themselves do not change.
+  the existing detectors - the detectors themselves do not change.
   Triage annotates every secret finding; the report, API, and MCP all
   carry the annotation (`SecretFinding.triage` in `src/lib/types.ts`:
   verdict, signals, explanation, adjustedSeverity, adjustedConfidence,
   fix). Three layers:
-  - **Layer 1 — static context.** Path signals (`test/`, `tests/`,
+  - **Layer 1 - static context.** Path signals (`test/`, `tests/`,
     `testing/`, `selftests/`, `unittest-data`, `fixtures/`, `examples/`,
-    `docs/`, `samples/`, `demo/`, `spec/`, `mocks/`, `testdata` — exact
+    `docs/`, `samples/`, `demo/`, `spec/`, `mocks/`, `testdata` - exact
     segments plus narrow substring rules for `unittest`/`selftest` so
     a bare "test" substring never matches "latest" or "contest"),
     filename tokens (`test`, `fixture`, `dummy`, `example`, `sample`,
-    `mock`, `fake`, `placeholder`, `stub` — token-based, never
+    `mock`, `fake`, `placeholder`, `stub` - token-based, never
     substring), content signals in the same file and nearby lines
     ("test", "testing", "for testing only", "do not use in
     production", "example", "dummy", "fake", "sample", "testcase",
-    "selftest", "unittest" — word-boundary regexes). Usage signals
+    "selftest", "unittest" - word-boundary regexes). Usage signals
     where cheap: a key file referenced only from test files (HEAD
     only, retained files).
-  - **Layer 2 — cryptographic inspection.** A minimal DER parser reads
+  - **Layer 2 - cryptographic inspection.** A minimal DER parser reads
     the key where the format allows (RSA PKCS#1/PKCS#8, EC SEC1, SPKI
     public keys, X.509 certificates): key type and size (RSA 1024 vs
     4096, EC curve), whether it is weak/short in a way real production
     keys would not be (RSA < 2048, EC < P-256), whether its fingerprint
     matches a small built-in list of famous published test keys
-    (**fingerprints only, never the keys themselves** — the Linux SGX
+    (**fingerprints only, never the keys themselves** - the Linux SGX
     self-test signing key, DER SHA-256 verified 2026-11-25 by fetching
     the file from torvalds/linux and hashing it), whether it matches a
     known example value (the AWS documentation example key, SHA-256
@@ -1067,7 +1067,7 @@ finding above it (`drivers/of/unittest-data/tests-phandle.dtsi`, line
     point). No credential is ever live-validated, stored, or logged;
     triage only reads content the scanner already held, and only
     redacted fragments leave the scanner.
-  - **Layer 3 — the scanner's own evidence.** The detector result
+  - **Layer 3 - the scanner's own evidence.** The detector result
     (type, confidence, fragment) is the third input, not the verdict:
     a high-confidence private-key match in a production path stays
     high; the same match in a self-test path with matching test signals
@@ -1082,10 +1082,10 @@ finding above it (`drivers/of/unittest-data/tests-phandle.dtsi`, line
   `likely-genuine-leak`; a high-confidence detector match with no test
   signals at all → `likely-genuine-leak`; anything else → `uncertain`
   (keeps detector severity, says a human should check).
-- **Never deletion, never score inflation (the scoring rule — as
+- **Never deletion, never score inflation (the scoring rule - as
   built in Phase 10, CHANGED in Phase 12, see "Phase 12 status").** A
   likely-test finding is NOT removed from the report and NOT removed
-  from the counts — it is shown with its triage label, a plain-English
+  from the counts - it is shown with its triage label, a plain-English
   explanation naming the signals ("This looks like an intentional test
   key: it lives in tools/testing/selftests/, its fingerprint matches a
   published test key…"), and a different Fix ("Confirm this key is only
@@ -1098,8 +1098,8 @@ finding above it (`drivers/of/unittest-data/tests-phandle.dtsi`, line
   (Freddy, 2026-11-26: an F for 34 test fixtures is a false alarm):
   test keys now deduct nothing, uncertain findings half, genuine leaks
   in full. The
-  honest split is shown separately: `counts.testKeySecrets` — "of which
-  N look like test keys" — in the stat grid (`ReportView.tsx`) and the
+  honest split is shown separately: `counts.testKeySecrets` - "of which
+  N look like test keys" - in the stat grid (`ReportView.tsx`) and the
   secrets list (`ReportLists.tsx`), which also gains a triage-verdict
   filter ("Likely test keys" / "Likely genuine leaks" / "Uncertain").
   MCP carries the same annotation in every secret finding (and
@@ -1109,7 +1109,7 @@ finding above it (`drivers/of/unittest-data/tests-phandle.dtsi`, line
   see the complete repo; only files with findings are retained for it,
   bounded by the finding count). History findings are triaged at
   creation in `history.ts` (clone stream, API path, API chunk,
-  git-protocol walk — the git path triages from the full new-file
+  git-protocol walk - the git path triages from the full new-file
   content) and in the patch fallback in `scan.ts` (from the added
   lines). `assembleReport` fills in any annotation missing from an
   older client/cursor with a path+detector-only verdict
@@ -1125,14 +1125,14 @@ finding above it (`drivers/of/unittest-data/tests-phandle.dtsi`, line
   triages `likely-test-key` on its own signals (unittest-data path +
   `tests` filename token + `testcase` content). Control:
   `src/config/prod.key` and an AWS key in `deploy/` stay
-  `likely-genuine-leak` at full severity — and the same token in a
+  `likely-genuine-leak` at full severity - and the same token in a
   fixture file vs `src/` gets different verdicts.
 - **Verification (2026-11-25, local):** `npm run build` exit 0;
   `test:scanner` 73/73, `test:tier3` 40/40, `test:history` 56/56,
-  `test:public-full` 56/56, `test:ui-phase7` 62/62 (was 53 — 9 new
+  `test:public-full` 56/56, `test:ui-phase7` 62/62 (was 53 - 9 new
   triage UI checks: pills, explanation, test-key Fix, verdict filter,
   count line, adjusted severity, pill styles),
-  `test:cursor-phase9` 181/181, `test:triage-phase10` 59/59 (new —
+  `test:cursor-phase9` 181/181, `test:triage-phase10` 59/59 (new -
   both screenshot cases, the production control, fixture-vs-src,
   fingerprint match, uncertain case, weak key, public counterpart,
   Stripe test mode, AWS example value, history-lines triage, the
@@ -1141,7 +1141,7 @@ finding above it (`drivers/of/unittest-data/tests-phandle.dtsi`, line
   ("Scanned all 2802 files in the tree"), history 62/62 via git
   protocol. No literal secret-pattern values committed (grep-verified;
   the AWS example key appears only as a SHA-256 hash constant plus a
-  runtime-assembled string in the test, as before — one literal in a
+  runtime-assembled string in the test, as before - one literal in a
   triage.ts comment was caught and removed before pushing).
 - **Dogfood count moved 8 → 20 (measured, not a regression).** The MCP
   dogfood scan of Squ1zM0/GitSecure now counts 20 secrets, all 20
@@ -1151,21 +1151,21 @@ finding above it (`drivers/of/unittest-data/tests-phandle.dtsi`, line
   test-scanner.ts fake passwords at HEAD and at 8f4ffa4). The score is
   still 0/F. Proved not to be a triage regression: the pre-change code
   (remote head b30124a8, checked out to a scratch tree, built and run
-  locally) returns the same 20 secrets for the same repo — triage
+  locally) returns the same 20 secrets for the same repo - triage
   annotates, it never adds findings. The `test:mcp` "counts 8 secrets"
   assertion was updated to 20 with this reason, plus a new check that
   all 20 are test keys. Live, the count is now **22** (see the
   live-verification note below): the two Phase 10 pushes added the
-  triage test fixture line, found at HEAD and in b4ca165 — the
+  triage test fixture line, found at HEAD and in b4ca165 - the
   `test:mcp` assertions now say 22, all 22 test keys.
 - **Live verification (2026-11-26, after 9be330d4):** home 200; live
   GitSecure self-scan 0/F, 22 secrets, all 22 likely-test-key
-  (`counts.testKeySecrets` 22, history 22, files 77) — the count moved
+  (`counts.testKeySecrets` 22, history 22, files 77) - the count moved
   20 → 22 because the Phase 10 commit itself added the triage test
   fixture line, found at HEAD and in its introducing commit; live
   TechDirect 83/B, 0 secrets, 4 vulns, 2,802 files, 62/62 history;
   live torvalds/linux HEAD chunk 96,985/96,985 files, all 20 HEAD
-  secrets likely-test-key — `tools/testing/selftests/sgx/sign_key.pem`
+  secrets likely-test-key - `tools/testing/selftests/sgx/sign_key.pem`
   likely-test-key (signals `test-path:testing`, `known-test-key`;
   test-key Fix "Confirm this key is only used by tests and never signs
   real artifacts; if it does, rotate it.") and
@@ -1174,15 +1174,15 @@ finding above it (`drivers/of/unittest-data/tests-phandle.dtsi`, line
   `content-test:testcase`); MCP initialize 200, tools/list shows
   `scan_repo`, `get_report`, `resume_scan`, `list_checks`. The control
   case is the GitSecure self-scan itself: the score stays 0/F because
-  triage never changes the score — the 22 test-key findings still count
+  triage never changes the score - the 22 test-key findings still count
   in full, shown separately as "of which 22 look like test keys".
-  (Phase 10 rule; overturned in Phase 12 — under the new rule the test
+  (Phase 10 rule; overturned in Phase 12 - under the new rule the test
   keys deduct nothing, and the self-scan stays 0/F on vulnerabilities
   alone. See "Phase 12 status".)
 
-## Phase 11 status — secret usage: in use vs true dead end + the track through the spider web (built 2026-11-26, solo)
+## Phase 11 status - secret usage: in use vs true dead end + the track through the spider web (built 2026-11-26, solo)
 
-Trigger: Freddy, voice message — separate the likely-test results so
+Trigger: Freddy, voice message - separate the likely-test results so
 there is a way to click and see them, and, while scanning, determine
 what each finding is dependent on and whether anything else in the code
 uses it. If something else calls it, it is in use, not a test key; if
@@ -1191,8 +1191,8 @@ spider web.
 
 - **Usage analysis (`src/lib/usage.ts`, new).** For every secret
   finding, the scanner searches the repo's own HEAD files for
-  references to the finding's **identifier only** — variable/env name,
-  key filename, or config key — outside the file where it was found.
+  references to the finding's **identifier only** - variable/env name,
+  key filename, or config key - outside the file where it was found.
   It never searches for or stores the secret value itself, and never
   matches on the redacted fragment. Identifier extraction is
   match-anchored: the name comes from the detector match itself
@@ -1213,7 +1213,7 @@ spider web.
   per-identifier attribution. HEAD usage is computed in `scanHead`
   after the whole tree is scanned; history usage comes from HEAD files
   only (`historyOnly: true`) in the git-protocol path of `history.ts`
-  (API/clone/patch paths leave `usage` absent — no HEAD files
+  (API/clone/patch paths leave `usage` absent - no HEAD files
   available); `buildLimits` gains the plain-English history-usage line;
   the provisional report carries usage through and stays client-safe
   (no triage import).
@@ -1225,18 +1225,18 @@ spider web.
   `scripts/`, repo-root config) AND the detector type is a credential
   type (AWS key, token, webhook, database URL, hardcoded password,
   private key; `env-file` and `generic-high-entropy-secret` excluded)
-  — rule stated in a code comment. (c) Zero references → signal
+  - rule stated in a code comment. (c) Zero references → signal
   `usage-dead-end` (+2 toward `likely-test-key`) + the exact sentence
-  "Nothing in this repo references this key — a true dead end." A
+  "Nothing in this repo references this key - a true dead end." A
   decisive fingerprint match is not overridden by a docs/examples-only
   reference (stays `likely-test-key`, reference recorded);
   production-path usage still upgrades it. Usage never changes the
-  score on its own — it feeds the triage verdict, and Phase 12 weights
+  score on its own - it feeds the triage verdict, and Phase 12 weights
   the score by that verdict (test keys ×0, uncertain ×0.5, genuine
   ×1).
 - **Separated likely-test section (`ReportLists.tsx`).** The secrets
   list partitions into three `<details>` verdict sections, in order:
-  Likely genuine leaks (open by default), Uncertain — needs a human
+  Likely genuine leaks (open by default), Uncertain - needs a human
   check (open by default; no-triage findings count as uncertain),
   Likely test keys (collapsed by default, own count, expands on click;
   only test-key findings, each with triage explanation and test-key
@@ -1263,21 +1263,21 @@ spider web.
   existing prefers-reduced-motion rule; dark mode via existing CSS
   vars. No `usage` data (older report) → the Phase 5 file-count spider
   renders unchanged. API and MCP carry `usage` on every secret finding;
-  `list_checks` names "secret usage — in use vs dead end".
+  `list_checks` names "secret usage - in use vs dead end".
 - **Verification (2026-11-26, local):** `npm run build` exit 0 (one
   blocker found at integration: `ReportLists.tsx:61` TS2352 on the UI
-  worker's local `SecretUsage` mirror cast — fixed by the coordinator
+  worker's local `SecretUsage` mirror cast - fixed by the coordinator
   by deleting the mirror and importing the real `SecretUsage` from
   `src/lib/types.ts`); `test:scanner` 73/73, `test:triage-phase10`
   59/59, `test:tier3` 40/40, `test:history` 56/56,
   `test:public-full` 56/56, `test:cursor-phase9` 181/181,
-  `test:usage-phase11` 64/64 (new — key referenced by src/ code,
+  `test:usage-phase11` 64/64 (new - key referenced by src/ code,
   test-only references, dead end, capped lists with true totals,
   usage-never-matches-the-value regression, upgrade-rule cases),
-  `test:ui-phase7` 87/87 (was 62 — 29 new Phase 11 checks),
+  `test:ui-phase7` 87/87 (was 62 - 29 new Phase 11 checks),
   `test:mcp` 60/60 (was 58), `test:techdirect` 83/B with filesScanned
   = 2,802, history 62/62 via git protocol. Dogfood self-scan (local):
-  0/F, 22 secrets, 22/22 likely-test-key — 6 false flips found during
+  0/F, 22 secrets, 22/22 likely-test-key - 6 false flips found during
   the phase were fixed in `usage.ts` (3 database-url via the
   URL-scheme guard, 2 hardcoded-password via match-anchoring, 1
   env-file via dropping the `.env` basename; the env-file finding now
@@ -1287,11 +1287,11 @@ spider web.
   zero horizontal overflow, in `test-results/phase11/`; two defects
   found by looking and fixed (finding-node labels struck through by
   their own edges; a no-usage finding mislabelled "unused").
-- **Phase 11.1 — comment mentions are not usage (live false flip,
+- **Phase 11.1 - comment mentions are not usage (live false flip,
   fixed 2026-11-26).** The first live self-scan after the Phase 11
   push flipped one fixture to `likely-genuine-leak`: the test-scanner
   fixture `api_key = "FAKEPW"` (identifier `api_key`) was "referenced
-  from src/lib/usage.ts:140,190,191 in production code" — but those
+  from src/lib/usage.ts:140,190,191 in production code" - but those
   are mentions inside usage.ts's own doc comments, not uses of the
   value. Fix (`src/lib/usage.ts`, `stripComments`, applied before the
   prefilter and attribution): comments are stripped from file content
@@ -1300,7 +1300,7 @@ spider web.
   stripped (`process.env["api_key"]` in code is a real reference).
   The stripper is string-aware so `//` inside a URL string does not
   eat the rest of the line, and it resets single/double-quote state
-  at each newline — a regex literal full of quotes (`/^[\"']?…/`)
+  at each newline - a regex literal full of quotes (`/^[\"']?…/`)
   otherwise leaves the tracker stuck in quote state across lines, so
   the next line's block comment never opens (that was the second
   bug, found by testing the stripper against the real file: lines
@@ -1311,19 +1311,19 @@ spider web.
   regex-quote-trap unit checks. Suite now 75/75 (was 64). Local
   self-scan after the fix: 0/F, 32 secrets, all 32 likely-test-key,
   3 dead ends, 0 in use. MCP dogfood counts updated 22 → 32 (history
-  grew to 25 commits; Phase 11 added new fake-secret fixtures —
+  grew to 25 commits; Phase 11 added new fake-secret fixtures -
   same pattern as Phases 5/10, reason recorded in test-mcp.ts).
 - **Live verification (2026-11-26, after d0306925):** home 200; live
   TechDirect 83/B, 0 secrets, 4 vulns, 2,802 files, 62/62 history;
   live GitSecure self-scan 0/F, 34 secrets, 32 likely-test-key, 2
-  uncertain, 0 likely-genuine-leak — the likely-test section is
+  uncertain, 0 likely-genuine-leak - the likely-test section is
   clickable and separate, dead-end findings labelled, in-use findings
   show their track in the map; MCP initialize 200, tools/list shows
   `scan_repo`, `get_report`, `resume_scan`, `list_checks`.
 
-## Phase 12 status — triage-weighted scoring: the score must reflect real risk (built 2026-11-26, two workers)
+## Phase 12 status - triage-weighted scoring: the score must reflect real risk (built 2026-11-26, two workers)
 
-Trigger: Freddy — "But that live proof with an F scored inaccurate
+Trigger: Freddy - "But that live proof with an F scored inaccurate
 because every single one is a test, so we need to make sure that the
 scoring system is accurate if finding tests." The live GitSecure
 self-scan scored 0/F, but all 34 of its secrets were likely-test-keys
@@ -1332,54 +1332,54 @@ self-scan scored 0/F, but all 34 of its secrets were likely-test-keys
 score that calls 34 test fixtures an F is a false alarm, and false
 alarms train people to ignore real ones.
 
-- **The new rule (scoring core, Worker A — `src/lib/score.ts`,
+- **The new rule (scoring core, Worker A - `src/lib/score.ts`,
   `src/lib/types.ts`).** `computeScore` returns a `ScoreDetail`:
   score, grade, per-component deductions (`secretsDeduction`,
   `vulnDeduction`, `postureDeduction`, `unpinnedDeduction`),
   per-verdict finding counts (`secretsFullWeight`,
-  `secretsHalfWeight`, `secretsExcluded` — counts of FINDINGS, not
+  `secretsHalfWeight`, `secretsExcluded` - counts of FINDINGS, not
   points), and `wouldBeScore`. Weights: likely-test-key ×0, uncertain
   ×0.5 (the per-finding deduction is rounded at the total via
   `Math.round`), likely-genuine-leak ×1, no triage annotation ×1 (a
   test key is never assumed without evidence). `wouldBeScore` is the
   score the old (Phase 10) full-weight rule would have given the same
-  input — every secret at full weight, same other components — clamped
+  input - every secret at full weight, same other components - clamped
   0–100. The report carries it as `FullReport.scoreDetail`, on finished
   AND provisional reports (both `assembleReport` in `src/lib/scan.ts`
   and `buildProvisionalReport` in `src/lib/provisional.ts` build it
   from the same `computeScore`), so the API, the report page, and MCP
   can never show a score that disagrees with the sections. Findings
-  are still never removed and still counted in `counts.secrets` — only
+  are still never removed and still counted in `counts.secrets` - only
   their weight changes.
-- **The explanation in the UI (Worker B — `src/components/
+- **The explanation in the UI (Worker B - `src/components/
   ScoreDial.tsx`, `src/components/ReportView.tsx`).** Next to the dial,
   in the report hero, a `ScoreExplanation` paragraph states the rule in
   plain English with the actual numbers from `scoreDetail`: how many
   secrets were excluded as test keys, how many counted at half weight,
-  how many at full weight — and BOTH scores, the adjusted score and
+  how many at full weight - and BOTH scores, the adjusted score and
   the would-be score, so the reader can see the test-key adjustment
   and verify it ("If every secret counted at full weight, the score
-  would be 0 instead of 83." — or "would still be 0" when the
+  would be 0 instead of 83." - or "would still be 0" when the
   adjustment changes nothing; "No secrets were found…" when there are
   none). The verdict (`adjustedVerdict`) and the one-line explanation
   (`adjustedExplainScore`, both in `ScoreDial.tsx`) pick the real
-  driver by deduction size — secrets, vulnerabilities, posture,
+  driver by deduction size - secrets, vulnerabilities, posture,
   unpinned, ties broken in that order. A repo with zero genuine
-  secrets is never told its biggest problem is "N leaked secrets —
+  secrets is never told its biggest problem is "N leaked secrets -
   rotate and remove these first": it is told the test keys are
   excluded and named the real driver instead. The Phase 7 helpers
   (`biggestProblem`, `explainScore` in `src/lib/score.ts`) are
-  untouched — the adjusted helpers fall back to them when the detail
+  untouched - the adjusted helpers fall back to them when the detail
   is absent, and `ScoreExplanation` renders nothing, so an older
   cached report without `scoreDetail` renders exactly as before, never
   crashes. No new stylesheet rules: the explanation reuses the
   existing `.score-explain` class, so dark mode, 360 px mobile, tap
   targets ≥44 px, and reduced-motion are unchanged (Phase 7 intact).
-- **MCP prose (Worker B — `src/lib/mcp.ts`, prose only).** The
+- **MCP prose (Worker B - `src/lib/mcp.ts`, prose only).** The
   `list_checks` text states the new rule with the weights ("a
   likely-test-key deducts nothing, an uncertain finding deducts at
-  half weight, and a likely-genuine-leak — or a finding with no triage
-  annotation — deducts at full weight") and notes the report shows the
+  half weight, and a likely-genuine-leak - or a finding with no triage
+  annotation - deducts at full weight") and notes the report shows the
   breakdown and the would-be score so the adjustment is always
   checkable. No MCP tool behaviour or plumbing changed.
 - **Measured self-scan breakdown (Worker A,
@@ -1387,7 +1387,7 @@ alarms train people to ignore real ones.
   Squ1zM0/GitSecure, 2026-11-26).** 34 secrets, 197 vulnerabilities,
   15 posture issues, 3 unpinned frameworks, 79 files, 27 history
   commits. Old-rule score 0/F. Secrets: 384 points (16 high × 15 =
-  240, 18 medium × 8 = 144) — 32 test keys 368 points, 2 uncertain 16
+  240, 18 medium × 8 = 144) - 32 test keys 368 points, 2 uncertain 16
   points, 0 genuine. Vulnerabilities: 547 points (51 medium × 5 =
   255, 146 low × 2 = 292). Posture: 84 points (5 high, 6 medium, 2
   low, 2 info). Unpinned: 6 points. Under the Phase 12 rule the
@@ -1397,7 +1397,7 @@ alarms train people to ignore real ones.
   component; it does not and cannot lift the self-scan grade while the
   other components stand. The 197 vulnerabilities are real OSV
   advisories on deliberately old dependency versions in the Tier 2
-  test fixtures (Django 4.2.0, Laravel, Echo, Fiber, …) — the flaws in
+  test fixtures (Django 4.2.0, Laravel, Echo, Fiber, …) - the flaws in
   them are real flaws in real pinned versions, so relabelling them
   harmless would be wrong; they stay at full weight per the Phase 12
   scope (secrets only). Same for posture (Tier 3 fixture configs plus
@@ -1405,20 +1405,20 @@ alarms train people to ignore real ones.
   dev-server items). Any future change to how fixture-driven
   vulns/posture score is a separate decision, not part of this phase.
 - **Verification (2026-11-26, local):** `npm run build` exit 0;
-  `test:ui-phase7` 110/110 (was 87 — 23 new Phase 12 checks:
+  `test:ui-phase7` 110/110 (was 87 - 23 new Phase 12 checks:
   explanation with the three counts and both scores, all-test-key
   verdict naming the real driver, would-be score shown, graceful
   fallback with no `scoreDetail`, full `ReportView` render with and
   without the detail, MCP prose). No literal secret-pattern values
   committed (grep-verified; fixtures still use `__SECRET_n__`
-  placeholders, test-assembled fakes only). NOT pushed — the
+  placeholders, test-assembled fakes only). NOT pushed - the
   coordinator integrates and pushes.
 
-## Phase 13 status — fix the dependency flaws for real (built 2026-11-26, three workers)
+## Phase 13 status - fix the dependency flaws for real (built 2026-11-26, three workers)
 
-Trigger: Freddy — "Fix the dep flaws." Phase 12 measured the self-scan
-at 0/F with 197 vulnerabilities (547 points) — real OSV advisories on
-deliberately old pinned versions in the repo's own test fixtures — and
+Trigger: Freddy - "Fix the dep flaws." Phase 12 measured the self-scan
+at 0/F with 197 vulnerabilities (547 points) - real OSV advisories on
+deliberately old pinned versions in the repo's own test fixtures - and
 deliberately left them at full weight. This phase upgrades the versions
 instead of relabelling them.
 
@@ -1431,11 +1431,11 @@ instead of relabelling them.
   `package.json` next 16.4.6 via the name+ecosystem dedupe, first
   pinned wins). Tier 3 fixtures contribute 0 vulns. Full 197-row
   grouped inventory: `test-results/phase13-vuln-inventory.md`.
-- **Real dependencies (fixed first — the actual risk).** `diff`
-  8.0.2 → 8.0.4 (GHSA-73rr-hh4g-fpgx / CVE-2026-24001, LOW —
+- **Real dependencies (fixed first - the actual risk).** `diff`
+  8.0.2 → 8.0.4 (GHSA-73rr-hh4g-fpgx / CVE-2026-24001, LOW -
   parsePatch/applyPatch infinite loop, DoS; GitSecure diffs patches
   with it) and `zod` 4.3.5 → 4.6.7 (GHSA-mrhx-c7xc-m3w5 /
-  CVE-2023-54404, HIGH, CVSS 7.5 — uncontrolled resource consumption,
+  CVE-2023-54404, HIGH, CVSS 7.5 - uncontrolled resource consumption,
   OOM). Both re-checked clean on OSV; exact pins preserved;
   `package-lock.json` updated with `npm install --package-lock-only`
   (only the two entries changed). `npm audit` is blocked in this
@@ -1443,7 +1443,7 @@ instead of relabelling them.
   of all 215 lockfile packages. Build exit 0 after the upgrade.
   Caveat: `node_modules/` still held the old copies (no full install
   was run), so the fixed versions take effect on the next fresh
-  install — which is what the Vercel deploy does.
+  install - which is what the Vercel deploy does.
 - **Upgrades (branch-correct fixed versions).** The scanner's
   `fixedVersion` is the first `fixed` event across all advisory
   ranges and misleads on multi-branch advisories, so every target was
@@ -1454,28 +1454,28 @@ instead of relabelling them.
   v2.52.14, sinatra 3.0.5 → 4.2.0 (no 3.x fix exists), puma 6.4.0 →
   7.2.1, phpunit/phpunit 10.5.0 → 10.5.62. Manifest + lockfile kept
   consistent where both exist (fake-repo has no lockfiles).
-  Unfixable: none in this scope — every advisory had a fix in some
+  Unfixable: none in this scope - every advisory had a fix in some
   release line. `org.example:unresolvable` stays version-null by
   design (proves unresolvable versions stay null).
 - **Kept vulnerable (one per ecosystem, detection coverage).**
-  Echo v4.11.1 (28, Go), rails 7.1.3 (1, Ruby — preserves the
-  lockfile-wins test), laravel/framework v10.34.2 (7, PHP — preserves
-  the lockfile-wins test), spring-core 6.1.2 (3, Java — the only
+  Echo v4.11.1 (28, Go), rails 7.1.3 (1, Ruby - preserves the
+  lockfile-wins test), laravel/framework v10.34.2 (7, PHP - preserves
+  the lockfile-wins test), spring-core 6.1.2 (3, Java - the only
   vulnerable Java package, preserves the `${spring.version}` test),
   Flask 3.0.0 (2, PyPI), vite 5.0.0 (23, npm), tokio 1.0.0 (9,
   crates). Note: 2 of Echo's advisories have no fix in the v4 line
   (need v5.4.0), 4 of Laravel's only in 12.x, 2 of spring-core's need
-  6.2.11+ — future fixes are major jumps, recorded here, not taken.
+  6.2.11+ - future fixes are major jumps, recorded here, not taken.
   Fixture-only caveat: fake-repo's `package.json` now pairs next
   15.5.29 with React 18.3.1, which is not a supported combination for
-  a real Next 15 app — fixture-only, nothing is installed or run from
+  a real Next 15 app - fixture-only, nothing is installed or run from
   it; React stays 18.3.1 (0 vulns, fingerprint assertion intact).
 - **No gaming.** No fixture directory excluded from scanning, no
   severity changed, no fixture deleted to drop the count. The score
   improves only because the versions are actually fixed.
 - **Result (measured, scanner's own code over the local working
   copy).** 197 → **73 vulnerabilities** (20 medium, 53 low), vuln
-  deduction 547 → **206**; total deductions 8 + 206 + 84 + 4 = 302 —
+  deduction 547 → **206**; total deductions 8 + 206 + 84 + 4 = 302 -
   self-scan still **0/F**, honestly, because the deliberately kept
   fixtures (73 vulns) plus posture (84) still floor it. No critical
   or high vulns remain. Posture untouched (15 issues, out of scope).
@@ -1495,22 +1495,22 @@ instead of relabelling them.
 - **Live verification (2026-11-26, after the push).** Home 200;
   live GitSecure self-scan 0/F, **73 vulnerabilities** (20 medium,
   53 low), scoreDetail `{secretsDeduction 8, vulnDeduction 206,
-  postureDeduction 84, unpinnedDeduction 4}` — exactly the projected
+  postureDeduction 84, unpinnedDeduction 4}` - exactly the projected
   numbers; secrets still 34 (32 test keys, 2 uncertain), files 86,
   history 29 commits. Live TechDirect still 83/B, 2,802 files, 62/62
   history. MCP 62/62 against the local production server, scanning
   the live remote.
 
-## Phase 14 status — dogfooding integrity: the repo itself must be secure (built 2026-11-26, four workers)
+## Phase 14 status - dogfooding integrity: the repo itself must be secure (built 2026-11-26, four workers)
 
-Trigger: Freddy — "I need you to figure this out, but I don't want
+Trigger: Freddy - "I need you to figure this out, but I don't want
 our platform to try and help people secure their repositories
 without the repository itself being secure." The self-scan scored
 0/F on its own scan: 302 deductions (secrets 8, vulns 206, posture
 84, unpinned 4). Phase 13 fixed the fixable dep flaws (197 → 73
 vulns) but the repo still shipped deliberately vulnerable test
 fixtures and fixture-driven posture gaps. This phase makes the repo
-itself genuinely secure — it must earn a good grade on its own scan,
+itself genuinely secure - it must earn a good grade on its own scan,
 honestly, not by gaming the score.
 
 - **Diagnosed first (test-results/phase14-self-scan-inventory.md).**
@@ -1539,7 +1539,7 @@ honestly, not by gaming the score.
   org.example:unresolvable out of pom.xml; deleted outright:
   fake-repo/.env, tier2/app.csproj, tier3/Dockerfile,
   tier3/k8s/deployment.yaml, tier3/main.tf; fake-repo/vite.config.ts
-  rewritten clean (`export default {};` — it must not even import
+  rewritten clean (`export default {};` - it must not even import
   from "vite", which alone trips the plugins finding). The generated
   .env uses a `__SECRET_0__` placeholder; the generated vite config
   builds the public variable via `"VITE_" + "API_URL"` so no committed
@@ -1554,7 +1554,7 @@ honestly, not by gaming the score.
   reporting contact exists in the repo; acknowledgement within 3
   business days, fix or plan within 30 days for real-risk issues, no
   bounty program, safe harbor) and `.github/dependabot.yml` (npm, `/`,
-  weekly, 10 open PRs; no github-actions entry — the repo has no
+  weekly, 10 open PRs; no github-actions entry - the repo has no
   workflows at all). Posture deduction 84 → 80 from those two alone
   (each low, 2 points). No real workflow or .gitignore gaps existed
   to fix. The 13 fixture-driven posture items are gone with the
@@ -1564,7 +1564,7 @@ honestly, not by gaming the score.
   in `src/lib/history.ts` walked `git.TREE` over the `noCheckout:
   true` isomorphic-git clone and visited 1 entry (root) / 0 blobs, so
   the corpus was an empty non-null Map and the null-corpus fallback
-  never triggered — no history finding could ever be reported
+  never triggered - no history finding could ever be reported
   in-use, and genuinely referenced history secrets were mis-triaged
   as dead-end test keys. Fixed by replacing the walk with a recursive
   `git.readTree` from the tip commit's tree (same bounds, same
@@ -1579,7 +1579,7 @@ honestly, not by gaming the score.
   triage or scoring rule changed; no docs edited as a workaround.
   Net effect on the self-scan: secrets deduction 8 → 0 (all 34
   likely-test-key, 0 uncertain), total 302 → 294 before the fixture
-  migration — measured by a direct local scanRepo run against the
+  migration - measured by a direct local scanRepo run against the
   live remote, not assumed.
 - **The 2 uncertain secrets, settled.** Both are test fixtures
   (`scripts/test-scanner.ts:104`, `FAKE` repeated; and
@@ -1593,14 +1593,14 @@ honestly, not by gaming the score.
   `src/lib` are doc comments / MCP tool examples), no severity
   downgrades, no relabelling flaws harmless, no deleted tests or
   coverage. The scanner treats our repo exactly like any other
-  public repo — same code path, no owner/repo checks.
+  public repo - same code path, no owner/repo checks.
 - **Measured result (local, before push).** HEAD-only self-scan of
   the working copy with the scanner's own code: **0 vulnerabilities
   (was 73), 0 posture issues (was 15), 0 unpinned direct deps (was
   2), 18 HEAD secrets, all likely-test-key** (was 16: the 2 new ones
   are the Phase 14 test lines themselves, both test keys). Projected
   full-scan deductions after the push: secrets 0 + vulns 0 + posture
-  0 + unpinned 0 = **score 100, grade A** — the history findings
+  0 + unpinned 0 = **score 100, grade A** - the history findings
   will add more test-key secrets (old commits still hold the deleted
   fixtures), but at weight 0 they cannot move the score. The exact
   live secret count is measured after the push, not projected here.
@@ -1608,9 +1608,9 @@ honestly, not by gaming the score.
   fixtures detect the exact same 73 advisory IDs; committed
   manifests scanned via live OSV with zero advisories, excluding
   nothing; zero unpinned direct deps; no owner/repo special-casing).
-  `test:usage-phase11` 91/91 (was 75 — new case (x): docs-only
+  `test:usage-phase11` 91/91 (was 75 - new case (x): docs-only
   mention → dead end, stays test key; (vi-b) updated with the reason
-  recorded). `test:history` 66/66 (was 56 — new git-path block:
+  recorded). `test:history` 66/66 (was 56 - new git-path block:
   history finding with HEAD references shows them, prose mention
   excluded). Full suite, coordinator-verified: build exit 0;
   scanner 73/73, tier3 40/40, history 66/66, public-full 56/56,
@@ -1624,7 +1624,7 @@ honestly, not by gaming the score.
   likely-test-key (0 uncertain, 0 genuine), **0 vulnerabilities, 0
   posture issues**, scoreDetail `{secretsDeduction 0, vulnDeduction
   0, postureDeduction 0, unpinnedDeduction 0, secretsExcluded 37,
-  wouldBeScore 0}`, files 86, history 31 commits — the projected
+  wouldBeScore 0}`, files 86, history 31 commits - the projected
   100/A, exactly. Secrets are 37, not 34: history grew to 31 commits
   (the Phase 14 push itself plus the new Phase 14 test lines, found
   at HEAD and in their introducing commits). Live TechDirect still
@@ -1633,55 +1633,55 @@ honestly, not by gaming the score.
   updated to the measured post-push numbers in the docs follow-up
   push).
 
-## Phase 15 status — user experience + zero REST calls on the happy path (built 2026-11-26)
+## Phase 15 status - user experience + zero REST calls on the happy path (built 2026-11-26)
 
 ### UX audit + fixes (Freddy: "Continue and develop the app. Improving user experience.")
 
 Audit first (`test-results/phase15-ux-audit.md`, 16 findings, ranked, each with a screenshot or measurement; 29 screenshots in `test-results/phase15/`): home explains the tool in seconds, input validation correct, zero overflow on home/TechDirect/GitSecure at 1280 + 360 px light/dark, contrast AA everywhere sampled, keyboard/focus/skip link work, dial has role="img" + full aria-label, filter counts aria-live with true counts, copy-link verified in the real clipboard, verdict sections and map click-to-track work. The fixes, in audit priority order:
 
-- **Linux dead-end (finding 1, HIGH):** a fetch-level timeout inside the HEAD chunk threw instead of returning a partial cursor, so torvalds/linux ended on a terminal error page after minutes of a static screen and the Phase 9 resume path never engaged. `headChunkOrTimeoutPartial()` in `src/lib/chunks.ts` now returns a partial cursor on a HEAD timeout (with HEAD meta known), so `ScanProgress` mounts and resume engages. Adjacent bug found by testing: a mid-download body-stream error crashed the chunk with an unhandled `'error'` event on the `Readable.fromWeb` stream — one line (`input.on("error", …)` in `streamHeadFilesViaTarball`) converts it to the 504 the driver turns into a partial cursor. Every page-level error state now has a **"Retry this scan"** button (`src/components/RetryScanButton.tsx`) next to "Scan another repo".
+- **Linux dead-end (finding 1, HIGH):** a fetch-level timeout inside the HEAD chunk threw instead of returning a partial cursor, so torvalds/linux ended on a terminal error page after minutes of a static screen and the Phase 9 resume path never engaged. `headChunkOrTimeoutPartial()` in `src/lib/chunks.ts` now returns a partial cursor on a HEAD timeout (with HEAD meta known), so `ScanProgress` mounts and resume engages. Adjacent bug found by testing: a mid-download body-stream error crashed the chunk with an unhandled `'error'` event on the `Readable.fromWeb` stream - one line (`input.on("error", …)` in `streamHeadFilesViaTarball`) converts it to the 504 the driver turns into a partial cursor. Every page-level error state now has a **"Retry this scan"** button (`src/components/RetryScanButton.tsx`) next to "Scan another repo".
 - **DT mobile overflow (finding 2, HIGH):** DefinitelyTyped overflowed 426 vs 360 px from long unbreakable paths. The GitHub link label is now just "View on GitHub" (the path is already shown above it), plus `overflow-wrap: anywhere` on `.github-link`, `code.inline`, `.finding`, and `.report-list li`. Verified on the real DT provisional report at 360 px: scrollWidth = 360, zero overflowing elements.
-- **DT never finishes (finding 3, HIGH, UX half):** the chunk-error card now classifies the failure (rate-limit vs network vs other) and shows progress reached ("So far: 61,814 of 61,814 files scanned · 403 possible leaked secrets found so far."); a 429 fails fast instead of burning three retries. When the driver errors, the provisional banner reads "paused — history and dependency checks stopped here" instead of the stale "still running". The "Retry from where it left off" button was proven live on a real chunked DT run: the retried chunk carried the saved cursor and history resumed at 10 commits.
+- **DT never finishes (finding 3, HIGH, UX half):** the chunk-error card now classifies the failure (rate-limit vs network vs other) and shows progress reached ("So far: 61,814 of 61,814 files scanned · 403 possible leaked secrets found so far."); a 429 fails fast instead of burning three retries. When the driver errors, the provisional banner reads "paused - history and dependency checks stopped here" instead of the stale "still running". The "Retry from where it left off" button was proven live on a real chunked DT run: the retried chunk carried the saved cursor and history resumed at 10 commits.
 - **Usage map legibility (finding 4):** file labels are now basenames with head + "…" + tail, counts sit inside their node circles, labels sit radially outward and x-clamped, centre circle paints after the edges so no edge strikes through "This repo". Verified on the real self-scan map at 1280 px.
 - **Provisional wording (finding 5):** `plainSummary()` takes `provisional`, so provisional reports say "So far: …" instead of "Scan complete. ". Zero-secret reports now read "No leaked secrets were found…" (finding 7, capitalisation).
 - **Branded 404 (finding 6):** new `src/app/not-found.tsx` explains the `git-secure.com/owner/repo` shape with the Squ1zM0/GitSecure example and links home. Bare-owner URLs no longer land on the stock Next.js 404.
 - **Small copy fixes (findings 8, 9, 11, 12, 13, 14, 15):** score-0 dial no longer renders a stray red dot (butt cap at 0); track detail omits the empty "Used by:" segment; loading copy says "usually takes 15–30 seconds" (TechDirect measured 27.1 s); copy buttons and file chips raised to the project's own 44 px rule; the scan input has a visible "GitHub repo to scan" label; the score explanation appends the runner-up deduction ("Plus 4 known flaws in dependencies, which cost 8 points…"); per package, one reconciled fix version (max of the advisory fixed versions, `src/lib/versions.ts`) so four js-yaml findings no longer disagree.
-- **MCP onboarding (finding 10):** one plain-English line ("MCP lets an AI assistant like Claude call GitSecure for you — no account needed"), the four JSON snippets collapsed behind one `<details>`, canonical URL now `https://git-secure.com/mcp` (apex is canonical: www 307-redirects to apex, verified live 2026-11-26), mobile code blocks get a right-edge fade.
-- **"Roll all into report" (Freddy, added mid-phase):** a button in the score hero card, top-right next to the dial (full-width under 560 px), that downloads the ENTIRE scan as one Markdown file (`gitsecure-report-{owner}-{repo}-{short-sha}.md`) — score, grade, summary, explanation, every secret with triage verdict, every vulnerability (Fix line reconciled, same as the page), posture issue, dependency and framework, plus scan metadata. No truncation even for findings hidden behind collapsed groups/filters. Generated client-side from the `FullReport` already on the page (`src/lib/report-markdown.ts`, `src/components/RollAllButton.tsx`); no API route. Secrets fragment-only, exactly as on the page. Works on finished and provisional reports (provisional labelled in the file). Verified by a real browser download and `test:report-markdown` 30/30.
-- **Rate-limit recovery (Freddy, live friction):** the "GitHub's request limit was hit" page had only "Scan another repo". It now has a **"Try this scan again"** button re-running the same repo, and honest reset wording from GitHub's own headers (`src/lib/rate-limit.ts`: `retry-after` / `x-ratelimit-reset` → "resets in about N minutes", else "resets within the hour" — never an invented countdown). `resetAtMs` passes through the scan API error JSON (additive, backward compatible). A genuine live 429 render was not triggered (would burn the shared quota); the path is proven by mocked tests + the shared button mechanism verified live.
+- **MCP onboarding (finding 10):** one plain-English line ("MCP lets an AI assistant like Claude call GitSecure for you - no account needed"), the four JSON snippets collapsed behind one `<details>`, canonical URL now `https://git-secure.com/mcp` (apex is canonical: www 307-redirects to apex, verified live 2026-11-26), mobile code blocks get a right-edge fade.
+- **"Roll all into report" (Freddy, added mid-phase):** a button in the score hero card, top-right next to the dial (full-width under 560 px), that downloads the ENTIRE scan as one Markdown file (`gitsecure-report-{owner}-{repo}-{short-sha}.md`) - score, grade, summary, explanation, every secret with triage verdict, every vulnerability (Fix line reconciled, same as the page), posture issue, dependency and framework, plus scan metadata. No truncation even for findings hidden behind collapsed groups/filters. Generated client-side from the `FullReport` already on the page (`src/lib/report-markdown.ts`, `src/components/RollAllButton.tsx`); no API route. Secrets fragment-only, exactly as on the page. Works on finished and provisional reports (provisional labelled in the file). Verified by a real browser download and `test:report-markdown` 30/30.
+- **Rate-limit recovery (Freddy, live friction):** the "GitHub's request limit was hit" page had only "Scan another repo". It now has a **"Try this scan again"** button re-running the same repo, and honest reset wording from GitHub's own headers (`src/lib/rate-limit.ts`: `retry-after` / `x-ratelimit-reset` → "resets in about N minutes", else "resets within the hour" - never an invented countdown). `resetAtMs` passes through the scan API error JSON (additive, backward compatible). A genuine live 429 render was not triggered (would burn the shared quota); the path is proven by mocked tests + the shared button mechanism verified live.
 - **Tests:** new `test:resilience-phase15` 45/45, `test:report-markdown` 30/30, `test:ui-phase15c` 32/32; UI suite 110 → 155; cursor 181 → 192; score 36 → 40. Full suite green at integration (see below).
 
 ### Zero REST calls on the happy path (worker D)
 
 Trigger: Freddy thought rate limiting was rectified, but the 429s
-kept coming — Phase 8 had moved history off REST (a scan went from
+kept coming - Phase 8 had moved history off REST (a scan went from
 ~65 REST calls to 1), and the remaining 429s came from that last call
 plus the shared-IP bucket. The answer is YES: the last REST call can
-go away entirely, with no token (Freddy's Phase 6 ruling stands —
+go away entirely, with no token (Freddy's Phase 6 ruling stands -
 this phase adds no token, proposes none, and needs none).
 
 - **Branch + HEAD sha over the git protocol** (`resolveRemoteHead`
-  in `src/lib/history.ts`): one `getRemoteInfo` call to github.com —
-  NOT api.github.com — returns both the HEAD symref
+  in `src/lib/history.ts`): one `getRemoteInfo` call to github.com -
+  NOT api.github.com - returns both the HEAD symref
   (`refs/heads/main`) and every branch head's sha. It replaces the
   REST repo-info fetch (default branch, size, private flag) AND the
   commits-list call that fetched the HEAD sha. A missing or private
   repo answers 401 on info/refs, which maps to the same plain-English
   404 ("Repository not found (or it is private)"); anything else is
   a 502, and a request that does not answer inside 12 s (the same
-  bound ghJson used to give the REST calls) is a 504 — the meta step
+  bound ghJson used to give the REST calls) is a 504 - the meta step
   never guesses a branch and never hangs the scan.
 - **The file list comes from the tarball, not the tree**
   (`src/lib/scan.ts`, `scanHead`): the tarball's entries ARE the
-  file list, complete by construction — the recursive-tree API call
+  file list, complete by construction - the recursive-tree API call
   is gone from the happy path and is fetched only when a tarball
   transport fails and the per-file fallback needs a list. As a side
   effect the count is now exact: the tree used to list symlinks the
   tarball skips, so a complete scan could report "Fetched X of Y".
-- **Both size gates are streaming bounds now — no size is read at
+- **Both size gates are streaming bounds now - no size is read at
   all**, because the repo `size` only ever came from the REST
   repo-info call. The HEAD transport is chosen by the download
-  itself: past `TARBALL_BUFFER_SWITCH_BYTES` (100 MB compressed —
+  itself: past `TARBALL_BUFFER_SWITCH_BYTES` (100 MB compressed -
   ~300–500 MB decompressed for source-heavy repos, which fits a 1 GB
   function; codeload sends no Content-Length, so the size can only
   be measured while the bytes arrive) the whole-buffer path switches
@@ -1707,16 +1707,16 @@ this phase adds no token, proposes none, and needs none).
   the tarball is unavailable; the API history path when cloning is
   impossible; the 5-commit patch fallback; and `fetchHeadSha`, kept
   for the chunked driver's resume re-validation (`chunks.ts:271`,
-  worker A's file — a git-protocol replacement for that one call is
+  worker A's file - a git-protocol replacement for that one call is
   a follow-up, not this phase). None of them runs on a happy-path
   scan. There is deliberately NO REST fallback for the branch/HEAD
   lookup: the git protocol is the same GitHub infra the tarball and
   the clone already depend on, so if it is unreachable the scan
-  cannot proceed anyway — it fails plainly instead of burning the
+  cannot proceed anyway - it fails plainly instead of burning the
   quota it just escaped.
 - **Tradeoff, stated plainly:** a too-large pack is now discovered
   by downloading up to 150 MB first (bounded, aborts cleanly, no
-  OOM — heap flat in the live DefinitelyTyped probe), whereas the old
+  OOM - heap flat in the live DefinitelyTyped probe), whereas the old
   REST gate skipped the attempt entirely. A giant repo's history step
   therefore costs a ~1–2 min doomed download before the API fallback
   runs; the chunked driver pays it once per scan (the cursor flips to
@@ -1726,15 +1726,15 @@ this phase adds no token, proposes none, and needs none).
   at a mock git server or a scripted failure without threading an
   option through the driver. Production code never sets it; tests
   reset it in a finally block.
-- **Proof — `npm run test:zero-rest` 26/26** (`scripts/test-zero-rest.ts`):
+- **Proof - `npm run test:zero-rest` 26/26** (`scripts/test-zero-rest.ts`):
   bounded-client unit checks (PackTooLargeError + byte count + abort
   + non-pack passthrough); fixture legs against a mock git server
   (resolveRemoteHead branch + HEAD sha, git history 0 REST); a live
   full `scanRepo("Squ1zM0", "TechDirect")` under a fetch-layer
-  counter — **0 api.github.com requests** (fetch hosts during the
+  counter - **0 api.github.com requests** (fetch hosts during the
   scan: codeload.github.com=1, api.osv.dev=5), still 83/B, 2,802
   files, 62 history commits over the git protocol, HEAD sha matching
-  resolveRemoteHead — plus a tree cross-check (test-side REST call,
+  resolveRemoteHead - plus a tree cross-check (test-side REST call,
   outside the counting window) proving the tarball-derived file list
   matches the tree count 2,802 = 2,802. Live DefinitelyTyped pack
   probe (not a suite test): clone aborts at the bound,
@@ -1744,7 +1744,7 @@ this phase adds no token, proposes none, and needs none).
   orchestrator pack-fallback checks added). `test:cursor-phase9`
   stays 192/192, with 2 assertions reworded for the new transport:
   the HEAD-timeout partial keeps 0 files scanned (the whole-buffer
-  download aborts before any entry is parsed — the old test forced
+  download aborts before any entry is parsed - the old test forced
   the streaming transport with a fake 2 GB repo size), and the 429
   checks are retargeted at the tree fallback (the repo-info call
   they stubbed no longer exists). `test:ui-phase7` 152 → 155 is
@@ -1764,7 +1764,7 @@ this phase adds no token, proposes none, and needs none).
   home 200, scan API `Squ1zM0/TechDirect` 200 in ~14 s, 83/B,
   2,802 files, 62 history commits via the git protocol. No literal
   secret-pattern values committed (grep-verified).
-- **Integration (2026-11-26):** full suite re-run green at integration — build exit 0; scanner 73/73, tier3 40/40, history 70/70, public-full 56/56, cursor-phase9 192/192, triage 63/63, usage 91/91, score 40/40, deps 22/22, fixtures 42/42, UI 155/155, report-markdown 30/30, resilience 45/45, ui-phase15c 32/32, zero-rest 26/26, MCP 62/62 (local production server), techdirect 83/B. One integration fix: the MCP canonical URL moved from www to the apex (www 307-redirects to apex, verified live) and worker C's 4 URL assertions were updated with the reason recorded.
+- **Integration (2026-11-26):** full suite re-run green at integration - build exit 0; scanner 73/73, tier3 40/40, history 70/70, public-full 56/56, cursor-phase9 192/192, triage 63/63, usage 91/91, score 40/40, deps 22/22, fixtures 42/42, UI 155/155, report-markdown 30/30, resilience 45/45, ui-phase15c 32/32, zero-rest 26/26, MCP 62/62 (local production server), techdirect 83/B. One integration fix: the MCP canonical URL moved from www to the apex (www 307-redirects to apex, verified live) and worker C's 4 URL assertions were updated with the reason recorded.
 - **Note (2026-11-26, outside this task):** Freddy himself reversed
   the Phase 6 no-token ruling at 11:17 AM MST and a fine-grained
   PAT is now set as GITHUB_TOKEN in Vercel (5,000/hr authenticated
@@ -1774,7 +1774,7 @@ this phase adds no token, proposes none, and needs none).
   is present. All proofs above ran from this VM with GITHUB_TOKEN
   unset (unauthenticated), which is the harder case.
 
-## Phase 16 status — report page loads in seconds; visible resume; honest copy (built 2026-11-26)
+## Phase 16 status - report page loads in seconds; visible resume; honest copy (built 2026-11-26)
 
 Freddy, ~12:20 PM MST: iPhone Safari, "This page couldn't load" on
 git-secure.com/vinta/awesome-python. Live device-browser evidence
@@ -1795,11 +1795,11 @@ vs the page's stated "usually takes 15–30 seconds".
   report page is a server component awaiting `runScanLoop` with
   `FAST_PATH_WAIT_MS = 50_000`; Vercel's 60 s function ceiling makes
   big-repo pages a coin flip between "loads after a minute" and
-  "stream cut, page fails" — Safari reports the cut stream as "This
+  "stream cut, page fails" - Safari reports the cut stream as "This
   page couldn't load". Home page fine (0.9 s); not an asset problem.
   (Freddy's 12:19 home-page Safari failure is a separate stale-DNS
   issue on his phone, explicitly out of scope here.)
-- **Worker A — zero server await (decision, measured):** the page
+- **Worker A - zero server await (decision, measured):** the page
   renders `<ScanProgress cursor={null}>` immediately; the browser
   drives the scan via new additive endpoints `POST /api/scan/start`
   (one fresh HEAD chunk) and `GET /api/scan/[owner]/[repo]/tip`
@@ -1820,11 +1820,11 @@ vs the page's stated "usually takes 15–30 seconds".
   `src/lib/scan-error-copy.ts` (byte-identical strings, shared by
   page + driver). New suite `test:phase16-a` 56 checks. Note: the
   old `export const instant = false` was dead (`instant` is not a
-  route segment config); `export const dynamic` was NOT added — it
+  route segment config); `export const dynamic` was NOT added - it
   is incompatible with `cacheComponents` (build error) and awaiting
   `params` already makes the page render on demand.
-- **Worker B — API ceiling audit:** confirmed a single invocation
-  could exceed ~55 s — the loop checked its deadline only *after*
+- **Worker B - API ceiling audit:** confirmed a single invocation
+  could exceed ~55 s - the loop checked its deadline only *after*
   each chunk returned, so a chunk that started at 49 s of a 50 s
   budget ran a full chunk past it. Worst chunk: git-history ~30 s
   walk budget plus unbounded clone + full `git.log` parse + corpus
@@ -1839,40 +1839,40 @@ vs the page's stated "usually takes 15–30 seconds".
   case ~53 s < 55 s headroom. Measurements: TechDirect full loop
   20.4 s (83/B); awesome-python loop partial 32.2 s with 200
   commits + cursor. New suite `test:phase16-worker-b` 25/25.
-- **Worker C — copy/state fixes:** home + loading copy scoped
+- **Worker C - copy/state fixes:** home + loading copy scoped
   ("Small repos usually take 15–30 seconds; a large repo with a
   long history takes several minutes"); new pure helper
   `historyRatePerMin` in `src/lib/progress.ts` (commits/minute from
-  measured numbers only, null under 100 commits or 20 s — no ETA
+  measured numbers only, null under 100 commits or 20 s - no ETA
   exists before the scan finishes, only the observed rate, shown as
   a live line during the history step); provisional ReportView no
   longer claims "0 vulnerabilities" before the dependency check runs
-  (stat tile "— / not checked yet", same in `report-markdown.ts`);
+  (stat tile "- / not checked yet", same in `report-markdown.ts`);
   typo fixed via shared helper `gradeWordWithArticle` in
   `src/lib/score.ts` ("an excellent" for A, used by `explainScore`
   and `ScoreDial`). New suite `test:ui-phase16c` 45/45;
   `test:ui-phase15c` 36/36.
 - **MCP regression found at integration and fixed:** lone
-  `test:mcp` cold run 51 pass / 12 fail — all 12 were `scan_repo
+  `test:mcp` cold run 51 pass / 12 fail - all 12 were `scan_repo
   GitSecure` returning a still-running cursor instead of report
-  JSON (cold self-scan ~52 s > 40 s API budget — the tool's
+  JSON (cold self-scan ~52 s > 40 s API budget - the tool's
   documented contract). Worse, resuming then returned only 18
   secrets instead of 37: the first invocation's history-chunk
   findings are lost on resume, because `runScanLoop` accumulates
   `historyFindings` in memory and GET/MCP callers never pass them
   back (only POST `/api/scan/chunk` clients, e.g. the browser via
   sessionStorage, do). Fix 1 (test): `scripts/test-mcp.ts` follows
-  the documented resume contract — when `scan_repo` answers
+  the documented resume contract - when `scan_repo` answers
   still-running it extracts the cursor and calls `resume_scan` (up
-  to 6 attempts) until the full report arrives — 51 → 58 passes.
+  to 6 attempts) until the full report arrives - 51 → 58 passes.
   Fix 2 (code, `src/lib/chunks.ts`): the assemble stage is exempt
   from the loop's start floor. Assemble is bounded and cheap
   (deadline-capped OSV + scoring, ~seconds), and stopping before it
   strands the scan across invocations where GET/MCP callers lose
   findings. Worst case with the exemption ~57 s bound. Proved by a
   new test (section 7 in `scripts/test-phase16-worker-b.ts`: mock
-  API list/detail each sleep 11 s — split because each API fetch
-  aborts at the 12 s `API_FETCH_TIMEOUT_MS` — so history ends after
+  API list/detail each sleep 11 s - split because each API fetch
+  aborts at the 12 s `API_FETCH_TIMEOUT_MS` - so history ends after
   the 21 s floor; the loop still finishes in one call, 22,194 ms).
   Cold-server end-to-end after the fix: `test:mcp` 62/62, exit 0;
   local API TechDirect 83/B (200, 3.7 s, 2,802 files, 62 commits);
@@ -1882,25 +1882,25 @@ vs the page's stated "usually takes 15–30 seconds".
   invocations via GET/MCP, earlier chunks' history findings are
   still lost on resume. The assemble exemption fixes the mid-size
   case (history fits one chunk); awesome-python-scale MCP scans
-  need the deeper cache/incremental-write fix — a Phase 17-sized
+  need the deeper cache/incremental-write fix - a Phase 17-sized
   redesign, proposed not started.
 - **Verification (headless, local prod server):** Worker D offline
   suites 1,101 PASS, 0 FAIL; zero-rest 26/26; techdirect exit 0.
   Final headless run (`test-results/phase16/headless-final.json` +
-  screenshots; the v1 run is discarded — its "finished" signal
+  screenshots; the v1 run is discarded - its "finished" signal
   matched the provisional report because ReportView renders
   ScoreDial for provisional too; v2 uses "Scan complete.", which
   only the finished report prints): shell responseStart 81 ms;
   reload at 21.6 s after 200 history commits → resume line
-  "Resumed — picked up where it left off (200 history commits
+  "Resumed - picked up where it left off (200 history commits
   checked, 0 secrets found so far)", no bare spinner; finished
   report at 264.8 s wall (4m25s vs 16 minutes on the device browser
   pre-fix): 91/A, 0 secrets, 0 vulns, 3 posture, 126 files, 3,350
-  history commits, master 4c3cb15 — identical to the device-browser
+  history commits, master 4c3cb15 - identical to the device-browser
   result; "an excellent score" renders correctly; 360 px
   scrollWidth 360, no overflow; Roll all into report present.
   (The JSON's `historyCommits: null` is a regex miss in the
-  verification script — the finished text reads "History checked:
+  verification script - the finished text reads "History checked:
   3350 commits"; the count is confirmed from the screenshot.)
 - **Live verification (2026-11-26, ~21:15–21:22 MST, push
   ee86cad3):** awesome-python shell 200, TTFB 0.53 s, total 1.03 s,
@@ -1911,95 +1911,106 @@ vs the page's stated "usually takes 15–30 seconds".
   report via the public chunk API (16 calls to 3,200 commits + 2
   resume calls): 91/A, 0 secrets, 0 vulns, 1 framework, 1 dependency,
   3 posture, 126 files, 3,350 history commits, scoreDetail
-  `{postureDeduction 9, everything else 0, wouldBeScore 91}` —
+  `{postureDeduction 9, everything else 0, wouldBeScore 91}` -
   identical to Freddy's device-browser result; MCP initialize 200 in
   0.64 s on https://git-secure.com/mcp. Roll all into report is
   present in the rendered finished report on this build (local
-  headless, screenshots) — the served shell HTML correctly does not
+  headless, screenshots) - the served shell HTML correctly does not
   contain it, since the report renders client-side.
 
-## Phase 17 status — best security as possible: close the history-findings hole + coverage audit (built 2026-11-26)
+## Phase 17 status - best security as possible: close the history-findings hole + coverage audit (built 2026-11-26)
 
 Freddy: "It works and it works well! That's what's next for development please continue for the best security as possible." Two parts, plus a second defect the proof harness found live.
 
-### Part 1 — the accumulation hole (highest priority)
+### Part 1 - the accumulation hole (highest priority)
 
-The pre-existing Phase 9 limitation, named honestly in Phase 16 and never fixed until now: for huge repos whose history spans multiple serverless invocations, earlier chunks' history findings were LOST on resume for GET / MCP callers — only POST /api/scan/chunk callers carry accumulation. A security scanner that silently drops findings is the worst kind of bug for this tool. Proven with real numbers before any fix:
-- Loss repro (6-commit fixture repo, fake secrets in chunks 1, 3, 5): POST-chunk path 3/3 secrets, 23/F; GET/MCP path 1/3 secrets, 73/C — and both reports still claimed "History checked: 6 commits", so the score was silently inflated (test-results/phase17/loss-repro/).
-- Live-scale harness (test-results/phase17/resume-proof/, re-runnable, exit 1 while sets differ): docker/awesome-compose chunk path 24 secrets (14 HEAD + 10 history) vs GET path 14 (14 HEAD + 0 history) — all 10 history findings lost. vinta/awesome-python cannot demonstrate the hole (0 secrets on both paths, 91/A) and stays as the control run.
-- Design (test-results/phase17/accumulation-design.md, 831 lines): durable per-scan accumulation in Upstash Redis direct via REST (raw fetch, no SDK). Key `gs:scan:v1:{owner}:{repo}:{headSha}`, value `{v:1, headSha, histScanned, historyFindings[]}` — redacted fragments only, never full secrets. SET with EX 604800 (7-day TTL, backstop only); DELETE at assemble (primary cleanup — a finished scan leaves nothing); one write per invocation boundary, not per chunk (~2–4 ops/scan, $0 at 10/100/1,000 scans/day; worst overage $0.14/mo). Why Upstash: Vercel KV no longer exists as a product (deprecated); Vercel Blob fails $0 above trivial volume (2,000 advanced ops/mo cap, over-cap on Hobby = Blob blocked 30 days); Cloudflare KV's eventual consistency (up to 60 s+) could re-create the loss; Supabase is second choice (couples GitSecure to VPT's service_role key or burns Freddy's last free project slot, free projects auto-pause after a week idle). Cost proof is scenario arithmetic (no analytics); the design plans against the tighter of Upstash's conflicting published limits (10K cmds/day vs 500K/mo).
+The pre-existing Phase 9 limitation, named honestly in Phase 16 and never fixed until now: for huge repos whose history spans multiple serverless invocations, earlier chunks' history findings were LOST on resume for GET / MCP callers - only POST /api/scan/chunk callers carry accumulation. A security scanner that silently drops findings is the worst kind of bug for this tool. Proven with real numbers before any fix:
+- Loss repro (6-commit fixture repo, fake secrets in chunks 1, 3, 5): POST-chunk path 3/3 secrets, 23/F; GET/MCP path 1/3 secrets, 73/C - and both reports still claimed "History checked: 6 commits", so the score was silently inflated (test-results/phase17/loss-repro/).
+- Live-scale harness (test-results/phase17/resume-proof/, re-runnable, exit 1 while sets differ): docker/awesome-compose chunk path 24 secrets (14 HEAD + 10 history) vs GET path 14 (14 HEAD + 0 history) - all 10 history findings lost. vinta/awesome-python cannot demonstrate the hole (0 secrets on both paths, 91/A) and stays as the control run.
+- Design (test-results/phase17/accumulation-design.md, 831 lines): durable per-scan accumulation in Upstash Redis direct via REST (raw fetch, no SDK). Key `gs:scan:v1:{owner}:{repo}:{headSha}`, value `{v:1, headSha, histScanned, historyFindings[]}` - redacted fragments only, never full secrets. SET with EX 604800 (7-day TTL, backstop only); DELETE at assemble (primary cleanup - a finished scan leaves nothing); one write per invocation boundary, not per chunk (~2–4 ops/scan, $0 at 10/100/1,000 scans/day; worst overage $0.14/mo). Why Upstash: Vercel KV no longer exists as a product (deprecated); Vercel Blob fails $0 above trivial volume (2,000 advanced ops/mo cap, over-cap on Hobby = Blob blocked 30 days); Cloudflare KV's eventual consistency (up to 60 s+) could re-create the loss; Supabase is second choice (couples GitSecure to VPT's service_role key or burns Freddy's last free project slot, free projects auto-pause after a week idle). Cost proof is scenario arithmetic (no analytics); the design plans against the tighter of Upstash's conflicting published limits (10K cmds/day vs 500K/mo).
 - Implementation (src/lib/scan-state.ts, wired into runScanLoop only): `ScanStateStore` interface + `NoopStore` (default) + `UpstashRestStore` + test-only `MemoryScanStateStore`. Activates ONLY when `UPSTASH_REDIS_REST_URL`/`UPSTASH_REDIS_REST_TOKEN` (or the `KV_REST_API_*` pair) exist; a half-pair is NoopStore. Store failures never fail a scan. Monotonic guard on saves; corrupt/oversized/wrong-version values read as "no state".
-- **HARD STOP, still in force: nothing is provisioned.** No store, account, or credential was created. Provisioning is Freddy's dashboard clicks (Vercel Dashboard → GitSecure → Storage → Browse Marketplace → Upstash Redis → Create → Free, region us-east-1 single-region, env vars auto-injected → redeploy; console fallback in design §4.2). Until then the code is inert (NoopStore) and the live multi-invocation proof run cannot happen — that verification is still owed after provisioning.
-- Honest degradation (shipped now, works with no store): when a scan resumes with `histScanned > 0` but recovery fails, the report carries the line "History findings from earlier parts of this scan could not be recovered, so this report may be missing secrets from the first {N} commits checked — the history count above is how far the scan walked, not how many findings survived." Single-invocation scans never get the line. The hole is now a stated limitation, never a silent misreport. With store: loss-repro 3/3, 23/F, no line, store empty after assemble. Without store: 1/3, 73/C, with the line.
-- Caller-carried fallback (additive, backward compatible, not the fix): optional `historyFindings` on MCP `resume_scan` (echoed in the still-running text for the model to pass back verbatim) and on GET as `?historyFindings=` base64url JSON (8 KB decoded cap — a DefinitelyTyped-scale set can never ride in a URL; a bare `curl …?cursor=` resume still carries nothing).
-- Copy discipline: the public "never stored" promise (mcp.ts, README, page.tsx, layout.tsx) was NOT changed — the store is not provisioned, so claiming transient storage would be false. The locations that must change at provisioning time are listed in test-results/phase17/copy-after-provisioning.md. The cursor still never carries findings or secret fragments (Phase 9 rule stands).
-- Copy updated on provisioning (2026-11-27, Freddy's word: "make a change on main, it will auto deploy"): the store is live (Upstash Redis gitsecure-scan-state, Free, us-east-1, provisioned via the Vercel Marketplace in the cloud browser), so the unqualified "never stored" promise became false and was replaced everywhere per copy-after-provisioning.md — mcp.ts LIST_CHECKS_TEXT + get_report, README secrets line / Scan cursors / design bullets / MCP section / Phase 17 summary, page.tsx + layout.tsx footers, scan.ts buildLimits AND the same limits line duplicated in provisional.ts (missed by the copy doc, caught by grep), types.ts header, chunks/cursor/resume comments. New wording everywhere: fragments only, never stored after the scan finishes, deleted at finish or after 7 days; finished reports are never stored. The "never stored" wording in the Phase 9/16 history sections stays as a record of what was true then. This copy change is the commit that auto-deployed the KV env vars into production — no manual redeploy needed.
-- Live multi-invocation proof (design §4.6 step 9, 2026-11-27, push 57323998): harness `run-resume-proof.mjs` against https://git-secure.com on docker/awesome-compose — GET path spanned TWO invocations (call 1: HTTP 202 after 40.3 s, 261/274 commits; call 2 resumed with `?cursor=` and finished 200 after 24.5 s). Finished GET report lists all 30 secrets / 16 history secrets, identical to the chunk path (0 lost, 0 gained, depth 274 = 274). Pre-fix this same repo's GET lost all 10 history findings; the store recovery is what carries the early-chunk findings across the boundary — the cursor carries no findings and the GET caller passes none. Evidence: test-results/phase17/resume-proof/awesome-compose-live3/ (summary.json, diff.json, call logs). Phase 16 regression checks re-run on the same deploy: TechDirect 83/B, self-scan 100/A (commit 57323998, 37 secrets), awesome-python 91/A (0 secrets, 0 vulns, 3 posture, commit 4c3cb15, 19 chunk calls, 342 s wall) — nothing regressed. Part 1 is now fully closed: design, build, provisioning, copy, live proof.
-- Independent check of the 100/A (2026-11-27, Freddy's question: "how can a self scan be 100 unless we are being biased"): gitleaks 8.30.1, default config, fresh clone at 57323998 — full history scan AND working-tree scan. Gitleaks found exactly 1 finding, a false positive: its generic rule fired on the English sentence "Phase 13 repro: secrets deduction still 8" in a test assertion (no credential on the line; GitSecure correctly does not flag it). Gitleaks found nothing GitSecure missed — no finding in production code, no real credential anywhere. GitSecure is more sensitive here, not less: it flags 36 things gitleaks does not (22 hardcoded-password assignments + 14 database URLs in test fixtures). Record: test-results/independent-check/gitleaks-2026-11-27.md. The 100 survives an outside opinion on the secrets half; the standing caveats remain (triage verdicts, wouldBeScore 0 shown alongside, score covers repo files only).
+- **HARD STOP, still in force: nothing is provisioned.** No store, account, or credential was created. Provisioning is Freddy's dashboard clicks (Vercel Dashboard → GitSecure → Storage → Browse Marketplace → Upstash Redis → Create → Free, region us-east-1 single-region, env vars auto-injected → redeploy; console fallback in design §4.2). Until then the code is inert (NoopStore) and the live multi-invocation proof run cannot happen - that verification is still owed after provisioning.
+- Honest degradation (shipped now, works with no store): when a scan resumes with `histScanned > 0` but recovery fails, the report carries the line "History findings from earlier parts of this scan could not be recovered, so this report may be missing secrets from the first {N} commits checked - the history count above is how far the scan walked, not how many findings survived." Single-invocation scans never get the line. The hole is now a stated limitation, never a silent misreport. With store: loss-repro 3/3, 23/F, no line, store empty after assemble. Without store: 1/3, 73/C, with the line.
+- Caller-carried fallback (additive, backward compatible, not the fix): optional `historyFindings` on MCP `resume_scan` (echoed in the still-running text for the model to pass back verbatim) and on GET as `?historyFindings=` base64url JSON (8 KB decoded cap - a DefinitelyTyped-scale set can never ride in a URL; a bare `curl …?cursor=` resume still carries nothing).
+- Copy discipline: the public "never stored" promise (mcp.ts, README, page.tsx, layout.tsx) was NOT changed - the store is not provisioned, so claiming transient storage would be false. The locations that must change at provisioning time are listed in test-results/phase17/copy-after-provisioning.md. The cursor still never carries findings or secret fragments (Phase 9 rule stands).
+- Copy updated on provisioning (2026-11-27, Freddy's word: "make a change on main, it will auto deploy"): the store is live (Upstash Redis gitsecure-scan-state, Free, us-east-1, provisioned via the Vercel Marketplace in the cloud browser), so the unqualified "never stored" promise became false and was replaced everywhere per copy-after-provisioning.md - mcp.ts LIST_CHECKS_TEXT + get_report, README secrets line / Scan cursors / design bullets / MCP section / Phase 17 summary, page.tsx + layout.tsx footers, scan.ts buildLimits AND the same limits line duplicated in provisional.ts (missed by the copy doc, caught by grep), types.ts header, chunks/cursor/resume comments. New wording everywhere: fragments only, never stored after the scan finishes, deleted at finish or after 7 days; finished reports are never stored. The "never stored" wording in the Phase 9/16 history sections stays as a record of what was true then. This copy change is the commit that auto-deployed the KV env vars into production - no manual redeploy needed.
+- Live multi-invocation proof (design §4.6 step 9, 2026-11-27, push 57323998): harness `run-resume-proof.mjs` against https://git-secure.com on docker/awesome-compose - GET path spanned TWO invocations (call 1: HTTP 202 after 40.3 s, 261/274 commits; call 2 resumed with `?cursor=` and finished 200 after 24.5 s). Finished GET report lists all 30 secrets / 16 history secrets, identical to the chunk path (0 lost, 0 gained, depth 274 = 274). Pre-fix this same repo's GET lost all 10 history findings; the store recovery is what carries the early-chunk findings across the boundary - the cursor carries no findings and the GET caller passes none. Evidence: test-results/phase17/resume-proof/awesome-compose-live3/ (summary.json, diff.json, call logs). Phase 16 regression checks re-run on the same deploy: TechDirect 83/B, self-scan 100/A (commit 57323998, 37 secrets), awesome-python 91/A (0 secrets, 0 vulns, 3 posture, commit 4c3cb15, 19 chunk calls, 342 s wall) - nothing regressed. Part 1 is now fully closed: design, build, provisioning, copy, live proof.
+- Independent check of the 100/A (2026-11-27, Freddy's question: "how can a self scan be 100 unless we are being biased"): gitleaks 8.30.1, default config, fresh clone at 57323998 - full history scan AND working-tree scan. Gitleaks found exactly 1 finding, a false positive: its generic rule fired on the English sentence "Phase 13 repro: secrets deduction still 8" in a test assertion (no credential on the line; GitSecure correctly does not flag it). Gitleaks found nothing GitSecure missed - no finding in production code, no real credential anywhere. GitSecure is more sensitive here, not less: it flags 36 things gitleaks does not (22 hardcoded-password assignments + 14 database URLs in test fixtures). Record: test-results/independent-check/gitleaks-2026-11-27.md. The 100 survives an outside opinion on the secrets half; the standing caveats remain (triage verdicts, wouldBeScore 0 shown alongside, score covers repo files only).
 - Tests: test:phase17-worker-c 81/81 (activation, validation, MemoryStore incl. TTL + monotonic guard, UpstashRestStore vs fake Upstash server over real fetch incl. non-2xx/hang/corrupt/oversized, loop round-trip, NoopStore, FailingStore, fallback, MCP + GET parser, redaction).
 
 ### Second defect found by the harness: history-cache poisoning
 
-A chunked scan's final history chunk walks only the tail commits yet cached them as the repo's "complete" history: in src/lib/history.ts, `complete = !truncated && !chunkStopped` ignored the resume skip. Observed live locally: after a chunked awesome-python scan (3,350 commits), a GET scan on the same server answered in 1.7 s claiming 150 history commits. Fix (one file, src/lib/history.ts): a resumed/partial walk writes nothing to the cache (`cacheable = complete && !opts.resumeAfterSha`); only a walk that started from the beginning and completed may write a complete entry. The `complete` result flag is untouched — chunks.ts uses it to set `histDone` and move the cursor to assemble, so changing it would loop forever on empty chunks. Regression test (test-history.ts, "Phase 17 (Worker E)"): 5-commit fixture, chunk 1 newest 3 (complete: false), chunk 2 resumed remaining 2 (complete: true), fresh scan must report full depth 5 — before the fix it reported 2 scanned, 0 fetched, 2 cached (poisoned tail cache hit); after the fix 5 scanned, 5 fetched, 0 cached. test:history now 79/79.
+A chunked scan's final history chunk walks only the tail commits yet cached them as the repo's "complete" history: in src/lib/history.ts, `complete = !truncated && !chunkStopped` ignored the resume skip. Observed live locally: after a chunked awesome-python scan (3,350 commits), a GET scan on the same server answered in 1.7 s claiming 150 history commits. Fix (one file, src/lib/history.ts): a resumed/partial walk writes nothing to the cache (`cacheable = complete && !opts.resumeAfterSha`); only a walk that started from the beginning and completed may write a complete entry. The `complete` result flag is untouched - chunks.ts uses it to set `histDone` and move the cursor to assemble, so changing it would loop forever on empty chunks. Regression test (test-history.ts, "Phase 17 (Worker E)"): 5-commit fixture, chunk 1 newest 3 (complete: false), chunk 2 resumed remaining 2 (complete: true), fresh scan must report full depth 5 - before the fix it reported 2 scanned, 0 fetched, 2 cached (poisoned tail cache hit); after the fix 5 scanned, 5 fetched, 0 cached. test:history now 79/79.
 
 ### Walk-budget fix (found during live verification, pre-existing)
 
-The live resume proof run failed on both paths with HTTP 504 FUNCTION_INVOCATION_TIMEOUT: a single history chunk for docker/awesome-compose took 174 s locally (60.5 s live = killed). Profiled: the hotspot is jsdiff `diffLines` inside `addedLines` on `package-lock.json` files in history — one lockfile diff with only 75 added lines took 43.8 s; two lockfiles in one commit took 51.5 s + 46.4 s; a 274-commit probe cost ~380 s, nearly all of it in ~10 lockfile diffs, all finding 0 secrets. Clone is 4 s, `git log` 13 s — both fine. The walk's budget checks only fired every 16 commits (40 s check every 64), so one commit with two 50 s diffs blew past every deadline and the Vercel 60 s ceiling. This is pre-existing (the walk/diff code is old; Phase 17 only added detectors) — exposed because Phase 17's verification is the first to run awesome-compose live. Fix (src/lib/history.ts only): `addedLines` is now a dispatcher — ≤1,000 lines on either side keeps jsdiff verbatim; above that a hash-based multiset-difference added-line computation, O(n) (threshold measured: jsdiff ≤25 ms @500 lines, ≤95 ms @1,000, ~1.9 s @5,000 and tens of seconds on real 10k-line lockfiles; fast path ~1 ms/1,000 lines at every size). Honest divergences documented in code: duplicate-line text can get a different line number than jsdiff's minimal-edit attribution (added-text multiset identical); a line moved within a file at equal count is invisible to the multiset — it cannot hide a secret from the full walk, since the line's first introduction always raises its count and is reported there. Plus file-granularity walk budget: the deadline is checked before each file's diff+scan, tripping mid-commit discards that commit whole (same rollback as the memory guard) and sets `chunkStopped`, so the cursor resumes from the last fully scanned commit with findings kept. New suite test:phase17-worker-f 48/48 (13/13 equivalence vs a jsdiff oracle; big-lockfile diff 12 ms vs 43.8 s, findings identical; chunk-budget test; resume findings exactly equal one unbounded run). Live-local: chunk 1 before → after 174 s → ~22 s (200 commits, 11 findings); harness chunk path 4 calls, ~56–59 s wall, 30 secrets (14 HEAD + 16 history), depth 274. Correction: the old "24 secrets" baseline was itself truncated (old report's limits line: history stopped early after 64 commits) — all 10 old findings are present in the new run plus 6 deeper ones (log depths 179–269); the true complete count is 30.
+The live resume proof run failed on both paths with HTTP 504 FUNCTION_INVOCATION_TIMEOUT: a single history chunk for docker/awesome-compose took 174 s locally (60.5 s live = killed). Profiled: the hotspot is jsdiff `diffLines` inside `addedLines` on `package-lock.json` files in history - one lockfile diff with only 75 added lines took 43.8 s; two lockfiles in one commit took 51.5 s + 46.4 s; a 274-commit probe cost ~380 s, nearly all of it in ~10 lockfile diffs, all finding 0 secrets. Clone is 4 s, `git log` 13 s - both fine. The walk's budget checks only fired every 16 commits (40 s check every 64), so one commit with two 50 s diffs blew past every deadline and the Vercel 60 s ceiling. This is pre-existing (the walk/diff code is old; Phase 17 only added detectors) - exposed because Phase 17's verification is the first to run awesome-compose live. Fix (src/lib/history.ts only): `addedLines` is now a dispatcher - ≤1,000 lines on either side keeps jsdiff verbatim; above that a hash-based multiset-difference added-line computation, O(n) (threshold measured: jsdiff ≤25 ms @500 lines, ≤95 ms @1,000, ~1.9 s @5,000 and tens of seconds on real 10k-line lockfiles; fast path ~1 ms/1,000 lines at every size). Honest divergences documented in code: duplicate-line text can get a different line number than jsdiff's minimal-edit attribution (added-text multiset identical); a line moved within a file at equal count is invisible to the multiset - it cannot hide a secret from the full walk, since the line's first introduction always raises its count and is reported there. Plus file-granularity walk budget: the deadline is checked before each file's diff+scan, tripping mid-commit discards that commit whole (same rollback as the memory guard) and sets `chunkStopped`, so the cursor resumes from the last fully scanned commit with findings kept. New suite test:phase17-worker-f 48/48 (13/13 equivalence vs a jsdiff oracle; big-lockfile diff 12 ms vs 43.8 s, findings identical; chunk-budget test; resume findings exactly equal one unbounded run). Live-local: chunk 1 before → after 174 s → ~22 s (200 commits, 11 findings); harness chunk path 4 calls, ~56–59 s wall, 30 secrets (14 HEAD + 16 history), depth 274. Correction: the old "24 secrets" baseline was itself truncated (old report's limits line: history stopped early after 64 commits) - all 10 old findings are present in the new run plus 6 deeper ones (log depths 179–269); the true complete count is 30.
 
-### Part 2 — detection coverage audit
+### Part 2 - detection coverage audit
 
-- Secrets (src/lib/secrets.ts, 9 new detectors + 1 extension, each with detection + false-positive tests, all triage/usage flow-through verified): Anthropic `sk-ant-` keys; Google `AIza` keys; npm `npm_` tokens; PyPI `pypi-` tokens; SendGrid `SG.` keys; Telegram bot tokens; Hugging Face `hf_` tokens; GitLab `glpat-` tokens; name-anchored AWS secret access keys (the secret half of the pair — previously missed entirely); Slack `xoxe-` enterprise tokens (were silently missed by `xox[baprs]-`).
-- Ecosystems (src/lib/frameworks.ts, src/lib/scan.ts, src/lib/osv.ts, src/lib/types.ts): pyproject.toml parser — the biggest OSV gap found, modern Python repos declare deps only here and previously had zero flaw coverage (exact `==` pins become versions; ranges yield null, never presented as a version; the `[project]` name/version strings are not dependencies); poetry.lock parser; Dart/Flutter pubspec.yaml + pubspec.lock parsers (new `pub` ecosystem → OSV "Pub"; `flutter:` SDK entries skipped; Flutter fingerprinted with version null); Cargo dev/build/workspace/target dependency sections; framework map + Fastify, Koa, Hono, SvelteKit.
-- Posture (src/lib/infra.ts, src/lib/scan.ts): workflow piping a download into a shell (`curl|wget … | sh|bash`, high); Dockerfile `ENV` secrets (high — worse than `ARG`, lands in image config); K8s `hostIPC: true` and `allowPrivilegeEscalation: true` (high); Docker Compose `privileged: true` / `network_mode: host` (high — compose files previously had zero posture checks).
-- Deliberately NOT added: Twilio SIDs (identifier, not a credential); Cloudflare 40-hex / Heroku UUID / bare 40-char base64 (indistinguishable from SHAs/UUIDs without a name anchor); Elixir Hex (needs a real Erlang-term parser); Swift/SPM (OSV has no Swift ecosystem to query — coordinator ruling: leave it out entirely rather than list dependencies that can't be checked); absence-style checks (missing `readOnlyRootFilesystem`, etc. — absence ≠ misconfiguration); `requirements.txt` `>=` lower-bound presentation (pre-existing inaccuracy, left untouched rather than risking Phase 13 fixture assertions).
+- Secrets (src/lib/secrets.ts, 9 new detectors + 1 extension, each with detection + false-positive tests, all triage/usage flow-through verified): Anthropic `sk-ant-` keys; Google `AIza` keys; npm `npm_` tokens; PyPI `pypi-` tokens; SendGrid `SG.` keys; Telegram bot tokens; Hugging Face `hf_` tokens; GitLab `glpat-` tokens; name-anchored AWS secret access keys (the secret half of the pair - previously missed entirely); Slack `xoxe-` enterprise tokens (were silently missed by `xox[baprs]-`).
+- Ecosystems (src/lib/frameworks.ts, src/lib/scan.ts, src/lib/osv.ts, src/lib/types.ts): pyproject.toml parser - the biggest OSV gap found, modern Python repos declare deps only here and previously had zero flaw coverage (exact `==` pins become versions; ranges yield null, never presented as a version; the `[project]` name/version strings are not dependencies); poetry.lock parser; Dart/Flutter pubspec.yaml + pubspec.lock parsers (new `pub` ecosystem → OSV "Pub"; `flutter:` SDK entries skipped; Flutter fingerprinted with version null); Cargo dev/build/workspace/target dependency sections; framework map + Fastify, Koa, Hono, SvelteKit.
+- Posture (src/lib/infra.ts, src/lib/scan.ts): workflow piping a download into a shell (`curl|wget … | sh|bash`, high); Dockerfile `ENV` secrets (high - worse than `ARG`, lands in image config); K8s `hostIPC: true` and `allowPrivilegeEscalation: true` (high); Docker Compose `privileged: true` / `network_mode: host` (high - compose files previously had zero posture checks).
+- Deliberately NOT added: Twilio SIDs (identifier, not a credential); Cloudflare 40-hex / Heroku UUID / bare 40-char base64 (indistinguishable from SHAs/UUIDs without a name anchor); Elixir Hex (needs a real Erlang-term parser); Swift/SPM (OSV has no Swift ecosystem to query - coordinator ruling: leave it out entirely rather than list dependencies that can't be checked); absence-style checks (missing `readOnlyRootFilesystem`, etc. - absence ≠ misconfiguration); `requirements.txt` `>=` lower-bound presentation (pre-existing inaccuracy, left untouched rather than risking Phase 13 fixture assertions).
 - No scoring-weight, cap, or redaction changes. No exclusions, no severity changes, no special-casing. New suite test:phase17-worker-b 70/70; secret-pattern grep clean (fixtures assembled in memory from prefix + repeated character).
 
-### Integration verification (round 2 — push 73beb18c, 2026-11-27)
+### Integration verification (round 2 - push 73beb18c, 2026-11-27)
 
 - Build + full offline suite: 21 suites + `tsc --noEmit`, **1,345 PASS, 0 FAIL**, all exit 0 (log `test-results/phase17/integration-suite2.log`); `npm run build` exit 0; secret-pattern grep clean (0 findings over all changed files). New suites: `test:phase17-worker-b` 70/70, `test:phase17-worker-c` 81/81, `test:phase17-worker-f` 48/48.
-- `test:mcp` (local production server): exit 0, 62 checks passed on the final run. Honest flake note: two earlier runs in the same session failed the GitSecure resume checks — once on a tarball-download timeout, once on a GitHub timeout — and two runs passed the report but showed usage on only 18/37 secrets. No code changed between those runs. Direct measurement from this VM at the time: `git clone --depth 1` of GitSecure took 109.8 s (3 s CPU — network wait) and the tarball 16.3 s; REST quota was fine (48/60). The resume path re-downloads HEAD and re-clones inside a 40 s budget, so a slow GitHub makes it marginal here; with a warm cache / recovered network the same build passes everything including the usage check. This is a local-test-environment timing weakness, not a code regression — no Phase 17 worker touched the clone, tarball, or network paths.
+- `test:mcp` (local production server): exit 0, 62 checks passed on the final run. Honest flake note: two earlier runs in the same session failed the GitSecure resume checks - once on a tarball-download timeout, once on a GitHub timeout - and two runs passed the report but showed usage on only 18/37 secrets. No code changed between those runs. Direct measurement from this VM at the time: `git clone --depth 1` of GitSecure took 109.8 s (3 s CPU - network wait) and the tarball 16.3 s; REST quota was fine (48/60). The resume path re-downloads HEAD and re-clones inside a 40 s budget, so a slow GitHub makes it marginal here; with a warm cache / recovered network the same build passes everything including the usage check. This is a local-test-environment timing weakness, not a code regression - no Phase 17 worker touched the clone, tarball, or network paths.
 - Push: the first attempt was interrupted by a runtime restart (no output recorded); remote head was verified still 2d81d53e, so the retry could not duplicate anything. Retry landed **73beb18c** (411 files), verified by read-back: head SHA + tree 411 blobs, LICENSE present, all key files present.
 - Live verification (2026-11-27, after deploy settled): home 200 (0.87 s); awesome-python shell 200, TTFB 0.66 s, total 1.07 s (Phase 16 bar ~1 s holds); TechDirect API 200 in 9.1 s, 83/B, 2,802 files, 62 history, 0 secrets, 4 vulns; self-scan API 200 in 15.9 s, 100/A, commit 73beb18c, 37 secrets all test keys, 0 vulns, 0 posture, 39 history; awesome-python finished live via the chunk API at 91/A, 0 secrets, 0 vulns, 3 posture, 126 files, 3,350 history commits, 19 calls, 352 s wall; MCP initialize 200 in 1.17 s on https://git-secure.com/mcp.
-- Live harness re-run, docker/awesome-compose (`test-results/phase17/resume-proof/awesome-compose-live2/`): chunk path 4 calls, 53.4 s wall, **30 secrets (14 HEAD + 16 history), depth 274** — first history chunk 18.7 s (was a 504 before the walk fix). GET path 1 call, 41.6 s, **30 secrets, depth 274**. Diff: **MATCH, exit 0** — 0 lost, 0 gained, by identity and commit-qualified. Cache-poisoning live check passes inside the same run: the fresh GET after the chunked scan reported the full depth 274, not a poisoned tail.
-- Honest mechanism note — read this before claiming the hole is closed: the live GET scan completed in a SINGLE invocation (41.6 s), so no resume occurred and the store was not exercised. The MATCH proves the walk-budget fix (a 274-commit lockfile-heavy history now fits inside one serverless invocation), not the accumulation store. The store is still unprovisioned (NoopStore in production), and a repo whose history genuinely spans invocations would still lose findings on GET/MCP resume until it is.
-- Still owed after Freddy provisions Upstash: the live multi-invocation GET/MCP resume proof (design §4.6 step 9 — DefinitelyTyped-scale scan returning the identical finding set via GET/MCP as via POST-chunk accumulation), plus the copy updates in test-results/phase17/copy-after-provisioning.md.
+- Live harness re-run, docker/awesome-compose (`test-results/phase17/resume-proof/awesome-compose-live2/`): chunk path 4 calls, 53.4 s wall, **30 secrets (14 HEAD + 16 history), depth 274** - first history chunk 18.7 s (was a 504 before the walk fix). GET path 1 call, 41.6 s, **30 secrets, depth 274**. Diff: **MATCH, exit 0** - 0 lost, 0 gained, by identity and commit-qualified. Cache-poisoning live check passes inside the same run: the fresh GET after the chunked scan reported the full depth 274, not a poisoned tail.
+- Honest mechanism note - read this before claiming the hole is closed: the live GET scan completed in a SINGLE invocation (41.6 s), so no resume occurred and the store was not exercised. The MATCH proves the walk-budget fix (a 274-commit lockfile-heavy history now fits inside one serverless invocation), not the accumulation store. The store is still unprovisioned (NoopStore in production), and a repo whose history genuinely spans invocations would still lose findings on GET/MCP resume until it is.
+- Still owed after Freddy provisions Upstash: the live multi-invocation GET/MCP resume proof (design §4.6 step 9 - DefinitelyTyped-scale scan returning the identical finding set via GET/MCP as via POST-chunk accumulation), plus the copy updates in test-results/phase17/copy-after-provisioning.md.
 
-## Presence SEO apply — on-site package staged 2026-11-26, applied 2026-11-27 (Phase 17 head)
+## Presence SEO apply - on-site package staged 2026-11-26, applied 2026-11-27 (Phase 17 head)
 
 The presence audit found the site in 0 of 27 search results with no OG tags, no JSON-LD, no canonical, and robots.txt/sitemap.xml/llms.txt all 404. The staged package in gitsecure-presence/seo/ (APPLY-MANIFEST.md) is now applied on top of Phase 17's head:
-- Static files copied to public/: robots.txt, sitemap.xml (7 URLs — home, /mcp, 5 verified example reports; lastmod 2026-11-27 for home + reports, /mcp keeps 2026-11-26), llms.txt. Sitemap header comment updated from "STAGED, NOT APPLIED" to applied date.
-- Root layout (src/app/layout.tsx): metadataBase https://git-secure.com, canonical "/", openGraph + twitter (card "summary", no og:image — public/og.png does not exist yet, per manifest item 0), both JSON-LD blocks inlined verbatim from the staged files (SoftwareApplication + WebSite), rendered in the body.
+- Static files copied to public/: robots.txt, sitemap.xml (7 URLs - home, /mcp, 5 verified example reports; lastmod 2026-11-27 for home + reports, /mcp keeps 2026-11-26), llms.txt. Sitemap header comment updated from "STAGED, NOT APPLIED" to applied date.
+- Root layout (src/app/layout.tsx): metadataBase https://git-secure.com, canonical "/", openGraph + twitter (card "summary", no og:image - public/og.png does not exist yet, per manifest item 0), both JSON-LD blocks inlined verbatim from the staged files (SoftwareApplication + WebSite), rendered in the body.
 - Per-report metadata (src/app/[owner]/[repo]/page.tsx): generateMetadata with the page's own validateOwnerRepo; per-repo title + canonical; no score/grade (computed live after render).
-- Copy fix in the same change (audit item 6): home MCP copy said "three tools" — now "four tools" with resume_scan listed (live tools/list returns four).
-- Verified locally first against a fresh production server (build exit 0; robots 200 + Sitemap pointer, sitemap 200 + 7 urls, llms 200, home canonical + OG + Twitter + 2 JSON-LD parsing OK, no og:image, report title + canonical per-repo, home/report 200, "four tools" present). Lesson from this apply: killing `npm start`'s wrapper PID leaves the child next-server on :3000 — the first local check ran against that stale server (EADDRINUSE) and gave mixed results; kill the next-server itself (fuser -k 3000/tcp) and never rebuild under a running server.
-- Still open, not part of this apply: public/og.png (1200×630, needed for summary_large_image + link previews); GitHub repo polish (description/homepage/topics — needs a suitably scoped token or doing by hand; the Contents-only push token 403s on it); Search Console submission + re-running the audit searches after a few days.
-- Update 2026-11-27 (Freddy: "Do it please"): og.png SHIPPED — generated 1200×630 (dark navy, "GitSecure — is this repo safe?" + mirror strip), layout.tsx `twitter:card` now `summary_large_image` with `og:image` + `twitter:image` pointing at `/og.png`, build exit 0, UI suite pass. Search Console: property `https://git-secure.com/` added under ffrench0598@gmail.com, NOT verified yet — verification file `public/google32450089da84fd78.html` added (standard `google-site-verification:` content); VERIFY click + sitemap submission still to do once the file serves live. GitHub repo polish DONE 2026-11-27 (Freddy signed in as Squ1zM0 via Google in the cloud browser; About edited + read back via API: description exact, homepage https://git-secure.com, exactly 16 topics, no extras).
+- Copy fix in the same change (audit item 6): home MCP copy said "three tools" - now "four tools" with resume_scan listed (live tools/list returns four).
+- Verified locally first against a fresh production server (build exit 0; robots 200 + Sitemap pointer, sitemap 200 + 7 urls, llms 200, home canonical + OG + Twitter + 2 JSON-LD parsing OK, no og:image, report title + canonical per-repo, home/report 200, "four tools" present). Lesson from this apply: killing `npm start`'s wrapper PID leaves the child next-server on :3000 - the first local check ran against that stale server (EADDRINUSE) and gave mixed results; kill the next-server itself (fuser -k 3000/tcp) and never rebuild under a running server.
+- Still open, not part of this apply: public/og.png (1200×630, needed for summary_large_image + link previews); GitHub repo polish (description/homepage/topics - needs a suitably scoped token or doing by hand; the Contents-only push token 403s on it); Search Console submission + re-running the audit searches after a few days.
+- Update 2026-11-27 (Freddy: "Do it please"): og.png SHIPPED - generated 1200×630 (dark navy, "GitSecure - is this repo safe?" + mirror strip), layout.tsx `twitter:card` now `summary_large_image` with `og:image` + `twitter:image` pointing at `/og.png`, build exit 0, UI suite pass. Search Console: property `https://git-secure.com/` added under ffrench0598@gmail.com, NOT verified yet - verification file `public/google32450089da84fd78.html` added (standard `google-site-verification:` content). Update 2026-11-27: VERIFIED (auto-verified via the HTML file) and sitemap submitted and processed successfully, 7 pages discovered, 0 errors. GitHub repo polish DONE 2026-11-27 (Freddy signed in as Squ1zM0 via Google in the cloud browser; About edited + read back via API: description exact, homepage https://git-secure.com, exactly 16 topics, no extras).
 
-## Phase 18 status — the spider web becomes a dynamic visual plane (built 2026-11-27, solo)
+## Phase 18 status - the spider web becomes a dynamic visual plane (built 2026-11-27, solo)
 
 Freddy, 2026-11-26: "it needs to be a dynamic visual plane that the user can pin Zoom click Zoom move around traverse know what each connection is." The static `UsageMap` (Phase 11) is now a pannable, zoomable surface. Design note first: `test-results/phase18/design.md` (view-transform model, gesture split, edge labelling, cap policy) + a convergence note at the end recording the two parent decisions below.
 
-- **Dynamic plane** (`src/lib/map-view.ts`, pure transform model; `UsageMap` in `src/components/ReportLists.tsx`): drag the background to pan, wheel zoom on desktop, pinch zoom on touch, +/- zoom buttons, reset-view, reset-layout. The view transform `{k, tx, ty}` lives in React state and is applied as one SVG `<g transform>` — no re-layout per frame. Zoom clamps 0.5–4. Wheel over the map zooms the map; page scroll still works outside it. Touch: fixed-height plane (420 px desktop / 380 px ≤360 px), `touch-action: none`, one-finger pan, two-finger pinch.
-- **Click to zoom:** clicking/tapping a node centres the plane on it and zooms in (target `min(2, fitK × 1.75)`) and opens a detail panel — finding type, file:line, triage verdict, dead-end vs in-use, reference counts, plain-English "why this matters". Details never live only in a hover tooltip. Clicking a file node now selects + zooms + shows detail FIRST; filtering the list happens via the panel's "Filter list to this file" button — an intentional change from the old immediate filter.
+- **Dynamic plane** (`src/lib/map-view.ts`, pure transform model; `UsageMap` in `src/components/ReportLists.tsx`): drag the background to pan, wheel zoom on desktop, pinch zoom on touch, +/- zoom buttons, reset-view, reset-layout. The view transform `{k, tx, ty}` lives in React state and is applied as one SVG `<g transform>` - no re-layout per frame. Zoom clamps 0.5–4. Wheel over the map zooms the map; page scroll still works outside it. Touch: fixed-height plane (420 px desktop / 380 px ≤360 px), `touch-action: none`, one-finger pan, two-finger pinch.
+- **Click to zoom:** clicking/tapping a node centres the plane on it and zooms in (target `min(2, fitK × 1.75)`) and opens a detail panel - finding type, file:line, triage verdict, dead-end vs in-use, reference counts, plain-English "why this matters". Details never live only in a hover tooltip. Clicking a file node now selects + zooms + shows detail FIRST; filtering the list happens via the panel's "Filter list to this file" button - an intentional change from the old immediate filter.
 - **Pin:** toggle in the detail panel and via keyboard (`p`). Pinned nodes stay fixed while panning/zooming and while other nodes are dragged; pin mark on the node + screen-reader announcement. Per-view session state, never persisted.
 - **Move nodes:** dragging a node repositions it; edges follow. The ring layout is the starting arrangement.
 - **Traverse:** next/previous neighbour controls, clicking an edge's far node moves focus there; breadcrumb (`This repo > finding > file`) with step-back; neighbours highlighted, rest dims.
-- **Know what each connection is:** every edge carries a short midpoint label ("used in code", "used in tests", "lives in") with clustering — same-kind edges on one track collapse to e.g. "used in code ×10". Clicking/tapping an edge opens the edge detail in plain English (which finding, which file, which line, test vs production, what it means — worded from the actual data, e.g. "this file reads this secret, so rotating it means updating this file too"). Edge labels are gated by zoom (selected track always, others only when k ≥ 1.5 — a deliberate deviation from "labels at every zoom": 92 labels at fit zoom are unreadable). Edges are keyboard-reachable with file:line aria-labels. Labels render LAST in the SVG (after all node groups) with halos, so no node can cover a label.
-- **Mobile first:** 360 px verified — pinch zoom (CDP two-finger pinch-out, k 0.932 → 4.000 MAX_ZOOM clamp), one-finger pan, touch targets ≥44 px, detail panel readable without horizontal scroll (scrollWidth = 360).
+- **Know what each connection is:** every edge carries a short midpoint label ("used in code", "used in tests", "lives in") with clustering - same-kind edges on one track collapse to e.g. "used in code ×10". Clicking/tapping an edge opens the edge detail in plain English (which finding, which file, which line, test vs production, what it means - worded from the actual data, e.g. "this file reads this secret, so rotating it means updating this file too"). Edge labels are gated by zoom (selected track always, others only when k ≥ 1.5 - a deliberate deviation from "labels at every zoom": 92 labels at fit zoom are unreadable). Edges are keyboard-reachable with file:line aria-labels. Labels render LAST in the SVG (after all node groups) with halos, so no node can cover a label.
+- **Mobile first:** 360 px verified - pinch zoom (CDP two-finger pinch-out, k 0.932 → 4.000 MAX_ZOOM clamp), one-finger pan, touch targets ≥44 px, detail panel readable without horizontal scroll (scrollWidth = 360).
 - **Performance + scale:** rendering caps unchanged (12 findings / 24 nodes), labelled as rendering caps; no new dependencies.
-- **Accessibility:** every node AND edge keyboard reachable with a visible focus ring; zoom/pan/reset/pin/traverse are real buttons with labels; screen-reader summary of the selected node's connections; `prefers-reduced-motion` respected (no animated zoom — jump cuts). Keyboard: `[` / `]` traverse, `Escape` deselect, `0` reset, `p` pin.
-- **No regressions:** `FileMap` fallback stays for reports with no usage data; dark mode + CSS custom properties + Phase 15 legibility fixes stay; secrets fragment-only everywhere (tested explicitly — no `sk-ant-` / `-----BEGIN` in page text or HTML).
-- **Tests:** `test:map-phase18` 95/95 (transform math, edge-label text, pin state, traversal + breadcrumb, cluster threshold, incl. the scale-invariant `edgeLabelThresholdWorld` formula — longest counted label text × 4 + 8, e.g. 76 for "used in tests ×18"); `test:ui-phase7` now 169 checks (was 155) incl. a render-to-string check that the map renders with controls, labels, legend. Full offline suite: 25 suites + tsc, all exit 0, 0 FAIL lines — 1,433 PASS lines + MCP 62/62 (scanner 73, history 79, cursor 192, triage 63, usage 91, score 40, deps 22, fixtures 42, UI 169, map 95/95, zero-rest 26, report-markdown 30, resilience 47, tier3 40, public-full 56, phase17-b 70, phase17-c 81, phase17-f 48, phase16-a 56, phase16-worker-b 31, ui-phase15c 36, ui-phase16c 45, history-git live proof 62/62, techdirect live 83/B). Build exit 0. Secret-pattern grep clean (no complete literal secret-pattern string outside the detector regexes in `src/lib/secrets.ts`; the only other hits are a bare-prefix check string in a test assertion and fake keys assembled in memory via `"K".repeat()`).
-- **Headless verification** (Playwright + headless Chromium, local prod server :3100): 1280 px + 360 px, light/dark, self-scan + docker/awesome-compose (30 secrets, 12 findings + 24 files drawn, 80 edges). Round-4 fixes HOLD on their asserted metrics: 0 overlapping label pairs at k=1.819 (recheck-4: 6 pairs, worst 1001.6 px²); counted label vs its own finding node 0 px² (was ~46 px² behind S8); "lives in" vs "10 uses" caption 0 px² (was a 30 px² graze); click finding selects + zooms (360: k 0.600 → 1.260; 1280: k 0.932 → 1.851); background drag pans exactly (+120.0, +60.0), k unchanged; reset returns to exact fit, both viewports; redaction clean. Recheck-5b combined tally 17 PASS / 7 FAIL across main + supplement + probe-2 logs — 3 FAILs were harness artifacts corrected in the supplement (hard-coded "used in tests" on a track with none; clicked `finding:0`, which isn't among the drawn findings); the rest cover the two recorded items below. Evidence: `test-results/phase18/` (design.md, headless-run-recheck5b.log, headless-findings-recheck5b.md, screenshots).
-- **Recorded, not re-tested (parent convergence call 2026-11-27 — Freddy: the phase is taking insanely long; no further recheck rounds):** (1) The through-cluster-label edge-click FAIL is a **test-geometry artifact**, not a product bug. Probe evidence: both counted label centres on the richest track sit over finding:8's circle ("lives in" centre (211.4, 567.7) → circle finding:8; "used in code ×10" centre (233.9, 536.6) → circle finding:8); no counted label centre sits over an edge hit line. Labels are `pointer-events: none`, so the tap falls through to the topmost element beneath — here a node, which correctly selects it. The edge itself is clickable along its exposed length (direct edge-line click PASSes with the correct detail). (2) The recheck-5 **local self-scan history stall is local-server-only**: the LIVE self-scan works — parent verified 19:04 + 19:40 MST 2026-11-26 (100/A, 37 secrets); awesome-compose settled on the same local server in ~42–50 s across six loads. Measured cause: `git clone --bare Squ1zM0/GitSecure` from this VM takes 102.9 s vs the history chunk's 30 s budget — each chunk burns its budget inside the clone, persists no progress, and re-clones from scratch, returning the byte-identical cursor (`histScanned: 0`) forever. Open pipeline robustness issue (a history chunk timing out inside the clone should persist partial progress or fall back to the API path), out of scope for Phase 18; does not block the phase.
-- **Known cosmetic limitation carried forward:** the round-4 push-out clears a cluster label only from its OWN edge endpoints, so labels can land on NEIGHBOURING nodes/captions — 3 intersections on the selected track (worst 529.5 px², "used in code ×10" vs finding:8), 12 at zoom (worst 2006.2 px² vs the repo centre node), 1 caption collision (382.7 px², "lives in ×2" over the "10 uses" caption, visibly reading "10 uslives in ×2"). Labels paint last with a halo, so the text stays readable — a collision/pointer defect, not hidden text. A fix needs placement to consider all nearby nodes/captions (a second-pass collision pass); candidate for a future phase if Freddy wants it.
-- **Honest gaps:** no real-iPhone tap test (headless emulation only); pinch zoom verified headlessly only; TechDirect fallback (`FileMap`) not verifiable headlessly as specified — `ReportView` only mounts `SecretsList` when `secrets.length > 0`, and TechDirect has 0 secrets, so no map renders there; the fallback is covered by render-to-string only. Recheck-2 items were verified on the PROVISIONAL self-scan report, not the final report (same code paths, different counts). Update 2026-11-27 (Freddy's word): real-iPhone tap test DONE — "It works well on my phone"; DNS settled on his phone; the TechDirect no-map gap is closed by the fourth pass (map exists on clean repos, verified live with the empty-map note in the bundle).
-- Live verification after push (head 62b1c91c, 2026-11-27): home 200 in 0.75 s; report shell 200 in 0.84 s; served JS chunk `3stoarcn0_yks.js` contains "map-plane" + "Reset view" (Phase 18 code live — the report page is client-rendered, so the toolbar lives in the bundle); TechDirect API 200 in 9.1 s: 83/B, 0 secrets, 4 vulns; self-scan API 200 in 17.3 s: 100/A, 39 secrets all likely-test-key (was 37 at 57323998 — the +2 are quoted strings in the gitleaks independent-check doc, first included in this push), 0 vulns, 0 posture, secretsExcluded 39, wouldBeScore 0; awesome-python via the chunk API: 91/A, 0 secrets, 0 vulns, 3 posture, headSha 4c3cb15, 19 calls, 468 s wall (the proof harness exited 2 only because it ran in chunk-only mode and its comparison step needs both paths — the chunk path itself finished cleanly at stage=done). Nothing regressed.
-- **Second pass (2026-11-27, Freddy: fix the label collisions, ~15 min, plus spread the map out and zoom out a little by default):** a second-pass collision pass in `src/lib/map-view.ts` (`resolveLabelCollisions`, pure + unit-tested): after clustering, every label is checked against every node circle, every finding caption ("N uses"/"dead end") and file-label rect, and every already-placed label, using the same geometry as the render; a colliding label tries nudges along/across its edge (±12/24/36/48 normal, ±12/24/36 along-edge/x/y) and takes the first clear spot, or the least-overlapping one — the "10 uslives in ×2" shape now moves clear by construction. Default layout spread wider: finding ring 100→112, file ring 140→158; default fit padding 32→48 (fit k ~9% smaller at 640px, ~11% at 360px). Map tests 102/102 (new §20: clear label stays put, label-on-node moves to zero overlap, the caption case, two labels separate, nudged label stays in-world), UI suite passes, build exit 0. Headless re-verification skipped for speed — unit tests cover the exact measured collision shapes; the in-world clamp is the only guard against a nudge leaving the plane.
-- **Third pass (2026-11-27, Freddy: spread the nodes further by default):** finding ring 112→124, file ring 140→170; the top file node's label gets a y-clamp (8–372) so the wider outer ring can't push it off the top of the plane — the collision-pass blockers use the same clamped geometry. Map tests 102/102, UI suite passes, build exit 0.
-- **Fourth pass (2026-11-27, Freddy: the map view needs to exist even if there are no test keys):** the map was missing on a clean repo — ReportView only mounted SecretsList when secrets existed, so TechDirect (0 secrets) had no List/Map toggle and no map at all. Now SecretsList always mounts (the no-secrets text moved into its list view), UsageMap always renders the dynamic plane (the FileMap fallback is gone from this path — the component stays exported and tested, but nothing in the app renders it): zero findings shows just the repo node plus an empty-state note, findings without usage show the nodes with no edges plus a note. A clean report opens on the map view by default. UI suite updated (no-usage case now asserts the plane, not the file-count spider; new checks: empty UsageMap, empty SecretsList) and passes, map tests 102/102, build exit 0.
+- **Accessibility:** every node AND edge keyboard reachable with a visible focus ring; zoom/pan/reset/pin/traverse are real buttons with labels; screen-reader summary of the selected node's connections; `prefers-reduced-motion` respected (no animated zoom - jump cuts). Keyboard: `[` / `]` traverse, `Escape` deselect, `0` reset, `p` pin.
+- **No regressions:** `FileMap` fallback stays for reports with no usage data; dark mode + CSS custom properties + Phase 15 legibility fixes stay; secrets fragment-only everywhere (tested explicitly - no `sk-ant-` / `-----BEGIN` in page text or HTML).
+- **Tests:** `test:map-phase18` 95/95 (transform math, edge-label text, pin state, traversal + breadcrumb, cluster threshold, incl. the scale-invariant `edgeLabelThresholdWorld` formula - longest counted label text × 4 + 8, e.g. 76 for "used in tests ×18"); `test:ui-phase7` now 169 checks (was 155) incl. a render-to-string check that the map renders with controls, labels, legend. Full offline suite: 25 suites + tsc, all exit 0, 0 FAIL lines - 1,433 PASS lines + MCP 62/62 (scanner 73, history 79, cursor 192, triage 63, usage 91, score 40, deps 22, fixtures 42, UI 169, map 95/95, zero-rest 26, report-markdown 30, resilience 47, tier3 40, public-full 56, phase17-b 70, phase17-c 81, phase17-f 48, phase16-a 56, phase16-worker-b 31, ui-phase15c 36, ui-phase16c 45, history-git live proof 62/62, techdirect live 83/B). Build exit 0. Secret-pattern grep clean (no complete literal secret-pattern string outside the detector regexes in `src/lib/secrets.ts`; the only other hits are a bare-prefix check string in a test assertion and fake keys assembled in memory via `"K".repeat()`).
+- **Headless verification** (Playwright + headless Chromium, local prod server :3100): 1280 px + 360 px, light/dark, self-scan + docker/awesome-compose (30 secrets, 12 findings + 24 files drawn, 80 edges). Round-4 fixes HOLD on their asserted metrics: 0 overlapping label pairs at k=1.819 (recheck-4: 6 pairs, worst 1001.6 px²); counted label vs its own finding node 0 px² (was ~46 px² behind S8); "lives in" vs "10 uses" caption 0 px² (was a 30 px² graze); click finding selects + zooms (360: k 0.600 → 1.260; 1280: k 0.932 → 1.851); background drag pans exactly (+120.0, +60.0), k unchanged; reset returns to exact fit, both viewports; redaction clean. Recheck-5b combined tally 17 PASS / 7 FAIL across main + supplement + probe-2 logs - 3 FAILs were harness artifacts corrected in the supplement (hard-coded "used in tests" on a track with none; clicked `finding:0`, which isn't among the drawn findings); the rest cover the two recorded items below. Evidence: `test-results/phase18/` (design.md, headless-run-recheck5b.log, headless-findings-recheck5b.md, screenshots).
+- **Recorded, not re-tested (parent convergence call 2026-11-27 - Freddy: the phase is taking insanely long; no further recheck rounds):** (1) The through-cluster-label edge-click FAIL is a **test-geometry artifact**, not a product bug. Probe evidence: both counted label centres on the richest track sit over finding:8's circle ("lives in" centre (211.4, 567.7) → circle finding:8; "used in code ×10" centre (233.9, 536.6) → circle finding:8); no counted label centre sits over an edge hit line. Labels are `pointer-events: none`, so the tap falls through to the topmost element beneath - here a node, which correctly selects it. The edge itself is clickable along its exposed length (direct edge-line click PASSes with the correct detail). (2) The recheck-5 **local self-scan history stall is local-server-only**: the LIVE self-scan works - parent verified 19:04 + 19:40 MST 2026-11-26 (100/A, 37 secrets); awesome-compose settled on the same local server in ~42–50 s across six loads. Measured cause: `git clone --bare Squ1zM0/GitSecure` from this VM takes 102.9 s vs the history chunk's 30 s budget - each chunk burns its budget inside the clone, persists no progress, and re-clones from scratch, returning the byte-identical cursor (`histScanned: 0`) forever. Open pipeline robustness issue (a history chunk timing out inside the clone should persist partial progress or fall back to the API path), out of scope for Phase 18; does not block the phase.
+- **Known cosmetic limitation carried forward:** the round-4 push-out clears a cluster label only from its OWN edge endpoints, so labels can land on NEIGHBOURING nodes/captions - 3 intersections on the selected track (worst 529.5 px², "used in code ×10" vs finding:8), 12 at zoom (worst 2006.2 px² vs the repo centre node), 1 caption collision (382.7 px², "lives in ×2" over the "10 uses" caption, visibly reading "10 uslives in ×2"). Labels paint last with a halo, so the text stays readable - a collision/pointer defect, not hidden text. A fix needs placement to consider all nearby nodes/captions (a second-pass collision pass); candidate for a future phase if Freddy wants it.
+- **Honest gaps:** no real-iPhone tap test (headless emulation only); pinch zoom verified headlessly only; TechDirect fallback (`FileMap`) not verifiable headlessly as specified - `ReportView` only mounts `SecretsList` when `secrets.length > 0`, and TechDirect has 0 secrets, so no map renders there; the fallback is covered by render-to-string only. Recheck-2 items were verified on the PROVISIONAL self-scan report, not the final report (same code paths, different counts). Update 2026-11-27 (Freddy's word): real-iPhone tap test DONE - "It works well on my phone"; DNS settled on his phone; the TechDirect no-map gap is closed by the fourth pass (map exists on clean repos, verified live with the empty-map note in the bundle).
+- Live verification after push (head 62b1c91c, 2026-11-27): home 200 in 0.75 s; report shell 200 in 0.84 s; served JS chunk `3stoarcn0_yks.js` contains "map-plane" + "Reset view" (Phase 18 code live - the report page is client-rendered, so the toolbar lives in the bundle); TechDirect API 200 in 9.1 s: 83/B, 0 secrets, 4 vulns; self-scan API 200 in 17.3 s: 100/A, 39 secrets all likely-test-key (was 37 at 57323998 - the +2 are quoted strings in the gitleaks independent-check doc, first included in this push), 0 vulns, 0 posture, secretsExcluded 39, wouldBeScore 0; awesome-python via the chunk API: 91/A, 0 secrets, 0 vulns, 3 posture, headSha 4c3cb15, 19 calls, 468 s wall (the proof harness exited 2 only because it ran in chunk-only mode and its comparison step needs both paths - the chunk path itself finished cleanly at stage=done). Nothing regressed.
+- **Second pass (2026-11-27, Freddy: fix the label collisions, ~15 min, plus spread the map out and zoom out a little by default):** a second-pass collision pass in `src/lib/map-view.ts` (`resolveLabelCollisions`, pure + unit-tested): after clustering, every label is checked against every node circle, every finding caption ("N uses"/"dead end") and file-label rect, and every already-placed label, using the same geometry as the render; a colliding label tries nudges along/across its edge (±12/24/36/48 normal, ±12/24/36 along-edge/x/y) and takes the first clear spot, or the least-overlapping one - the "10 uslives in ×2" shape now moves clear by construction. Default layout spread wider: finding ring 100→112, file ring 140→158; default fit padding 32→48 (fit k ~9% smaller at 640px, ~11% at 360px). Map tests 102/102 (new §20: clear label stays put, label-on-node moves to zero overlap, the caption case, two labels separate, nudged label stays in-world), UI suite passes, build exit 0. Headless re-verification skipped for speed - unit tests cover the exact measured collision shapes; the in-world clamp is the only guard against a nudge leaving the plane.
+- **Third pass (2026-11-27, Freddy: spread the nodes further by default):** finding ring 112→124, file ring 140→170; the top file node's label gets a y-clamp (8–372) so the wider outer ring can't push it off the top of the plane - the collision-pass blockers use the same clamped geometry. Map tests 102/102, UI suite passes, build exit 0.
+- **Fourth pass (2026-11-27, Freddy: the map view needs to exist even if there are no test keys):** the map was missing on a clean repo - ReportView only mounted SecretsList when secrets existed, so TechDirect (0 secrets) had no List/Map toggle and no map at all. Now SecretsList always mounts (the no-secrets text moved into its list view), UsageMap always renders the dynamic plane (the FileMap fallback is gone from this path - the component stays exported and tested, but nothing in the app renders it): zero findings shows just the repo node plus an empty-state note, findings without usage show the nodes with no edges plus a note. A clean report opens on the map view by default. UI suite updated (no-usage case now asserts the plane, not the file-count spider; new checks: empty UsageMap, empty SecretsList) and passes, map tests 102/102, build exit 0.
 
-## Phase 2 status — built and pushed 2026-11-25, commit 870f889f, live at https://gitsecure.vercel.app/ (verified serving: home 200, live TechDirect scan 200, 83/B)
+## Phase 19 status - bigger security checks (built 2026-11-27, Freddy: continue development; security is much bigger than what we have now)
+
+- Design: `test-results/phase19/design.md`. Six new categories, all live: (1) dangerous code patterns in `src/lib/code-risks.ts` (command injection, SQL injection, unsafe deserialization, weak crypto, path traversal, SSRF sinks, CORS wide open, cookie flags, JWT none), (2) GitHub Actions hardening in `src/lib/scan.ts` (unpinned third party actions, pull_request_target with checkout, script injection, secrets to third party actions), (3) container hardening in `src/lib/infra.ts` (root user, ADD remote URL, latest tag, no HEALTHCHECK, capabilities), (4) exposed files (keys, SQL dumps, backups, tfstate, committed databases), (5) install script supply chain (postinstall/preinstall/prepare), (6) web config (CORS star, cookie flags, JWT none). Scoring reuses the existing deduction scale. Every new finding is a node on the dynamic map (legend plus category filter toggles, "found in" edges, caps raised to 24 secrets / 24 posture issues and labelled on the plane).
+- Em dash sweep: every U+2014 in shipped content replaced with a hyphen (51 files: all of src/, public/robots.txt, public/llms.txt, public/sitemap.xml, README.md, SECURITY.md, GITSECURE.md, package.json). Title is now "GitSecure - is this repo safe?". og.png keeps the hyphen text in brand colors. GitHub repo description: still carries an em dash at the time of this writing (see open item below).
+- Baselines re-measured live and reported honestly. TechDirect moved 83/B to 73/C: the new script-injection check found a real `${{ github.event.inputs.timeout }}` / `${{ github.event.inputs.strict_ssl }}` inside `run:` blocks in `.github/workflows/network-validation.yml` (verified by hand against the live file). That is a genuine finding, not a false positive, so the score stays 73/C. Self-scan is 100/A with 39 secrets, all likely-test-key (the +2 over the old 37 are quoted strings in the gitleaks independent-check doc, first counted in Phase 18). The untagged `redis` image in the Tier 3 fixture was pinned to `redis:7-alpine` so the self-scan stays clean; the untagged detection case is now proven on inline content in test-tier3.ts.
+- Copy fix (integration): the hero no longer calls posture issues "small" when a high-severity one exists. `ScoreCounts` gains optional `postureHigh`, threaded from ReportView and report-markdown.ts; ScoreDial drops "small" when postureHigh > 0. score.ts explainScore/biggestProblem already took postureHigh (worker B); the two call sites now pass it.
+- Live proof: the new code checks fire on real code, not only fixtures (TechDirect script injection above). Fixture proofs: test-code-risks-phase19 81 PASS, test-posture-phase19 78 PASS, test-map-phase19 110 PASS, all with planted findings plus clean-fixture no-false-positive cases.
+- Map worker (worker C) was closed before its recheck rounds finished at Freddy's "finish up" order; its code shipped as it stood (legend, filters, "found in" edges, raised caps, 110/110 tests). The label-collision re-measurement against the current code was not reported back by the worker; it stays an open item.
+- Out of scope, unchanged: branch protection and repo settings (token is Contents read only), the history chunk no-progress loop (separate pipeline fix), paid features (stays free).
+- Status: built, tested, pushed (head SHA in the push record below), live verification by the parent.
+
+## Phase 2 status - built and pushed 2026-11-25, commit 870f889f, live at https://gitsecure.vercel.app/ (verified serving: home 200, live TechDirect scan 200, 83/B)
 - Next.js 16 / React 19 / TypeScript + Auth.js (NextAuth 5.0.0-beta.32,
   GitHub provider), in ~/workspace/gitsecure/.
 - `npm run build` passes (exit 0, 2026-11-25 ~20:50 MST). Routes:
@@ -2014,12 +2025,12 @@ Freddy, 2026-11-26: "it needs to be a dynamic visual plane that the user can pin
   40.8 MB of patches, log generated 0.7 s, detector scan of 23.4 MB of
   added lines 0.7 s, clone ~10 s, history step 6–12 s. Whole TechDirect
   scan ~15 s (was 71.5 s before the HEAD fetch was parallelised 10-way
-  and the clone was started concurrently — both changes are in Phase 2,
+  and the clone was started concurrently - both changes are in Phase 2,
   and are what keep a full scan inside the 60 s route limit). If git is
   missing from the runtime or the clone fails, the scan falls back to the
   MVP API patches (5 most recent commits) and says so.
   Regression test (`npm run test:history`, 9 checks): fake webhook planted
-  in an old commit of a throwaway local repo, removed from HEAD — found,
+  in an old commit of a throwaway local repo, removed from HEAD - found,
   attributed to the right commit, redacted, temp dirs cleaned up.
   Live AIoN regression could NOT be re-run: SqulzMD/aion-index now 404s
   (private or deleted) as of 2026-11-25.
@@ -2033,7 +2044,7 @@ Freddy, 2026-11-26: "it needs to be a dynamic visual plane that the user can pin
   OSV ecosystems added: Go, RubyGems, Packagist, Maven, NuGet. Fixtures in
   tests/fixtures/fake-repo-tier2/ (go.mod, Gemfile + lock, composer.json +
   lock, pom.xml, build.gradle, app.csproj, wp-config.php); 14 new checks
-  in test-scanner.ts (48 total, was 34 — the "31" in the old MVP note was
+  in test-scanner.ts (48 total, was 34 - the "31" in the old MVP note was
   a stale count).
 - **3. OSV detail** (`src/lib/osv.ts`): full advisory detail (summary,
   CVSS, fixed version) now fetched for ALL advisories found, up to 50 per
@@ -2045,17 +2056,17 @@ Freddy, 2026-11-26: "it needs to be a dynamic visual plane that the user can pin
   from the OAuth profile; a matching login gets the full report, everyone
   else gets public only; `GITSECURE_OWNER_MODE=true` remains as local/dev
   fallback. Credentials live only in env vars (GITHUB_ID, GITHUB_SECRET,
-  NEXTAUTH_SECRET, NEXTAUTH_URL) — none hardcoded anywhere (checked by
+  NEXTAUTH_SECRET, NEXTAUTH_URL) - none hardcoded anywhere (checked by
   test). Production default is safe: no env vars → auth routes answer 503
   "not configured", `canViewFull` never calls auth(), full view stays off,
   zero Auth.js errors logged. Gate logic tested with session mocks
   (`npm run test:owner-gate`, 20 checks). **REMOVED IN PHASE 4 (Freddy,
-  2026-11-25): the whole gate is deleted — no OAuth App, no sign-in, no
+  2026-11-25): the whole gate is deleted - no OAuth App, no sign-in, no
   owner mode. Everyone gets the full report because the site only scans
   public repos. The historical record above is what Phase 2 built; it no
   longer exists in the code.**
 - Live test (`npm run test:techdirect`, Squ1zM0/TechDirect): score 83,
-  grade B — UNCHANGED from MVP (0 secrets, 4 vulns, all js-yaml 4.1.1 low
+  grade B - UNCHANGED from MVP (0 secrets, 4 vulns, all js-yaml 4.1.1 low
   with fixed versions, 0 frameworks, 2 deps, 3 posture issues, 250 of
   2,802 files). What changed legitimately: historyCommitsScanned 5 → 62
   (full history now), total scan ~15 s. Public JSON saved to
@@ -2065,35 +2076,35 @@ Freddy, 2026-11-26: "it needs to be a dynamic visual plane that the user can pin
   report page → 200 (public view); 0 Auth.js errors in the log. Scan API
   for Squ1zM0/GitSecure → public JSON in 3.7 s, 2 history commits.
 - Dogfooding: scanning Squ1zM0/GitSecure itself returns 1 / F with 6
-  secret findings — all known-fake (test fixtures that are deliberate
+  secret findings - all known-fake (test fixtures that are deliberate
   detector bait, plus the official AWS example key in an old README
   commit, 92c3a49). No real secret. Documented in README.md; the scanner
   deliberately does not skip test files. (Was 3 / F in the MVP-era note,
-  then 0 / F after the Phase 2 push added package-lock.json — 119 deps
-  fingerprinted — Tier 2 fixtures and a fake vite.config.ts. It is 1 / F
+  then 0 / F after the Phase 2 push added package-lock.json - 119 deps
+  fingerprinted - Tier 2 fixtures and a fake vite.config.ts. It is 1 / F
   now: deductions 76 + 19 + 4 = 99. The 0 / F was measured at remote
   d6a7e136; the Phase 3 push (5d8da890) changed the repo's contents and
   the unpinned count. The 6 secret findings are unchanged; the change is
   in the repo's contents, not the scanner. Re-verified 2026-11-25 in
   Phase 4.)
-- History caps remain (1000 commits / 50 MB / 45 s) — a secret in a very
+- History caps remain (1000 commits / 50 MB / 45 s) - a secret in a very
   old commit of a huge repo can still be missed, and the report says so
   when a cap hits. (The OAuth item above was removed in Phase 4.)
-  [Phase 2 record — superseded in Phase 8, which removed the history
+  [Phase 2 record - superseded in Phase 8, which removed the history
   caps entirely: history now runs to the oldest commit.]
 - Next steps: push Phase 2 to Squ1zM0/GitSecure (main), deploy to Vercel.
-  (The OAuth App step is gone — Phase 4 removed the gate entirely.)
+  (The OAuth App step is gone - Phase 4 removed the gate entirely.)
 
-## MVP status — built 2026-11-25, local only, NOT pushed, NOT deployed
+## MVP status - built 2026-11-25, local only, NOT pushed, NOT deployed
 - Next.js 16 / React 19 / TypeScript, App Router, in ~/workspace/gitsecure/.
 - `npm run build` passes (exit 0, 2026-11-25 ~20:09 MST). See README for routes.
-- Fixture test (`npm run test:scanner`): 31 checks pass — all 8 planted FAKE
+- Fixture test (`npm run test:scanner`): 31 checks pass - all 8 planted FAKE
   secret types detected, redaction verified (no full fake secret in output),
   Next.js 14.2.5 / React / Vite / Django / Serde fingerprinted, unpinned
   express flagged, public report leaks no file/line/fragment/framework names.
 - Live test (`npm run test:techdirect`, Squ1zM0/TechDirect): score 83, grade B;
   0 secrets, 4 vulns (all js-yaml 4.1.1, low, fixed versions listed), 0
-  frameworks (correct — TechDirect is a data repo, only js-yaml dev dep),
+  frameworks (correct - TechDirect is a data repo, only js-yaml dev dep),
   2 deps, 3 posture issues, 250 of 2,802 files scanned, 5 history commits.
   Public JSON saved to test-results/techdirect-public-2026-11-25.json.
 - Public-vs-owner split verified live on the production server: without owner
@@ -2101,9 +2112,9 @@ Freddy, 2026-11-26: "it needs to be a dynamic visual plane that the user can pin
   GITSECURE_OWNER_MODE=true it returns kind "full" with detail.
 - STUBBED: GitHub OAuth owner verification (env-gated local/dev owner mode
   only, no bypass, no fake OAuth). History depth: HEAD + patches of the 5
-  most recent commits only — full-history clone scanning is V2.
+  most recent commits only - full-history clone scanning is V2.
 - Next steps: push to Squ1zM0/GitSecure (repo is empty, main), then deploy
-  to Vercel (free tier), then set the git-secure.com domain — domain NOT
+  to Vercel (free tier), then set the git-secure.com domain - domain NOT
   purchased.
 - NOTE: the push + deploy above are DONE (see Decisions at top). The MVP
-  record above is historical — Phase 2 supersedes it; see "Phase 2 status".
+  record above is historical - Phase 2 supersedes it; see "Phase 2 status".

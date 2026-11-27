@@ -40,7 +40,11 @@ const hasTitle = (re: RegExp) => findings.some((f) => re.test(f.title));
 check("Docker node image version 20-alpine detected", byName.get("Docker image node")?.version === "20-alpine", byName.get("Docker image node")?.version ?? "missing");
 check("Docker node image ecosystem is docker", byName.get("Docker image node")?.ecosystem === "docker");
 check("postgres:15 detected", byName.get("Docker image postgres")?.version === "15", byName.get("Docker image postgres")?.version ?? "missing");
-check("redis with no tag: version null + unpinned", byName.get("Docker image redis")?.version === null && byName.get("Docker image redis")?.unpinned === true, `version=${String(byName.get("Docker image redis")?.version)}`);
+// Phase 19: the committed fixture pins redis now (the self-scan must
+// stay clean), so the untagged case is proven on inline content.
+const untaggedCompose = new Map([["docker-compose.yml", "services:\n  cache:\n    image: redis\n"]]);
+const untaggedByName = new Map(detectInfraFrameworks(untaggedCompose).map((f) => [f.name, f]));
+check("redis with no tag: version null + unpinned", untaggedByName.get("Docker image redis")?.version === null && untaggedByName.get("Docker image redis")?.unpinned === true, `version=${String(untaggedByName.get("Docker image redis")?.version)}`);
 const dockerEntries = parseDockerfile(files.get("Dockerfile") ?? "", "Dockerfile");
 check("parseDockerfile returns both FROM stages", dockerEntries.length === 2, `${dockerEntries.length} entries`);
 check("latest-tag image reported version null + unpinned", dockerEntries.some((f) => f.version === null && f.unpinned === true));
@@ -99,7 +103,7 @@ check("every finding detail is plain English with an exact fix", findings.length
 const noUser = new Map([["Dockerfile", "FROM node:20-alpine\nCMD [\"node\", \"index.js\"]\n"]]);
 check("Dockerfile with no USER is flagged (runs as root by default)", infraFindings(noUser).some((f) => /no USER/.test(f.title)));
 const clean = new Map<string, string>([
-  ["Dockerfile", "FROM node:20-alpine\nWORKDIR /app\nCOPY . .\nUSER node\nCMD [\"node\", \"index.js\"]\n"],
+  ["Dockerfile", "FROM node:20-alpine\nWORKDIR /app\nCOPY . .\nUSER node\nHEALTHCHECK CMD curl -f http://localhost/health || exit 1\nCMD [\"node\", \"index.js\"]\n"],
   ["k8s/deployment.yaml", "apiVersion: apps/v1\nkind: Deployment\nmetadata:\n  name: app\nspec:\n  template:\n    spec:\n      containers:\n        - name: app\n          image: myapp:1.2.3\n          securityContext:\n            privileged: false\n            runAsUser: 1000\n"],
   [".github/workflows/ci.yml", "jobs:\n  build:\n    steps:\n      - uses: actions/checkout@v4\n"],
   ["main.tf", 'terraform {\n  required_providers {\n    aws = {\n      source = "hashicorp/aws"\n      version = "5.0.0"\n    }\n  }\n}\nprovider "aws" {}\n'],

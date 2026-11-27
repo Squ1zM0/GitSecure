@@ -1,17 +1,17 @@
-// "Roll all into report" (Freddy, 2026-11-26) — the whole current
+// "Roll all into report" (Freddy, 2026-11-26) - the whole current
 // scan as one downloadable Markdown document.
 //
 // Pure module: takes the FullReport the page already has and returns
-// a string + a filename. No DOM, no network, no API route — the
+// a string + a filename. No DOM, no network, no API route - the
 // download itself (Blob + anchor click) lives in the RollAllButton
 // component. Unit-testable with tsx alone (scripts/test-report-markdown.ts).
 //
 // Hard rule, same as the page: secrets are fragment-only, exactly as
-// in the report — the builder only ever reads `fragment`, never any
+// in the report - the builder only ever reads `fragment`, never any
 // other field that could hold a secret value. No truncation anywhere:
 // every secret, vulnerability, posture issue, dependency, and
 // framework in the report is listed, even when the on-page lists are
-// collapsed or filtered — the builder reads the report arrays, not
+// collapsed or filtered - the builder reads the report arrays, not
 // the page state.
 
 import { adjustedExplainScore, adjustedVerdict, scoreExplanationText, type ScoreDetail } from "@/components/ScoreDial";
@@ -35,7 +35,7 @@ function triageLabel(s: SecretFinding): string {
     case "likely-genuine-leak":
       return "Likely genuine leak";
     case "uncertain":
-      return "Uncertain — needs a human check";
+      return "Uncertain - needs a human check";
     default:
       return "Untriaged";
   }
@@ -48,7 +48,7 @@ function vulnFix(v: Vulnerability, reconciled: Map<string, { recommended: string
   if (!v.fixedVersion) return v.upgrade;
   const rec = reconciled.get(`${v.packageName}@${v.installedVersion ?? ""}`);
   if (!rec) return v.upgrade;
-  return `Upgrade ${v.packageName} to ${rec.recommended} or later — this covers all ${rec.advisoryCount} advisories for this version.`;
+  return `Upgrade ${v.packageName} to ${rec.recommended} or later - this covers all ${rec.advisoryCount} advisories for this version.`;
 }
 
 function secretSection(s: SecretFinding, i: number): string {
@@ -57,8 +57,8 @@ function secretSection(s: SecretFinding, i: number): string {
     ``,
     `- Severity: ${s.severity} · Confidence: ${s.confidence} · Triage: ${triageLabel(s)}`,
     `- Location: \`${s.file}:${s.line}\` · Commit: \`${s.commit ?? "HEAD"}\``,
-    // Fragment only — never a full secret value.
-    `- Fragment (redacted — never the full secret): \`${s.fragment}\``,
+    // Fragment only - never a full secret value.
+    `- Fragment (redacted - never the full secret): \`${s.fragment}\``,
     ``,
     s.plainEnglish,
     ``,
@@ -68,7 +68,7 @@ function secretSection(s: SecretFinding, i: number): string {
   }
   if (s.usage) {
     if (s.usage.deadEnd) {
-      lines.push(`Usage: nothing in this repo references this key — a true dead end.${s.usage.historyOnly ? " (Usage checked against the current files only.)" : ""}`, ``);
+      lines.push(`Usage: nothing in this repo references this key - a true dead end.${s.usage.historyOnly ? " (Usage checked against the current files only.)" : ""}`, ``);
     } else {
       const total = s.usage.referencedByTotal + s.usage.referencedByTestsTotal;
       if (total > 0) {
@@ -93,6 +93,7 @@ export function buildReportMarkdown(report: FullReport, opts?: { paused?: boolea
     secrets: report.counts.secrets,
     vulnerabilities: report.counts.vulnerabilities,
     postureIssues: report.counts.postureIssues,
+    postureHigh: report.posture.filter((p) => p.severity === "high" || p.severity === "critical").length,
   };
   const reconciled = recommendedFixVersions(report.vulnerabilities);
   const out: string[] = [];
@@ -100,7 +101,7 @@ export function buildReportMarkdown(report: FullReport, opts?: { paused?: boolea
   out.push(`# GitSecure report: ${report.owner}/${report.repo}`, ``);
   if (report.provisional) {
     out.push(
-      `> **Provisional report** — the current files are scanned, but history and dependency checks are ${opts?.paused ? "paused — history and dependency checks stopped here" : "still running"}. The score below counts what the current files show so far; it will update when the scan finishes. The lists show exactly what has been checked so far — nothing is half-reported.`,
+      `> **Provisional report** - the current files are scanned, but history and dependency checks are ${opts?.paused ? "paused - history and dependency checks stopped here" : "still running"}. The score below counts what the current files show so far; it will update when the scan finishes. The lists show exactly what has been checked so far - nothing is half-reported.`,
       ``,
     );
   }
@@ -115,7 +116,7 @@ export function buildReportMarkdown(report: FullReport, opts?: { paused?: boolea
   );
 
   out.push(`## Score`, ``);
-  out.push(`**${report.score} out of 100 (grade ${report.grade} — ${gradeWord(report.grade)})**`, ``);
+  out.push(`**${report.score} out of 100 (grade ${report.grade} - ${gradeWord(report.grade)})**`, ``);
   out.push(`${adjustedVerdict(detail, counts)}`, ``);
   out.push(`${report.summary}`, ``);
   out.push(`${adjustedExplainScore(report.score, report.grade, detail, counts)}`, ``);
@@ -123,7 +124,7 @@ export function buildReportMarkdown(report: FullReport, opts?: { paused?: boolea
   out.push(
     `- Possible leaked secrets: ${report.counts.secrets}${report.counts.testKeySecrets > 0 ? ` (of which ${report.counts.testKeySecrets} look like test keys)` : ""}`,
     // Phase 16: on a provisional report the dependency check has not
-    // run yet, so the count must not render as a checked 0 — same
+    // run yet, so the count must not render as a checked 0 - same
     // contradiction as the page's vulnerabilities section.
     `- Dependency vulnerabilities: ${report.provisional ? "not checked yet" : report.counts.vulnerabilities}`,
     `- Frameworks detected: ${report.counts.frameworks}`,
@@ -136,7 +137,7 @@ export function buildReportMarkdown(report: FullReport, opts?: { paused?: boolea
   if (report.secrets.length === 0) {
     out.push(`No leaked secrets were found in the files and recent history scanned.`, ``);
   } else {
-    if (report.provisional) out.push(`Secrets found in the current files so far — history has not been checked yet.`, ``);
+    if (report.provisional) out.push(`Secrets found in the current files so far - history has not been checked yet.`, ``);
     report.secrets.forEach((s, i) => out.push(secretSection(s, i)));
   }
 
@@ -145,7 +146,7 @@ export function buildReportMarkdown(report: FullReport, opts?: { paused?: boolea
     out.push(`No frameworks were fingerprinted in this repo.`, ``);
   } else {
     for (const f of report.frameworks) {
-      out.push(`- **${f.name}** — ${f.version ?? "version could not be determined"} (${f.versionSource})${f.unpinned ? " · unpinned version" : ""} · \`${f.sourceFile}\``);
+      out.push(`- **${f.name}** - ${f.version ?? "version could not be determined"} (${f.versionSource})${f.unpinned ? " · unpinned version" : ""} · \`${f.sourceFile}\``);
     }
     out.push(``);
   }
@@ -154,7 +155,7 @@ export function buildReportMarkdown(report: FullReport, opts?: { paused?: boolea
   if (report.dependencies.length === 0) {
     out.push(`No dependencies were found in this repo.`, ``);
   } else {
-    if (report.provisional) out.push(`Dependency checks are still running — the list below is what has been checked so far.`, ``);
+    if (report.provisional) out.push(`Dependency checks are still running - the list below is what has been checked so far.`, ``);
     for (const d of report.dependencies) {
       out.push(`- **${d.name}** ${d.version ?? "(no version)"} · ${d.ecosystem} · ${d.direct ? "direct" : "transitive"} · \`${d.sourceFile}\``);
     }
@@ -163,11 +164,11 @@ export function buildReportMarkdown(report: FullReport, opts?: { paused?: boolea
 
   out.push(`## Dependency vulnerabilities${report.provisional ? " (not checked yet)" : ` (${report.vulnerabilities.length})`}`, ``);
   if (report.vulnerabilities.length === 0) {
-    out.push(report.provisional ? `Dependency checks are still running — no vulnerabilities listed yet.` : `No known vulnerabilities were found in the dependencies checked.`, ``);
+    out.push(report.provisional ? `Dependency checks are still running - no vulnerabilities listed yet.` : `No known vulnerabilities were found in the dependencies checked.`, ``);
   } else {
     report.vulnerabilities.forEach((v, i) => {
       out.push(
-        `### ${i + 1}. ${v.id} — ${v.packageName} ${v.installedVersion ?? ""}`,
+        `### ${i + 1}. ${v.id} - ${v.packageName} ${v.installedVersion ?? ""}`,
         ``,
         `- Severity: ${v.severity}${v.fixedVersion ? ` · Fixed in: ${v.fixedVersion}` : ` · No fixed version listed`}`,
         ``,
@@ -194,7 +195,7 @@ export function buildReportMarkdown(report: FullReport, opts?: { paused?: boolea
     ``,
     `Secrets are shown as redacted fragments only, never in full. Full JSON report: \`/api/scan/${report.owner}/${report.repo}\`. Report page: https://git-secure.com/${report.owner}/${report.repo}`,
     ``,
-    `Generated by GitSecure — swap github.com for git-secure.com to scan any public repo.`,
+    `Generated by GitSecure - swap github.com for git-secure.com to scan any public repo.`,
     ``,
   );
   return out.join("\n");

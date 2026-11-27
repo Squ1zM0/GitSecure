@@ -1,20 +1,20 @@
-// Scan cursors (Phase 9) — the whole resumability mechanism.
+// Scan cursors (Phase 9) - the whole resumability mechanism.
 //
 // WHY: Phase 8 stored scans as in-memory jobs. A job does not survive a
 // cold start, a redeploy, or a poll landing on a different serverless
-// instance — the client got a 404 and had to start over. Phase 9
-// holds no scan job on the server — in-progress findings live in the short-lived store (see scan-state.ts).
+// instance - the client got a 404 and had to start over. Phase 9
+// holds no scan job on the server - in-progress findings live in the short-lived store (see scan-state.ts).
 // Instead, every chunk response returns a CURSOR: a small, self-contained,
 // base64url-encoded JSON object that says exactly where the scan got to.
 // The client passes the cursor back with the next request and the scan
 // continues from that point. A server restart, cold start, or different
-// instance changes nothing — there is no job to lose, so the old dead-end
+// instance changes nothing - there is no job to lose, so the old dead-end
 // is impossible.
 //
 // WHAT A CURSOR CARRIES: owner/repo/branch, the pinned HEAD sha, the
 // stage (head → history → assemble), and the position inside the stage:
 //   - history via the git protocol: `histResumeAfter` (the last commit
-//     scanned, exclusive — the next chunk walks older commits);
+//     scanned, exclusive - the next chunk walks older commits);
 //   - history via the GitHub API: `histPage` / `histIdx` / `histPageShas`
 //     (the next list page, the next index in it, and that page's SHAs, so
 //     the next chunk need not re-list).
@@ -26,7 +26,7 @@
 //
 // VALIDATION: decodeCursor is strict. Anything malformed, from the wrong
 // repo, or with out-of-range numbers is rejected with a plain-English
-// ScanError (400) — the caller discards it and starts a clean scan.
+// ScanError (400) - the caller discards it and starts a clean scan.
 // A cursor can never make the server scan a different repo than the
 // request URL names, and the pinned HEAD sha is re-checked at assemble
 // time, so a scan whose repo moved mid-flight restarts cleanly instead
@@ -45,7 +45,7 @@ export interface ScanCursorData {
   headSha: string;
   stage: CursorStage;
   /** "git" (git protocol) or "api" (GitHub API, when the git path
-   *  fails — e.g. a history pack too large to clone; the pack
+   *  fails - e.g. a history pack too large to clone; the pack
    *  download is byte-bounded while it runs, see history.ts
    *  PACK_MAX_BYTES). */
   historyMethod: "git" | "api";
@@ -62,7 +62,7 @@ export interface ScanCursorData {
   histPageShas: string[];
   /** True once every history commit has been walked. */
   histDone: boolean;
-  /** Why history stopped early, if it did — the report says so. */
+  /** Why history stopped early, if it did - the report says so. */
   histStop: "rate-limit" | "truncated" | null;
   /** Short human note for an early history stop (rate limit, guard). */
   histNote: string | null;
@@ -75,7 +75,7 @@ function badCursor(): ScanError {
   return new ScanError(
     400,
     "bad-format",
-    "That scan link doesn't look right — it may be from an older scan or pasted wrong. Starting a fresh scan instead.",
+    "That scan link doesn't look right - it may be from an older scan or pasted wrong. Starting a fresh scan instead.",
   );
 }
 
@@ -85,7 +85,7 @@ export function encodeCursor(data: ScanCursorData): string {
 }
 
 /** Decode and strictly validate a cursor string. `owner`/`repo` are the
- *  request's own values — a cursor for a different repo is rejected.
+ *  request's own values - a cursor for a different repo is rejected.
  *  Throws ScanError (400, plain English) on anything malformed. */
 export function decodeCursor(raw: string, owner: string, repo: string): ScanCursorData {
   let parsed: unknown;

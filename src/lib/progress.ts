@@ -1,4 +1,4 @@
-// Live scan progress — the shared shape for a running scan job.
+// Live scan progress - the shared shape for a running scan job.
 //
 // Client-safe on purpose: this module imports NOTHING (no scan.ts,
 // no history.ts, no node: built-ins). The progress component runs in
@@ -8,7 +8,7 @@
 export type ScanStep = "files" | "history" | "dependencies" | "done";
 
 /** One step of a running scan, for the job progress a client polls.
- *  Counts are exact counts of work actually done so far — never
+ *  Counts are exact counts of work actually done so far - never
  *  estimates, never a spinner pretending to know. `commitsScanned`
  *  stays 0 while the history step runs (history.ts has no progress
  *  callback yet) and jumps to the true count when that step returns. */
@@ -37,14 +37,14 @@ export function stepLabel(step: ScanStep): string {
   }
 }
 
-/** Phase 16 — honest history pace, from measured numbers only.
+/** Phase 16 - honest history pace, from measured numbers only.
  *  `commitsDelta` is how many history commits this browser session
  *  has watched get checked, over `elapsedSec` seconds of driving the
  *  chunks. Returns commits/minute, or null when too little has been
  *  measured for the number to mean anything (under 100 commits or
- *  under 20 s — the early chunks include HEAD setup time, so an early
+ *  under 20 s - the early chunks include HEAD setup time, so an early
  *  rate would overstate the pace). Callers show the no-number wording
- *  ("large repos take longer") when this returns null — never an
+ *  ("large repos take longer") when this returns null - never an
  *  invented estimate. No total commit count exists before the scan
  *  finishes, so there is no ETA to compute, only the observed rate. */
 export function historyRatePerMin(commitsDelta: number, elapsedSec: number): number | null {

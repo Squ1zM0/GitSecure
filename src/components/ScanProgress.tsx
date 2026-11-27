@@ -1,19 +1,19 @@
-// Live scan progress (Phase 9) — client component.
+// Live scan progress (Phase 9) - client component.
 //
 // Phase 16: the report page renders this shell immediately, with no
-// cursor — the page no longer awaits any scan server-side (that wait
+// cursor - the page no longer awaits any scan server-side (that wait
 // hit Vercel's 60 s ceiling on big repos and Safari reported "This
 // page couldn't load"). This driver starts the scan itself through
 // POST /api/scan/start (the HEAD chunk) and then drives it chunk by
-// chunk through POST /api/scan/chunk, carrying the cursor forward —
+// chunk through POST /api/scan/chunk, carrying the cursor forward -
 // the server holds no state, so a restart, cold start, or a chunk
 // landing on a different instance loses nothing. After every chunk it
 // saves the cursor + accumulated results in sessionStorage (see
 // resume.ts), so a reload or a closed tab resumes from the last
-// completed chunk and says so plainly ("Resumed — picked up where it
+// completed chunk and says so plainly ("Resumed - picked up where it
 // left off", with the counts so far). When the HEAD chunk is done the
 // provisional HEAD report renders above the progress card, and history
-// streams in underneath it — live counts, secrets found so far — until
+// streams in underneath it - live counts, secrets found so far - until
 // the assemble chunk returns the finished report, which swaps in
 // without a reload.
 //
@@ -46,24 +46,24 @@ function formatCount(n: number): string {
 }
 
 /** Phase 15 (finding 3): a chunk failure must say WHY it failed and
- *  how far the scan got — a generic "try again" with no reason and no
+ *  how far the scan got - a generic "try again" with no reason and no
  *  progress is a retry loop with no information. The driver already
  *  holds the numbers; the card shows them. */
 type ChunkErrorKind = "rate-limit" | "network" | "other";
 // The network/other copies are fixed; the rate-limit copy is computed
 // at fail time from GitHub's reset time when the chunk route knew it
-// (rateLimitPausedBody) — this entry is only the fallback when the
+// (rateLimitPausedBody) - this entry is only the fallback when the
 // reset time could not be read.
 const CHUNK_ERROR_COPY: Record<ChunkErrorKind, string> = {
-  "rate-limit": "GitHub's request limit was hit, so the scan paused here. The limit resets within the hour — retry then, and the scan picks up from the last finished chunk.",
-  network: "The scan couldn't be reached — check your connection and try again. Nothing was lost: the scan picks up from the last finished chunk.",
-  other: "GitHub didn't answer as expected. Try again in a bit — the scan picks up from the last finished chunk.",
+  "rate-limit": "GitHub's request limit was hit, so the scan paused here. The limit resets within the hour - retry then, and the scan picks up from the last finished chunk.",
+  network: "The scan couldn't be reached - check your connection and try again. Nothing was lost: the scan picks up from the last finished chunk.",
+  other: "GitHub didn't answer as expected. Try again in a bit - the scan picks up from the last finished chunk.",
 };
 
 /** Phase 16: kinds that end the scan with the full error page (same
  *  words the old server page used) instead of the retry card: the scan
  *  never got going, so there is no progress to resume from. Anything
- *  else — upstream / unknown, or a failure after progress was made —
+ *  else - upstream / unknown, or a failure after progress was made -
  *  keeps the retry card, which says how far the scan got. */
 const TERMINAL_ERROR_KINDS = ["not-found", "private", "rate-limit", "timeout", "bad-format", "head-moved"] as const;
 
@@ -95,7 +95,7 @@ function cursorStage(cursor: string): string | null {
 }
 
 /** Progress counts for a resumed scan, from the saved HEAD partial and
- *  the commits checked so far — so the card shows the retained
+ *  the commits checked so far - so the card shows the retained
  *  progress the moment the page reloads, instead of zeros until the
  *  next chunk answers. Same step mapping the server uses for a
  *  partial (see progressFor in chunks.ts). */
@@ -146,14 +146,14 @@ export default function ScanProgress({
   const [error, setError] = useState<{ kind: ChunkErrorKind; message: string } | null>(null);
   // Phase 16: a scan that failed before anything was scanned gets the
   // full error page (same words the old server page used), not the
-  // retry card — there is no progress to resume from.
+  // retry card - there is no progress to resume from.
   const [terminalError, setTerminalError] = useState<{ kind: ScanErrorKind; resetAtMs: number | null } | null>(null);
   const [retryKey, setRetryKey] = useState(0);
   const startedRef = useRef(false);
-  // Phase 16 — honest timing: when this browser session started
+  // Phase 16 - honest timing: when this browser session started
   // driving chunks, and how many history commits were already checked
   // at that point. The live rate below is the DELTA over the elapsed
-  // driving time — never the server's pre-mount work divided by the
+  // driving time - never the server's pre-mount work divided by the
   // client-side clock, which would overstate the pace.
   const startedAtRef = useRef(Date.now());
   const baseCommitsRef = useRef(initial.commitsScanned);
@@ -166,7 +166,7 @@ export default function ScanProgress({
     const drive = async () => {
       // The shell carries no cursor any more (Phase 16: the page
       // renders immediately), so saved progress from this tab is
-      // further ahead by definition whenever it exists — resume from
+      // further ahead by definition whenever it exists - resume from
       // it and say so. The old "further ahead than the server's fresh
       // partial" comparison is gone with the server wait, and so is
       // the else branch that saved the empty initial state over real
@@ -186,15 +186,15 @@ export default function ScanProgress({
           findings = dedupeFindings(saved.historyFindings as SecretFinding[]);
           scanned = saved.historyScanned;
           // A finished report saved for this same HEAD renders
-          // immediately — no re-scan.
+          // immediately - no re-scan.
           const savedReport = loadReport(sessionStorage, owner, repo);
           if (savedReport && savedReport.headSha === savedHead.headSha) {
             if (!stopped) setFinalReport(savedReport.report as FullReport);
             return;
           }
           if (!stopped) {
-            // Show the retained progress at once — commits checked so
-            // far, current stage, and the explicit resume line — so a
+            // Show the retained progress at once - commits checked so
+            // far, current stage, and the explicit resume line - so a
             // reload never sits on a bare spinner. The history pace
             // below must measure only THIS session's driving, so the
             // already-checked commits become the new baseline (see
@@ -208,7 +208,7 @@ export default function ScanProgress({
         }
       } else {
         // No saved progress: a finished report from an earlier visit
-        // still renders immediately — but only if the repo's HEAD has
+        // still renders immediately - but only if the repo's HEAD has
         // not moved since it was saved (cheap tip check, one round
         // trip). A failed tip check never blocks the scan: it just
         // means the saved report cannot be proven current, so a fresh
@@ -242,7 +242,7 @@ export default function ScanProgress({
       }
 
       let failures = 0;
-      // A failure is terminal once it has failed 3 times — except a
+      // A failure is terminal once it has failed 3 times - except a
       // rate limit, which no quick retry will clear, so it fails
       // fast on the first 429 instead of burning three attempts.
       // `message` overrides the fixed copy (the rate-limit copy is
@@ -257,7 +257,7 @@ export default function ScanProgress({
       };
       // Drive chunks until the assemble chunk returns the report. The
       // first chunk of a fresh scan runs through POST /api/scan/start
-      // (the HEAD chunk — the chunk endpoint only continues a scan
+      // (the HEAD chunk - the chunk endpoint only continues a scan
       // from a cursor); every chunk after that through
       // POST /api/scan/chunk. Both answer the same partial shape, so
       // the loop treats them identically.
@@ -289,7 +289,7 @@ export default function ScanProgress({
           // Read the error body once: the kind decides between the
           // full error page and the retry card. A terminal failure
           // before anything was scanned gets the error page, with the
-          // same words the old server page used — a missing repo must
+          // same words the old server page used - a missing repo must
           // not masquerade as a transient retry. A failure after
           // progress was made keeps the retry card, which says how
           // far the scan got.
@@ -309,7 +309,7 @@ export default function ScanProgress({
           }
           if (res.status === 429) {
             // Phase 15 (rate-limit recovery): the chunk route carries
-            // GitHub's reset time when it knew it — read it so the
+            // GitHub's reset time when it knew it - read it so the
             // card can say honestly how long to wait ("in about N
             // minutes") instead of a vague "few minutes". An
             // unreadable body falls back to the hourly wording.
@@ -354,7 +354,7 @@ export default function ScanProgress({
 
   if (terminalError) {
     // Phase 16: the scan failed before anything was scanned, so there
-    // is no progress to resume from — the full error page, with the
+    // is no progress to resume from - the full error page, with the
     // same words the old server page used, instead of the retry card.
     const { title, body } = scanErrorCopy(terminalError.kind, owner, repo, terminalError.resetAtMs);
     return (
@@ -371,7 +371,7 @@ export default function ScanProgress({
 
   if (error) {
     // Phase 15 (finding 3): the card names the failure reason and the
-    // progress reached — files / commits / secrets so far — so the
+    // progress reached - files / commits / secrets so far - so the
     // user can judge whether retrying will help. The provisional
     // report below renders with its banner switched to "paused"
     // (finding 3a), never "still running".
@@ -412,10 +412,10 @@ export default function ScanProgress({
     );
   }
 
-  // Phase 16 — live history pace, measured, never invented: commits
+  // Phase 16 - live history pace, measured, never invented: commits
   // checked since this session started driving, over the seconds
   // spent driving. Null until enough has been measured (see
-  // historyRatePerMin) — then the card says "large repos take
+  // historyRatePerMin) - then the card says "large repos take
   // longer" with no number instead of guessing.
   const elapsedSec = Math.max(0, Math.floor((Date.now() - startedAtRef.current) / 1000));
   const historyRate = historyRatePerMin(progress.commitsScanned - baseCommitsRef.current, elapsedSec);
@@ -465,12 +465,12 @@ export default function ScanProgress({
         {progress.step === "history" ? (
           <p className="muted">
             {historyRate !== null
-              ? `History is the slow part on a big repo: ${formatCount(progress.commitsScanned)} commits checked so far, about ${formatCount(historyRate)} a minute — a repo with thousands of commits takes several minutes.`
-              : "History is the slow part on a big repo — a repo with thousands of commits takes several minutes."}
+              ? `History is the slow part on a big repo: ${formatCount(progress.commitsScanned)} commits checked so far, about ${formatCount(historyRate)} a minute - a repo with thousands of commits takes several minutes.`
+              : "History is the slow part on a big repo - a repo with thousands of commits takes several minutes."}
           </p>
         ) : null}
         <p className="muted">
-          This is a big repo, so the scan continues chunk by chunk — the report will appear here as soon as it is done. If you close this page, the scan picks up where it left off when you come back. There is nothing to click.
+          This is a big repo, so the scan continues chunk by chunk - the report will appear here as soon as it is done. If you close this page, the scan picks up where it left off when you come back. There is nothing to click.
         </p>
       </div>
     </div>

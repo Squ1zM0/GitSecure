@@ -1,4 +1,4 @@
-// Start-scan endpoint (Phase 16) — POST /api/scan/start { owner, repo }
+// Start-scan endpoint (Phase 16) - POST /api/scan/start { owner, repo }
 //
 // The report page renders its progress shell immediately now, so the
 // browser needs a way to run the FIRST chunk (the HEAD chunk): the
@@ -7,7 +7,7 @@
 // shape POST /api/scan/chunk returns, so the client driver treats its
 // response as the first chunk response and keeps driving from the
 // cursor it carries. Backward-compatible addition: no existing route
-// changes, no scan behaviour changes — advanceScan with a null cursor
+// changes, no scan behaviour changes - advanceScan with a null cursor
 // is what the chunk route's callers already rely on per chunk.
 import { NextResponse } from "next/server";
 import { advanceScan } from "@/lib/chunks";

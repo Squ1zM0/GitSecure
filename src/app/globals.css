@@ -1,4 +1,4 @@
-/* GitSecure Phase 7 — visual identity.
+/* GitSecure Phase 7 - visual identity.
  *
  * One type scale, one spacing system, one colour system. Light and dark
  * both first-class: every surface, input, code block and pill reads on
@@ -113,7 +113,7 @@ code.inline, .finding code {
   border-radius: 5px;
   font-size: 0.85em;
   /* Phase 15 finding 2 (real-DT follow-up): break-word does NOT break a
-    long path token when the line has other break points (spaces) — the
+    long path token when the line has other break points (spaces) - the
     audit's exact path types/nginstack__datasource/.../DataSourceDataType.d.ts
     stayed 454 px wide on a live DT provisional report at 360 px.
     anywhere creates a break opportunity inside the token itself, so the
@@ -155,6 +155,7 @@ code.inline, .finding code {
   color: #fff;
 }
 .brand { color: #fff; font-weight: 800; font-size: 20px; text-decoration: none; }
+.brand-mark { width: 26px; height: 26px; vertical-align: -5px; margin-right: 8px; }
 .brand:hover { text-decoration: underline; }
 .tagline { color: #bbb; font-size: 14px; }
 .container { max-width: 880px; margin: 0 auto; padding: var(--space-4) 16px 40px; }
@@ -194,7 +195,7 @@ button.secondary {
   color: var(--text);
   border: 1px solid var(--line);
 }
-button.copy-btn { padding: 6px 12px; font-size: 13px; min-height: 44px; /* Phase 15 finding 12: the ≥44 px tap-target rule is the project's own — no 36 px exception. */ }
+button.copy-btn { padding: 6px 12px; font-size: 13px; min-height: 44px; /* Phase 15 finding 12: the ≥44 px tap-target rule is the project's own - no 36 px exception. */ }
 input[type="text"], .filters select, .filters input[type="search"] {
   padding: 12px;
   font-size: 16px;
@@ -230,7 +231,7 @@ form.scan-form input[type="text"] { flex: 1 1 220px; min-height: 48px; }
 .scan-field label { font-size: 13px; font-weight: 700; }
 /* The input sits in a column flex container, so the row form's
  * flex-basis must not leak into its height (that rendered a ~220px
- * tall input — the same class of bug Phase 7 fixed on mobile). */
+ * tall input - the same class of bug Phase 7 fixed on mobile). */
 form.scan-form .scan-field input[type="text"] { flex: 0 0 auto; width: 100%; }
 .form-error {
   background: var(--sev-critical-bg);
@@ -356,7 +357,7 @@ form.scan-form .scan-field input[type="text"] { flex: 0 0 auto; width: 100%; }
 .pill.low { background: var(--sev-low-bg); color: var(--sev-low-text); }
 .pill.info { background: var(--sev-info-bg); color: var(--sev-info-text); }
 /* Phase 10 triage pills: test keys read calm (blue), genuine leaks read
- * alarming (red), uncertain reads cautious (amber) — label + colour
+ * alarming (red), uncertain reads cautious (amber) - label + colour
  * together, never colour alone. */
 .pill.triage-test { background: var(--sev-low-bg); color: var(--sev-low-text); }
 .pill.triage-genuine { background: var(--sev-critical-bg); color: var(--sev-critical-text); }
@@ -374,7 +375,7 @@ form.scan-form .scan-field input[type="text"] { flex: 0 0 auto; width: 100%; }
 }
 /* Phase 15 finding 2 (real-DT follow-up): framework and dependency
   names/versions are plain text and can be a 40-char SHA with no break
-  opportunity — the live DT provisional report measured 411 px wide at
+  opportunity - the live DT provisional report measured 411 px wide at
   a 360 px viewport because of the Frameworks list. anywhere only breaks
   a token that would otherwise overflow. */
 .report-list li { overflow-wrap: anywhere; }
@@ -470,21 +471,21 @@ details.group[open ] .group-body { animation: group-in 180ms ease; }
 .map-dim { opacity: 0.35; }
 .map-track-detail { background: var(--surface-muted); border: 1px solid var(--line); border-radius: var(--radius-sm); padding: 10px 14px; margin-top: 10px; }
 .map-track-detail p { margin: var(--space-2) 0; }
-button.file-chip { margin: 3px; padding: 6px 10px; font-size: 13px; font-weight: 600; min-height: 44px; /* Phase 15 finding 12: same ≥44 px rule as copy-btn — no 36 px exception. */ }
+button.file-chip { margin: 3px; padding: 6px 10px; font-size: 13px; font-weight: 600; min-height: 44px; /* Phase 15 finding 12: same ≥44 px rule as copy-btn - no 36 px exception. */ }
 
 /* ---- Phase 18: dynamic usage-map plane --------------------------- */
 /* The plane is a fixed-height viewport: the svg fills it (width and
- * height 100%, no viewBox — world units are screen pixels through
+ * height 100%, no viewBox - world units are screen pixels through
  * the one <g transform>), overflow hidden clips panned content, and
  * touch-action none keeps every gesture inside the box. The old
- * .map-wrap overflow rule is untouched — FileMap still uses it. */
+ * .map-wrap overflow rule is untouched - FileMap still uses it. */
 .map-plane { height: 420px; border: 1px solid var(--line); border-radius: var(--radius-sm); overflow: hidden; }
 .map-plane svg { display: block; width: 100%; height: 100%; touch-action: none; }
 .map-plane:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
 .map-toolbar { display: flex; gap: 8px; flex-wrap: wrap; margin: 10px 0; }
 .map-toolbar button { min-height: 44px; padding: 6px 12px; }
 /* The world group animates its transform (150 ms) unless reduced
- * motion is set — then the component omits this class and the view
+ * motion is set - then the component omits this class and the view
  * jump-cuts. (The global reduced-motion rule also forces
  * transition: none as a backstop.) */
 .map-animated { transition: transform 150ms ease; }
@@ -535,7 +536,7 @@ text.map-edge-label { font-size: 9px; fill: var(--text); paint-order: stroke; st
   form.scan-form input[type="text"], form.scan-form button { flex: 0 0 auto; width: 100%; }
   .scan-field { flex: 0 0 auto; width: 100%; }
   /* Phase 15, finding 10(d): on a phone the MCP JSON lines scroll
-   * horizontally — fade the right edge so the scroll is discoverable. */
+   * horizontally - fade the right edge so the scroll is discoverable. */
   .snippet pre {
     mask-image: linear-gradient(to right, #000 88%, transparent 100%);
     -webkit-mask-image: linear-gradient(to right, #000 88%, transparent 100%);

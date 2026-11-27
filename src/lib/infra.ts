@@ -1,10 +1,10 @@
-// Tier 3 infrastructure fingerprinting — Docker, Kubernetes, Terraform,
+// Tier 3 infrastructure fingerprinting - Docker, Kubernetes, Terraform,
 // GitHub Actions, Vercel, Supabase (Phase 6).
 // Pluggable like Tier 1/2: new detectors + parsers live here; the scan
 // core only calls detectInfraFrameworks / infraFindings /
 // parseWorkflowActions and merges the results. Version rule (same as
 // frameworks.ts): a version is reported only when it can be read honestly
-// from the file; otherwise it is null and versionSource is "unknown" —
+// from the file; otherwise it is null and versionSource is "unknown" -
 // never guessed. A range ("~> 5.0", ">= 1.5") is NOT a version.
 
 import type { Dependency, Framework, Severity } from "./types";
@@ -19,6 +19,10 @@ export interface InfraFinding {
   /** Plain English: what the risk is, then "Fix: <exact fix>". */
   detail: string;
   severity: Severity;
+  /** Repo-relative file the finding comes from, when known. */
+  file?: string;
+  /** Posture category for the report map. */
+  category?: "actions" | "container";
 }
 
 const VERSION_TAG = /^v?\d+(\.\d+){0,2}$/;
@@ -46,7 +50,7 @@ export interface ParsedDockerImage {
 }
 
 export function parseDockerImage(ref: string): ParsedDockerImage | null {
-  if (!ref || ref.includes("$")) return null; // ${VAR} — not resolvable, never guessed
+  if (!ref || ref.includes("$")) return null; // ${VAR} - not resolvable, never guessed
   let image = ref;
   let digestPinned = false;
   const at = image.indexOf("@");
@@ -84,7 +88,7 @@ function dockerImageFramework(ref: string, sourceFile: string): Framework | null
 }
 
 /** Parse a Dockerfile: one entry per FROM (multi-stage builds included).
- *  No dedupe here — detectInfraFrameworks dedupes by name, preferring a
+ *  No dedupe here - detectInfraFrameworks dedupes by name, preferring a
  *  known version. */
 export function parseDockerfile(content: string, sourceFile: string): Framework[] {
   const out: Framework[] = [];
@@ -97,7 +101,7 @@ export function parseDockerfile(content: string, sourceFile: string): Framework[
   return out;
 }
 
-/** Parse `image:` lines — the service images in a compose file and the
+/** Parse `image:` lines - the service images in a compose file and the
  *  container images in a Kubernetes manifest. */
 function parseImageLines(content: string, sourceFile: string): Framework[] {
   const out: Framework[] = [];
@@ -220,14 +224,24 @@ export function parseTerraform(content: string, sourceFile: string): Framework[]
 
 export interface WorkflowAction {
   name: string; // owner/action
-  ref: string | null; // tag, branch, or SHA as written — null when absent
+  ref: string | null; // tag, branch, or SHA as written - null when absent
   /** The ref when it looks like a version tag (v4, v4.1.0, 1.2.3), else null. */
   version: string | null;
   unpinned: boolean;
+  /** True for first-party actions (actions/*, github/*). */
+  firstParty: boolean;
+  /** True when the ref is a full 40-hex commit SHA (immutable pin). */
+  pinnedSha: boolean;
+}
+
+/** First-party actions are published by GitHub itself, so a major
+ *  version tag is a trusted pin. Everything else is third-party. */
+export function isFirstPartyAction(name: string): boolean {
+  return name.startsWith("actions/") || name.startsWith("github/");
 }
 
 /** Parse `uses:` steps. Local actions ("./...") and docker:// actions
- *  are skipped — they are not queryable actions. */
+ *  are skipped - they are not queryable actions. */
 export function parseWorkflowUses(content: string): WorkflowAction[] {
   const out: WorkflowAction[] = [];
   for (const line of content.split("\n")) {
@@ -243,13 +257,13 @@ export function parseWorkflowUses(content: string): WorkflowAction[] {
     // Pinned: a version tag, or a full commit SHA (immutable). Unpinned:
     // a branch name (main/master/anything else) or no ref at all.
     const unpinned = !ref || (!VERSION_TAG.test(ref) && !FULL_SHA.test(ref));
-    out.push({ name, ref, version, unpinned });
+    out.push({ name, ref, version, unpinned, firstParty: isFirstPartyAction(name), pinnedSha: !!ref && FULL_SHA.test(ref) });
   }
   return out;
 }
 
 /** Workflow actions as OSV-queryable dependencies (ecosystem "actions").
- *  A full 40-char SHA is NOT a queryable version, so version is null —
+ *  A full 40-char SHA is NOT a queryable version, so version is null -
  *  never guessed. The coordinator must add `actions: "GitHub Actions"`
  *  (ACTIONS_OSV_ECOSYSTEM) to osv.ts's ecosystemMap. */
 export function parseWorkflowActions(content: string, sourceFile: string): Dependency[] {
@@ -364,7 +378,11 @@ export function detectInfraFrameworks(files: Map<string, string>): Framework[] {
 function dockerfileFindings(path: string, content: string): InfraFinding[] {
   const out: InfraFinding[] = [];
   let hasUser = false;
+  let hasHealthcheck = false;
+  let hasCmdOrEntrypoint = false;
   for (const line of content.split("\n")) {
+    if (/^\s*HEALTHCHECK\b/i.test(line)) hasHealthcheck = true;
+    if (/^\s*(CMD|ENTRYPOINT)\b/i.test(line)) hasCmdOrEntrypoint = true;
     const user = /^\s*USER\s+(\S+)/i.exec(line)?.[1];
     if (user) {
       hasUser = true;
@@ -373,6 +391,8 @@ function dockerfileFindings(path: string, content: string): InfraFinding[] {
           title: "Dockerfile runs as root",
           detail: `${path} sets USER ${user}, so the container runs as root. If the application is compromised, the attacker has root inside the container. Fix: create a dedicated non-root user in the Dockerfile (for example with a RUN step that adds the user) and switch to it with USER <username> before the final CMD.`,
           severity: "medium",
+          file: path,
+          category: "container",
         });
       }
     }
@@ -384,6 +404,8 @@ function dockerfileFindings(path: string, content: string): InfraFinding[] {
           title: "Docker base image is not pinned to a version",
           detail: `${path} uses ${from[1]} as a base image with no pinned version (tag "latest" or no tag), so a rebuild can silently pull a different image. Fix: pin the base image to a specific versioned tag, e.g. FROM node:20-alpine, and bump it deliberately.`,
           severity: "medium",
+          file: path,
+          category: "container",
         });
       }
     }
@@ -393,11 +415,13 @@ function dockerfileFindings(path: string, content: string): InfraFinding[] {
         title: "Possible secret passed as a Docker build argument",
         detail: `${path} declares ARG ${arg[1]}, a name that looks like a secret. Build arguments are stored in the image history and can be read back with docker history, so the value can leak to anyone who has the image. Fix: pass the value with a BuildKit secret mount (RUN --mount=type=secret ...) instead, and never put it in an ARG or ENV.`,
         severity: "high",
+        file: path,
+        category: "container",
       });
     }
     // ENV is worse than ARG in one way: the value is baked into the
     // image config itself, visible to anyone with the image via
-    // `docker inspect`. Only secret-looking names are flagged — a
+    // `docker inspect`. Only secret-looking names are flagged - a
     // plain ENV NODE_ENV never fires. One finding per line.
     if (/^\s*ENV\s+/.test(line)) {
       for (const m of line.matchAll(/([A-Za-z_][A-Za-z0-9_]*)\s*=/g)) {
@@ -406,6 +430,8 @@ function dockerfileFindings(path: string, content: string): InfraFinding[] {
             title: "Possible secret baked into the image with ENV",
             detail: `${path} sets ENV ${m[1]}, a name that looks like a secret. ENV values are stored in the image config and can be read back with docker inspect, so the value leaks to anyone who has the image. Fix: pass the value at run time instead (docker run -e ${m[1]}=... or a secrets manager), and never put it in an ENV.`,
             severity: "high",
+            file: path,
+            category: "container",
           });
           break;
         }
@@ -416,7 +442,9 @@ function dockerfileFindings(path: string, content: string): InfraFinding[] {
       out.push({
         title: "Dockerfile downloads a file with ADD",
         detail: `${path} uses ADD to fetch ${add[1]}. ADD downloads the file without verifying a checksum, and its caching can silently reuse a stale copy. Fix: use COPY for files from the build context, or download the file in a RUN step with curl and verify its checksum before using it.`,
-        severity: "medium",
+        severity: "low",
+        file: path,
+        category: "container",
       });
     }
   }
@@ -425,6 +453,17 @@ function dockerfileFindings(path: string, content: string): InfraFinding[] {
       title: "Dockerfile has no USER instruction",
       detail: `${path} never sets a USER, so the container runs as root by default. If the application is compromised, the attacker has root inside the container. Fix: create a dedicated non-root user in the Dockerfile and switch to it with USER <username> before the final CMD.`,
       severity: "medium",
+      file: path,
+      category: "container",
+    });
+  }
+  if (hasCmdOrEntrypoint && !hasHealthcheck) {
+    out.push({
+      title: "Dockerfile has no HEALTHCHECK",
+      detail: `${path} runs a service (it has a CMD or ENTRYPOINT) but sets no HEALTHCHECK, so a container that stops responding keeps running and keeps receiving traffic. Fix: add a HEALTHCHECK instruction that probes the service, e.g. HEALTHCHECK CMD curl -f http://localhost/health || exit 1.`,
+      severity: "low",
+      file: path,
+      category: "container",
     });
   }
   return out;
@@ -438,6 +477,8 @@ function k8sFindings(path: string, content: string): InfraFinding[] {
       title: "Kubernetes pod uses the host network",
       detail: `${path} sets hostNetwork: true, so the pod shares the host's network namespace and can see host network traffic and ports. Fix: remove hostNetwork: true and expose the pod through a Service instead.`,
       severity: "high",
+      file: path,
+      category: "container",
     });
   }
   if (/^\s*hostPID:\s*true\s*$/im.test(content)) {
@@ -445,6 +486,8 @@ function k8sFindings(path: string, content: string): InfraFinding[] {
       title: "Kubernetes pod uses the host PID namespace",
       detail: `${path} sets hostPID: true, so the pod can see and signal processes on the host. Fix: remove hostPID: true.`,
       severity: "high",
+      file: path,
+      category: "container",
     });
   }
   if (/^\s*hostIPC:\s*true\s*$/im.test(content)) {
@@ -452,6 +495,8 @@ function k8sFindings(path: string, content: string): InfraFinding[] {
       title: "Kubernetes pod uses the host IPC namespace",
       detail: `${path} sets hostIPC: true, so the pod shares the host's inter-process communication namespace and can see host IPC objects. Fix: remove hostIPC: true.`,
       severity: "high",
+      file: path,
+      category: "container",
     });
   }
   if (/^\s*allowPrivilegeEscalation:\s*true\s*$/im.test(content)) {
@@ -459,20 +504,35 @@ function k8sFindings(path: string, content: string): InfraFinding[] {
       title: "Kubernetes container allows privilege escalation",
       detail: `${path} sets allowPrivilegeEscalation: true, so a process in the container can gain more privileges than the container started with. Fix: set allowPrivilegeEscalation: false.`,
       severity: "high",
+      file: path,
+      category: "container",
     });
   }
   if (/^\s*privileged:\s*true\s*$/im.test(content)) {
     out.push({
       title: "Kubernetes container runs privileged",
-      detail: `${path} sets privileged: true, giving the container full access to the host — effectively root on the node. Fix: remove privileged: true and grant only the specific Linux capabilities the container needs.`,
+      detail: `${path} sets privileged: true, giving the container full access to the host - effectively root on the node. Fix: remove privileged: true and grant only the specific Linux capabilities the container needs.`,
       severity: "high",
+      file: path,
+      category: "container",
     });
   }
   if (/^\s*runAsUser:\s*0\s*$/m.test(content)) {
     out.push({
       title: "Kubernetes container runs as root (UID 0)",
       detail: `${path} sets runAsUser: 0, so the container runs as root. Fix: set runAsUser to a non-zero UID, e.g. runAsUser: 1000, and make sure the image supports running as that user.`,
-      severity: "high",
+      severity: "medium",
+      file: path,
+      category: "container",
+    });
+  }
+  if (/^\s*runAsNonRoot:\s*false\s*$/m.test(content)) {
+    out.push({
+      title: "Kubernetes container allows running as root",
+      detail: `${path} sets runAsNonRoot: false, so the container is allowed to run as root. Fix: set runAsNonRoot: true and set runAsUser to a non-zero UID.`,
+      severity: "medium",
+      file: path,
+      category: "container",
     });
   }
   for (const line of content.split("\n")) {
@@ -484,6 +544,8 @@ function k8sFindings(path: string, content: string): InfraFinding[] {
         title: "Kubernetes container image is not pinned to a version",
         detail: `${path} runs container image ${m[1]} with no pinned version (tag "latest" or no tag), so a redeploy can silently pull a different image. Fix: pin the image to a specific versioned tag or a digest, e.g. image: myapp:1.2.3.`,
         severity: "medium",
+        file: path,
+        category: "container",
       });
     }
   }
@@ -491,16 +553,34 @@ function k8sFindings(path: string, content: string): InfraFinding[] {
 }
 
 function workflowFindings(path: string, content: string): InfraFinding[] {
-  // NOTE: pull_request_target is already flagged by scan.ts posture —
+  // NOTE: pull_request_target is already flagged by scan.ts posture -
   // deliberately not repeated here. persist-credentials is default
   // behaviour and is also skipped.
   const out: InfraFinding[] = [];
   for (const a of parseWorkflowUses(content)) {
-    if (!a.unpinned) continue;
+    // A full commit SHA is an immutable pin for any party.
+    if (a.pinnedSha) continue;
+    if (a.firstParty) {
+      // A major version tag is a trusted pin for first-party actions.
+      if (a.version) continue;
+      // No ref (or a branch ref) keeps the existing medium finding.
+      out.push({
+        title: "GitHub Action is not pinned",
+        detail: `${path} uses ${a.name}@${a.ref ?? "(no ref)"}. An unpinned action can change under you - a compromised or rewritten action runs with your workflow's permissions. Fix: pin the action to a full commit SHA (uses: ${a.name}@<40-character SHA>) or at least to a versioned tag such as @v4.`,
+        severity: "medium",
+        file: path,
+        category: "actions",
+      });
+      continue;
+    }
+    // Third-party action, not pinned to a commit SHA: a version tag,
+    // a branch, or no ref at all is a high finding.
     out.push({
       title: "GitHub Action is not pinned",
-      detail: `${path} uses ${a.name}@${a.ref ?? "(no ref)"}. An unpinned action can change under you — a compromised or rewritten action runs with your workflow's permissions. Fix: pin the action to a full commit SHA (uses: ${a.name}@<40-character SHA>) or at least to a versioned tag such as @v4.`,
-      severity: "medium",
+      detail: `${path} uses ${a.name}@${a.ref ?? "(no ref)"}. This is a third-party action, not one published by GitHub, and it is not pinned to a commit, so a new release or a compromised version can run with your workflow's permissions. Fix: pin the action to a full commit SHA (uses: ${a.name}@<40-character SHA>).`,
+      severity: "high",
+      file: path,
+      category: "actions",
     });
   }
   return out;
@@ -511,8 +591,10 @@ function composeFindings(path: string, content: string): InfraFinding[] {
   if (/^\s*privileged:\s*true\s*$/im.test(content)) {
     out.push({
       title: "Compose service runs privileged",
-      detail: `${path} sets privileged: true, giving the container full access to the host — effectively root on the machine. Fix: remove privileged: true and grant only the specific Linux capabilities the container needs.`,
+      detail: `${path} sets privileged: true, giving the container full access to the host - effectively root on the machine. Fix: remove privileged: true and grant only the specific Linux capabilities the container needs.`,
       severity: "high",
+      file: path,
+      category: "container",
     });
   }
   if (/^\s*network_mode:\s*["']?host["']?\s*$/im.test(content)) {
@@ -520,7 +602,53 @@ function composeFindings(path: string, content: string): InfraFinding[] {
       title: "Compose service uses the host network",
       detail: `${path} sets network_mode: host, so the container shares the host's network namespace and can see host network traffic and ports. Fix: remove network_mode: host and publish only the ports the service needs.`,
       severity: "high",
+      file: path,
+      category: "container",
     });
+  }
+  // cap_add: a block list or an inline list. One finding per block
+  // that grants SYS_ADMIN or ALL.
+  const lines = content.split("\n");
+  for (let i = 0; i < lines.length; i++) {
+    const capLine = /^(\s*)cap_add:\s*(.*)$/.exec(lines[i]);
+    if (!capLine) continue;
+    const indent = capLine[1].length;
+    const bad: string[] = [];
+    const collect = (text: string) => {
+      for (const cap of text.split(",")) {
+        const c = cap.replace(/[\[\]"']/g, "").trim();
+        if ((c === "SYS_ADMIN" || c === "ALL") && !bad.includes(c)) bad.push(c);
+      }
+    };
+    collect(capLine[2]);
+    for (let j = i + 1; j < lines.length; j++) {
+      const item = /^(\s*)-\s*(\S+)/.exec(lines[j]);
+      if (!item || item[1].length <= indent) break;
+      collect(item[2]);
+    }
+    if (bad.length > 0) {
+      out.push({
+        title: "Compose service adds a dangerous Linux capability",
+        detail: `${path} grants ${bad.join(" and ")} with cap_add, giving the container broad powers over the host. Fix: remove ${bad.join(" and ")} from cap_add and grant only the specific capability the service needs.`,
+        severity: "medium",
+        file: path,
+        category: "container",
+      });
+    }
+  }
+  for (const line of lines) {
+    const m = /^\s*image:\s*["']?([^\s"'#]+)["']?/.exec(line);
+    if (!m) continue;
+    const parsed = parseDockerImage(m[1]);
+    if (parsed && parsed.unpinned) {
+      out.push({
+        title: "Compose service image is not pinned to a version",
+        detail: `${path} runs container image ${m[1]} with no pinned version (tag "latest" or no tag), so a redeploy can silently pull a different image. Fix: pin the image to a specific versioned tag or a digest, e.g. image: myapp:1.2.3.`,
+        severity: "low",
+        file: path,
+        category: "container",
+      });
+    }
   }
   return out;
 }
@@ -530,7 +658,7 @@ function terraformFindings(path: string, content: string): InfraFinding[] {
   const { required, declared } = parseTerraformBlocks(content);
   for (const name of new Set([...required.keys(), ...declared])) {
     // Only a MISSING constraint is flagged. A range ("~> 5.0") is a
-    // constraint, just not an exact version — not a finding.
+    // constraint, just not an exact version - not a finding.
     const hasConstraint = required.has(name) && required.get(name)?.version !== null;
     if (hasConstraint) continue;
     const source = required.get(name)?.source;
@@ -538,6 +666,7 @@ function terraformFindings(path: string, content: string): InfraFinding[] {
       title: `Terraform provider ${name} has no version constraint`,
       detail: `${path} uses provider ${name} with no version constraint, so a future release of the provider can change your infrastructure on the next apply. Fix: add a version constraint in the required_providers block, e.g. ${name} = { source = "${source ?? `hashicorp/${name}`}", version = "5.0.0" }.`,
       severity: "medium",
+      file: path,
     });
   }
   return out;
@@ -545,7 +674,7 @@ function terraformFindings(path: string, content: string): InfraFinding[] {
 
 /** Risky infra patterns as posture findings (same shape as viteFindings
  *  in frameworks.ts). Each detail is plain English and ends with an
- *  exact "Fix: ..." — the coordinator splits the fix out when building
+ *  exact "Fix: ..." - the coordinator splits the fix out when building
  *  PostureIssues. Only real, specific patterns are flagged; there is no
  *  generic "uses Docker" finding, and exposed ports are deliberately not
  *  flagged (too noisy). */

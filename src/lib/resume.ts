@@ -1,12 +1,12 @@
-// Browser progress persistence (Phase 9) — client-safe, imports nothing.
+// Browser progress persistence (Phase 9) - client-safe, imports nothing.
 //
 // The server holds no scan job, so the BROWSER is where a scan's
 // partial results live between requests: the cursor, the HEAD partial,
 // and the history findings accumulated so far are saved in
 // sessionStorage after every chunk. A page reload, a closed tab, or a
-// server restart loses nothing — the report page resumes from the last
+// server restart loses nothing - the report page resumes from the last
 // completed chunk instead of starting over, and says so plainly:
-// "Resumed — picked up where it left off".
+// "Resumed - picked up where it left off".
 //
 // sessionStorage (not localStorage) is deliberate: a scan belongs to
 // this tab's visit. Closing the tab ends the visit; reopening the repo
@@ -16,7 +16,7 @@
 //
 // This module only knows shapes, never the scanner: `head` and
 // `historyFindings` are opaque JSON (validated as object/array on load).
-// Anything malformed in storage is treated as "no saved progress" —
+// Anything malformed in storage is treated as "no saved progress" -
 // storage is untrusted input, never a crash.
 
 export interface SavedProgress {
@@ -92,7 +92,7 @@ export function clearProgress(storage: ProgressStorage, owner: string, repo: str
   try {
     storage.removeItem(progressKey(owner, repo));
   } catch {
-    // Ignore — clearing is best-effort.
+    // Ignore - clearing is best-effort.
   }
 }
 
@@ -136,7 +136,7 @@ export function clearReport(storage: ProgressStorage, owner: string, repo: strin
   try {
     storage.removeItem(reportKey(owner, repo));
   } catch {
-    // Ignore — clearing is best-effort.
+    // Ignore - clearing is best-effort.
   }
 }
 
@@ -148,5 +148,5 @@ export function resumedLine(historyScanned: number, historyFindings: number): st
     historyScanned === 1 ? "1 history commit" : `${historyScanned.toLocaleString("en-US")} history commits`;
   const findings =
     historyFindings === 1 ? "1 secret found so far" : `${historyFindings.toLocaleString("en-US")} secrets found so far`;
-  return `Resumed — picked up where it left off (${commits} checked, ${findings}).`;
+  return `Resumed - picked up where it left off (${commits} checked, ${findings}).`;
 }

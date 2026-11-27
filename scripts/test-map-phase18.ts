@@ -1,4 +1,4 @@
-// Phase 18 map-view test — pure view-transform / traversal model.
+// Phase 18 map-view test - pure view-transform / traversal model.
 // Run: npm run test:map-phase18
 //
 // Covers src/lib/map-view.ts: fitView, zoomAt / zoomByFactor,
@@ -41,7 +41,7 @@ let failures = 0;
 let total = 0;
 function check(name: string, ok: boolean, extra = "") {
   total++;
-  console.log(`${ok ? "PASS" : "FAIL"}  ${name}${extra ? ` — ${extra}` : ""}`);
+  console.log(`${ok ? "PASS" : "FAIL"}  ${name}${extra ? ` - ${extra}` : ""}`);
   if (!ok) failures++;
 }
 
@@ -200,13 +200,13 @@ check(
 const testDetail = edgeDetailText({ ...detailArgs, kind: "test" });
 check(
   "edgeDetailText test: exact wording",
-  testDetail === "Secret Test API key lives in src/config.ts:12 and is read by src/service.ts:34 in a test — it proves the value is exercised, not that production uses it.",
+  testDetail === "Secret Test API key lives in src/config.ts:12 and is read by src/service.ts:34 in a test - it proves the value is exercised, not that production uses it.",
   testDetail,
 );
 const ownDetail = edgeDetailText({ ...detailArgs, kind: "own" });
 check(
   "edgeDetailText own: exact wording, uses refFile/refLine",
-  ownDetail === "Secret Test API key lives in src/service.ts:34 — this is the file the secret itself sits in.",
+  ownDetail === "Secret Test API key lives in src/service.ts:34 - this is the file the secret itself sits in.",
   ownDetail,
 );
 check("edgeDetailText own: does not mention the finding file", !ownDetail.includes(detailArgs.findingFile));
@@ -252,7 +252,7 @@ check("traverseBack: empty path returns unchanged", traverseBack([]).length === 
 // join, so a chain can merge even when its endpoints are farther
 // apart than the threshold. A=(0,0), B=(40,0), C=(80,0) at
 // threshold 60: B joins (40 from centroid 0), centroid moves to
-// 20; C is 60 from centroid 20, so it joins too — even though A-C
+// 20; C is 60 from centroid 20, so it joins too - even though A-C
 // is 80, beyond the threshold.
 const anchor = (x: number, y: number, kind: EdgeKind, edgeId: string): EdgeLabelAnchor => ({ x, y, kind, edgeId });
 const coincident = clusterEdgeLabels([anchor(0, 0, "test", "a"), anchor(10, 0, "test", "b")], 60);
@@ -275,12 +275,12 @@ check("clusterEdgeLabels: empty input -> no clusters", clusterEdgeLabels([], 60)
 // Recheck-4 proved `70 / view.k` is backwards: at k=1.831 it passed
 // 38 world units while "used in tests ×18" needs ~71, so 6 pairs
 // still overlapped at zoom. Labels live inside the transformed <g>,
-// so label width and anchor distance both scale with k — the
+// so label width and anchor distance both scale with k - the
 // threshold is scale-invariant, simply the widest visible label in
 // world units: text.length * 4 + 8 per kind, max over kinds present,
 // 70 when no kinds are present.
 // NOTE on the worked example: the brief states 80 for 18 "used in
-// tests" edges, but the formula as specified gives 76 — the text
+// tests" edges, but the formula as specified gives 76 - the text
 // "used in tests ×18" is 17 chars (13 + 4), not 18, so 17*4+8=76.
 // 76 still exceeds the measured 71 world units, so the safe margin
 // holds; the test asserts the formula's true value, not the brief's

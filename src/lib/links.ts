@@ -1,7 +1,7 @@
 // Direct links for findings (Phase 5 navigation).
 //
 // Every finding gets two ways to reach it:
-//   1. A GitHub blob link to the exact file and line — the primary
+//   1. A GitHub blob link to the exact file and line - the primary
 //      "go fix this" action. HEAD findings link to the scanned branch;
 //      history findings link to the commit that introduced them (the
 //      short sha GitHub accepts in a blob URL), because the line may no
@@ -10,7 +10,7 @@
 //      be linked to and shared. The index is the finding's position in
 //      the report's full list, so it is stable across renders.
 //
-// Redaction rule (unchanged): a link never carries a secret value —
+// Redaction rule (unchanged): a link never carries a secret value -
 // only the file path, line, and the already-redacted fragment appear
 // anywhere near a finding, including in tooltips and link labels.
 
@@ -40,7 +40,7 @@ export function githubBlobUrl(
   return `https://github.com/${owner}/${repo}/blob/${encodeURIComponent(ref)}/${encodedPath}#L${line}`;
 }
 
-/** Direct link to an advisory's page on OSV.dev — the "go fix this"
+/** Direct link to an advisory's page on OSV.dev - the "go fix this"
  *  link for a dependency vulnerability, which has no file/line. */
 export function osvAdvisoryUrl(id: string): string {
   return `https://osv.dev/vulnerability/${encodeURIComponent(id)}`;

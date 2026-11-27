@@ -1,10 +1,10 @@
-// Current-tip endpoint (Phase 16) — GET /api/scan/[owner]/[repo]/tip
+// Current-tip endpoint (Phase 16) - GET /api/scan/[owner]/[repo]/tip
 //
 // One cheap git-protocol info/refs round trip (resolveRemoteHead) that
 // answers which branch and HEAD sha the repo is on right now. The
 // report page uses it for exactly one thing: a finished report saved
 // in sessionStorage from an earlier visit renders immediately only if
-// its HEAD sha still matches the live tip — otherwise the saved report
+// its HEAD sha still matches the live tip - otherwise the saved report
 // is stale and a fresh scan starts. No scan runs here, no state is
 // held, and no scan behaviour changes.
 import { NextResponse } from "next/server";

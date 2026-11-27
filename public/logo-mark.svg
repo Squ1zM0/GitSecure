@@ -1,0 +1,4 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64" role="img" aria-label="GitSecure shield mark">
+  <path d="M32 3 L55 11 V29 C55 45 46 56 32 61 C18 56 9 45 9 29 V11 Z" fill="#117841"/>
+  <polyline points="22,32 29,39 43,24" fill="none" stroke="#0f143e" stroke-width="6" stroke-linecap="round" stroke-linejoin="round"/>
+</svg>

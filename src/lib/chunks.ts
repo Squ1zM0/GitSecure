@@ -1,23 +1,23 @@
-// Stateless chunked scans (Phase 9) — the replacement for Phase 8's
+// Stateless chunked scans (Phase 9) - the replacement for Phase 8's
 // in-memory jobs (src/lib/jobs.ts, deleted this phase).
 //
 // A scan is a sequence of CHUNKS, each one a single serverless
 // invocation that does one bounded piece of work and returns a cursor
 // (see cursor.ts) for the next piece:
 //
-//   head     — the current files (scanHead): secrets, frameworks,
+//   head     - the current files (scanHead): secrets, frameworks,
 //              dependencies, posture. One invocation.
-//   history  — history, newest-first, in commit chunks (git protocol:
+//   history  - history, newest-first, in commit chunks (git protocol:
 //              up to 200 commits or ~30 s per chunk; GitHub API: 10
 //              commits per chunk). As many invocations as it takes.
-//   assemble — merge HEAD + history, run the OSV flaw check, score.
+//   assemble - merge HEAD + history, run the OSV flaw check, score.
 //              Idempotent: safe to retry with the same inputs.
 //
 // The server holds no scan job between chunks; in-progress findings live in the short-lived store (see scan-state.ts). The caller holds the
 // partial results (the browser: sessionStorage, see resume.ts; an API
 // caller: its own memory) and passes the accumulated history findings
 // back with the assemble call. A server restart, cold start, redeploy,
-// or a poll landing on a different instance changes nothing — the next
+// or a poll landing on a different instance changes nothing - the next
 // chunk simply continues from the cursor. There is no job to lose, so
 // the Phase 8 dead-end cannot happen: the worst case is one chunk
 // retried from its cursor.
@@ -51,14 +51,14 @@ import type { FullReport, HeadPartial, SecretFinding } from "./types";
 /** Fast-path wait: how long one request drives chunks before answering
  *  202 with the cursor (was the job fast-path wait in Phase 8).
  *  Kept for the report page (Worker A, Phase 16). The scan API and
- *  MCP use API_FAST_PATH_WAIT_MS below — same 60 s function ceiling,
+ *  MCP use API_FAST_PATH_WAIT_MS below - same 60 s function ceiling,
  *  tighter budget, see there. */
 export const FAST_PATH_WAIT_MS = 50_000;
-/** Phase 16 (Worker B — API ceiling-risk audit): the loop budget the
+/** Phase 16 (Worker B - API ceiling-risk audit): the loop budget the
  *  scan API (GET /api/scan/[owner]/[repo]) and MCP pass to
  *  runScanLoop. 40 s, not 50: a chunk that starts just before the
  *  deadline still runs to its own end (its work is deadline-capped
- *  now — see deadlineMs threading below — but its uncapped prefix,
+ *  now - see deadlineMs threading below - but its uncapped prefix,
  *  clone + full git.log parse, is not). Measured locally (slow VM,
  *  conservative): the git-history prefix (clone + log parse) is
  *  ~29 s on vinta/awesome-python (11.6 s clone + 17.6 s log parse
@@ -74,7 +74,7 @@ export const FAST_PATH_WAIT_MS = 50_000;
  *  unchanged: a scan that outruns 40 s answers 202 and resumes. */
 export const API_FAST_PATH_WAIT_MS = 40_000;
 /** History commits per chunk on the GitHub API path (10 commits ≈ 11
- *  REST calls — a few chunks fit the unauthenticated quota). */
+ *  REST calls - a few chunks fit the unauthenticated quota). */
 export const API_HISTORY_CHUNK_COMMITS = 10;
 /** History commits per chunk on the git-protocol path. */
 export const GIT_HISTORY_CHUNK_COMMITS = 200;
@@ -103,7 +103,7 @@ export type AdvanceResult =
       status: "partial";
       cursor: string;
       partial: ScanPartial;
-      /** Findings from THIS chunk only — the caller appends them to
+      /** Findings from THIS chunk only - the caller appends them to
        *  its accumulated history findings. */
       chunkFindings: SecretFinding[];
       progress: ScanProgress;
@@ -128,7 +128,7 @@ export interface AdvanceInput {
   /** Test-only: smart-HTTP URL for the git history path. */
   cloneUrlOverride?: string;
   /** Phase 16 (Worker B): absolute wall-clock deadline (epoch ms)
-   *  for this chunk — the loop's deadline, passed by runScanLoop so
+   *  for this chunk - the loop's deadline, passed by runScanLoop so
    *  a chunk that starts late stops at the deadline instead of
    *  running a full chunk past it. Unset = no deadline (the chunk
    *  endpoint POST /api/scan/chunk and one-shot callers): every
@@ -142,26 +142,26 @@ function headMovedError(): ScanError {
   return new ScanError(
     409,
     "head-moved",
-    "The repo changed while the scan was running (new commits landed). Start a fresh scan for the new HEAD — the saved progress belongs to the previous HEAD.",
+    "The repo changed while the scan was running (new commits landed). Start a fresh scan for the new HEAD - the saved progress belongs to the previous HEAD.",
   );
 }
 
-/** Phase 15 (finding 1 — torvalds/linux failed outright): a fetch
+/** Phase 15 (finding 1 - torvalds/linux failed outright): a fetch
  *  timeout inside the HEAD chunk must NOT throw. The tarball download
  *  for a huge repo can stall past its budget after the repo meta is
  *  already known, and throwing there lands the user on a terminal
- *  error page with no resume path — exactly the dead-end Phase 9 was
+ *  error page with no resume path - exactly the dead-end Phase 9 was
  *  built to remove. Instead the HEAD chunk returns a partial result
  *  with a cursor still at the "head" stage, so ScanProgress mounts,
  *  the live progress (files scanned before the stall, if any) is
  *  kept, and the next chunk retries the HEAD chunk from its cursor.
  *  The cursor format, chunk API shapes, and scoring are unchanged:
  *  a head-stage cursor is a normal cursor the driver already
- *  understands, and the retry re-runs scanHead from scratch — the
+ *  understands, and the retry re-runs scanHead from scratch - the
  *  timed-out attempt scanned files but kept no partial HEAD, so
  *  there is nothing half-reported to carry forward. When the timeout
  *  hits before the HEAD meta is known (the repo-info fetch itself
- *  stalled) there is no sha to pin a cursor to, so it still throws —
+ *  stalled) there is no sha to pin a cursor to, so it still throws -
  *  nothing was scanned yet, and the page-level error state offers a
  *  "Retry this scan" button for exactly that case. */
 async function headChunkOrTimeoutPartial(
@@ -197,7 +197,7 @@ async function headChunkOrTimeoutPartial(
     const scanned = lastProgress.filesScanned;
     const note =
       scanned > 0
-        ? `The current-files download timed out after ${scanned.toLocaleString("en-US")} file${scanned === 1 ? "" : "s"} — this chunk stopped before finishing. Nothing was half-reported; the scan picks up from the start of the current-files step.`
+        ? `The current-files download timed out after ${scanned.toLocaleString("en-US")} file${scanned === 1 ? "" : "s"} - this chunk stopped before finishing. Nothing was half-reported; the scan picks up from the start of the current-files step.`
         : "The current-files download timed out, so this chunk stopped before finishing. Nothing was half-reported; the scan picks up from the start of the current-files step.";
     const cursorData: ScanCursorData = {
       v: 1,
@@ -267,7 +267,7 @@ function partialFrom(
 
 /** Run exactly one chunk. Throws ScanError (plain English, honest HTTP
  *  status) for bad cursors, missing/private repos, rate limits, and a
- *  HEAD that moved mid-scan — never a crash, never a stack trace. */
+ *  HEAD that moved mid-scan - never a crash, never a stack trace. */
 export async function advanceScan(input: AdvanceInput): Promise<AdvanceResult> {
   const { owner, repo } = input;
   validateOwnerRepo(owner, repo);
@@ -302,7 +302,7 @@ export async function advanceScan(input: AdvanceInput): Promise<AdvanceResult> {
       throw new ScanError(
         400,
         "bad-format",
-        "That scan's saved progress doesn't match this repo — it may be from a different scan. Starting a fresh scan instead.",
+        "That scan's saved progress doesn't match this repo - it may be from a different scan. Starting a fresh scan instead.",
       );
     }
     // The repo must not have moved since the scan started: a report
@@ -332,9 +332,9 @@ export async function advanceScan(input: AdvanceInput): Promise<AdvanceResult> {
         onProgress: (p) => input.onProgress?.(p),
         // Phase 16: OSV is the assemble step's only long pole (no
         // budget by default). Cap both OSV phases at the time left
-        // to the loop deadline so assemble returns a report — with
+        // to the loop deadline so assemble returns a report - with
         // the honest "not checked" limits lines when the budget
-        // binds — instead of the function being killed mid-assemble.
+        // binds - instead of the function being killed mid-assemble.
         // No deadline (the chunk endpoint) keeps the unbounded
         // default, so its behaviour is unchanged.
         deadlineMs: input.deadlineMs,
@@ -360,12 +360,12 @@ export async function advanceScan(input: AdvanceInput): Promise<AdvanceResult> {
       resumeAfterSha: cursor.histResumeAfter,
       maxCommits: chunkCommits,
       // Phase 16: the walk budget is the smaller of the chunk's own
-      // 30 s and the time left to the loop deadline — a history chunk
+      // 30 s and the time left to the loop deadline - a history chunk
       // that starts with 8 s left stops its walk at 8 s instead of
       // running a full 30 s past the deadline. (The clone + log-parse
       // prefix sits outside the walk budget; the clone aborts at the
       // deadline via deadlineMs, and the log parse is the documented
-      // residual — see the API_FAST_PATH_WAIT_MS comment.)
+      // residual - see the API_FAST_PATH_WAIT_MS comment.)
       budgetMs:
         input.deadlineMs != null
           ? Math.min(GIT_HISTORY_CHUNK_BUDGET_MS, Math.max(0, input.deadlineMs - Date.now()))
@@ -377,7 +377,7 @@ export async function advanceScan(input: AdvanceInput): Promise<AdvanceResult> {
     if (!result.ok) {
       if (result.headMoved) throw headMovedError();
       // The git path failed outright (clone error, network): fall back
-      // to the API path for this chunk instead of failing the scan —
+      // to the API path for this chunk instead of failing the scan -
       // the cursor records the switch, and the report says which path
       // was used. If the API path also fails, that error stands.
       const apiChunk = await scanHistoryApiChunk(
@@ -439,7 +439,7 @@ export async function advanceScan(input: AdvanceInput): Promise<AdvanceResult> {
 /** Shared tail of a history chunk that came from the API path: build
  *  the next cursor and the partial. `fallbackFrom` names the method the
  *  scan started with (the report's history line uses the API method
- *  either way — the path that produced the findings is what matters). */
+ *  either way - the path that produced the findings is what matters). */
 function apiChunkResult(
   cursor: ScanCursorData,
   chunk: Awaited<ReturnType<typeof scanHistoryApiChunk>>,
@@ -492,24 +492,24 @@ export interface LoopResult {
   note?: string | null;
 }
 
-/** Phase 17 — the honest limits line. Fires on a finished report
+/** Phase 17 - the honest limits line. Fires on a finished report
  *  when a scan resumed from a cursor that had already walked
  *  `commits` history commits, but the findings from those commits
- *  could not be recovered — no store provisioned, stored state
- *  expired or corrupt, or a store operation failed — and the caller
+ *  could not be recovered - no store provisioned, stored state
+ *  expired or corrupt, or a store operation failed - and the caller
  *  passed no historyFindings of its own. The history count in the
  *  report is how far the scan walked, not how many findings
  *  survived; this line says so instead of letting the report
  *  silently claim a clean history. Worded as a possibility ("may
  *  be missing"): when the walked commits held no secrets, nothing
- *  was lost — the line only records that the scan cannot prove it.
+ *  was lost - the line only records that the scan cannot prove it.
  *  The public "never stored" promise (mcp.ts, README, page.tsx,
  *  layout.tsx) was updated when the store was provisioned on 2026-11-27
  *  (see test-results/phase17/copy-after-provisioning.md): in-progress
  *  findings now live in the short-lived store; finished reports are
  *  still never stored. */
 export function historyFindingsMissingLine(commits: number): string {
-  return `History findings from earlier parts of this scan could not be recovered, so this report may be missing secrets from the first ${commits} commit${commits === 1 ? "" : "s"} checked — the history count above is how far the scan walked, not how many findings survived.`;
+  return `History findings from earlier parts of this scan could not be recovered, so this report may be missing secrets from the first ${commits} commit${commits === 1 ? "" : "s"} checked - the history count above is how far the scan walked, not how many findings survived.`;
 }
 
 /** Drive chunks until the scan finishes or the wall-clock budget runs
@@ -520,7 +520,7 @@ export function historyFindingsMissingLine(commits: number): string {
  *
  *  Phase 16 (Worker B): the old loop checked the deadline only
  *  AFTER each chunk returned, so a chunk that started at 49 s of a
- *  50 s budget ran a full chunk past it — a git history chunk alone
+ *  50 s budget ran a full chunk past it - a git history chunk alone
  *  measures ~31–40 s on vinta/awesome-python, which is how live
  *  invocations reached 52.8–63.6 s and got cut at Vercel's 60 s
  *  ceiling. Two changes close it: (1) the loop's deadline is passed
@@ -529,13 +529,13 @@ export function historyFindingsMissingLine(commits: number): string {
  *  stream, OSV phases, clone abort); (2) the loop does not START
  *  another chunk unless enough budget is left that the chunk can
  *  still land the invocation under ~55 s. A late chunk costs at
- *  most ~32 s (its uncapped prefix — clone + git.log parse, ~29 s
- *  measured worst locally — or its 30 s walk budget, plus ~2 s
+ *  most ~32 s (its uncapped prefix - clone + git.log parse, ~29 s
+ *  measured worst locally - or its 30 s walk budget, plus ~2 s
  *  unwind), so the start floor is budget − 21 s (55 − 32 − 2 margin)
  *  and the invocation ends by budget − floor + 32 = ~53 s for any
  *  budget; small budgets get no floor (a 10 s loop has nothing to
  *  protect: 10 + 32 = 42 s). At the production 40 s budget the
- *  floor is 19 s — TechDirect reaches assemble with ~22 s left, so
+ *  floor is 19 s - TechDirect reaches assemble with ~22 s left, so
  *  it still answers 200 in one call. The first chunk always runs:
  *  a fresh scan must produce a cursor. */
 export async function runScanLoop(
@@ -551,7 +551,7 @@ export async function runScanLoop(
     cloneUrlOverride?: string;
     onProgress?: (p: ScanProgress) => void;
     /** Phase 17: the short-lived scan-state store (see
-     *  scan-state.ts). Defaults to getScanStateStore() — NoopStore
+     *  scan-state.ts). Defaults to getScanStateStore() - NoopStore
      *  when no store env vars are set. Test-only override, like
      *  apiBase / cloneUrlOverride. advanceScan is NOT wired: the
      *  POST-chunk caller already carries its own accumulation. */
@@ -561,7 +561,7 @@ export async function runScanLoop(
   validateOwnerRepo(owner, repo);
   const budgetMs = opts.budgetMs ?? FAST_PATH_WAIT_MS;
   const deadline = Date.now() + budgetMs;
-  // Phase 16: the start floor — see the doc comment above. A chunk
+  // Phase 16: the start floor - see the doc comment above. A chunk
   // started with less than this left could still cost ~32 s and push
   // the invocation past ~55 s, so with a cursor already in hand the
   // loop answers 202 here instead of starting it.
@@ -574,7 +574,7 @@ export async function runScanLoop(
   // The store is touched at invocation boundaries only: one load
   // at entry (when resuming a scan that already walked history),
   // one save per partial return, one delete at assemble. A store
-  // failure never fails the scan — it is caught, recorded, and the
+  // failure never fails the scan - it is caught, recorded, and the
   // loop continues with in-process accumulation; the finished
   // report then carries the honest limits line (below).
   const store = opts.store ?? getScanStateStore();
@@ -611,8 +611,8 @@ export async function runScanLoop(
         // Recovered: seed the in-process accumulation with the
         // stored findings, deduped against anything the caller
         // passed (caller-carried fallback). A stored count ahead of
-        // the cursor means a newer invocation already wrote — take
-        // the stored array; a stored count behind means stale — the
+        // the cursor means a newer invocation already wrote - take
+        // the stored array; a stored count behind means stale - the
         // walk re-finds those findings and dedupes them.
         historyFindings = dedupeSecrets([...stored.historyFindings, ...historyFindings]);
       } else if (historyFindings.length === 0) {
@@ -628,9 +628,9 @@ export async function runScanLoop(
     // A chunk started with almost no budget left would still pay its
     // uncapped prefix (clone + log parse) past the deadline. With a
     // cursor already in hand, answer 202 here instead of starting it.
-    // EXCEPTION — the assemble stage is exempt from the floor: assemble
+    // EXCEPTION - the assemble stage is exempt from the floor: assemble
     // is bounded and cheap (deadline-capped OSV + scoring, ~seconds),
-    // and stopping before it strands the scan across invocations —
+    // and stopping before it strands the scan across invocations -
     // where GET / MCP callers cannot carry the accumulated history
     // findings back, so the first invocation's history findings would
     // be lost from the finished report. Worst case with the exemption:
@@ -645,7 +645,7 @@ export async function runScanLoop(
       }
     }
     if (lastPartial !== null && nextStage !== "assemble" && Date.now() >= deadline - startFloorMs) {
-      // Phase 17: invocation boundary — persist the merged
+      // Phase 17: invocation boundary - persist the merged
       // accumulation before answering 202 (one write per
       // invocation, not per chunk). Best-effort; a failure is
       // recorded, never thrown.
@@ -669,7 +669,7 @@ export async function runScanLoop(
       onProgress: opts.onProgress,
     });
     if (result.status === "done") {
-      // Phase 17: the scan finished — delete its state (primary
+      // Phase 17: the scan finished - delete its state (primary
       // cleanup: a finished scan leaves nothing in the store; a
       // failed delete is harmless, the TTL cleans it in 7 days).
       // Then, if earlier findings could not be recovered, say so
@@ -694,7 +694,7 @@ export async function runScanLoop(
       historyFindings = dedupeSecrets([...historyFindings, ...result.chunkFindings]);
     }
     if (Date.now() >= deadline) {
-      // Phase 17: invocation boundary — persist the merged
+      // Phase 17: invocation boundary - persist the merged
       // accumulation before answering 202 (one write per
       // invocation, not per chunk). Best-effort; a failure is
       // recorded, never thrown.

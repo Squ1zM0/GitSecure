@@ -1,4 +1,4 @@
-// Chunk endpoint (Phase 9) — the resumable scan API.
+// Chunk endpoint (Phase 9) - the resumable scan API.
 //
 // POST /api/scan/chunk { cursor?, head?, historyFindings? }
 //
@@ -21,7 +21,7 @@
 //
 // The server holds no state between calls: everything needed to
 // continue lives in the cursor, and everything accumulated lives with
-// the caller. A bogus cursor answers 400 with plain English — the
+// the caller. A bogus cursor answers 400 with plain English - the
 // caller discards it and starts a fresh scan. The cursor protocol is
 // documented in README.md ("Scan cursors").
 import { NextResponse } from "next/server";
@@ -50,7 +50,7 @@ export async function POST(req: Request) {
   const historyFindings = body.historyFindings as Parameters<typeof advanceScan>[0]["historyFindings"];
   // The cursor pins the repo; the URL carries no owner/repo on this
   // endpoint, so they come from the cursor itself. A body without a
-  // cursor cannot start a scan — the caller needs an owner/repo, which
+  // cursor cannot start a scan - the caller needs an owner/repo, which
   // is what GET /api/scan/[owner]/[repo] is for.
   if (body.cursor === undefined || body.cursor === null) {
     return NextResponse.json(
@@ -58,7 +58,7 @@ export async function POST(req: Request) {
       { status: 400 },
     );
   }
-  // Decode the cursor here only to learn the repo — advanceScan does
+  // Decode the cursor here only to learn the repo - advanceScan does
   // the strict validation and answers 400 on anything malformed. A
   // body whose cursor cannot even be decoded gets the same plain
   // answer here, so a bogus cursor is never a crash.
@@ -74,7 +74,7 @@ export async function POST(req: Request) {
   }
   if (!owner || !repo) {
     return NextResponse.json(
-      { error: "That scan link doesn't look right — it may be from an older scan or pasted wrong. Starting a fresh scan instead.", kind: "bad-format" },
+      { error: "That scan link doesn't look right - it may be from an older scan or pasted wrong. Starting a fresh scan instead.", kind: "bad-format" },
       { status: 400 },
     );
   }

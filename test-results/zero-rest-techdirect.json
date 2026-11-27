@@ -4,18 +4,18 @@
   "owner": "Squ1zM0",
   "branch": "main",
   "commit": "fd35814ad7d9553723bdb21e82b4e714f200e0d5",
-  "score": 83,
-  "grade": "B",
+  "score": 73,
+  "grade": "C",
   "scoreDetail": {
-    "score": 83,
-    "grade": "B",
+    "score": 73,
+    "grade": "C",
     "secretsDeduction": 0,
     "secretsFullWeight": 0,
     "secretsHalfWeight": 0,
     "secretsExcluded": 0,
-    "wouldBeScore": 83,
+    "wouldBeScore": 73,
     "vulnDeduction": 8,
-    "postureDeduction": 9,
+    "postureDeduction": 19,
     "unpinnedDeduction": 0
   },
   "counts": {
@@ -24,16 +24,16 @@
     "vulnerabilities": 4,
     "frameworks": 0,
     "dependencies": 2,
-    "postureIssues": 3,
+    "postureIssues": 4,
     "filesScanned": 2802,
     "historyCommitsScanned": 62
   },
-  "summary": "Scan complete. No leaked secrets were found in the files scanned; 4 known vulnerabilities in dependencies; 3 security hygiene issues to fix. The full detail is in this report — no sign-in needed.",
-  "scannedAt": "2026-11-27T06:14:59.985Z",
+  "summary": "Scan complete. No leaked secrets were found in the files scanned; 4 known vulnerabilities in dependencies; 4 security hygiene issues to fix. The full detail is in this report - no sign-in needed.",
+  "scannedAt": "2026-11-27T15:34:50.261Z",
   "historyDepth": "Full history, newest first.",
   "limits": [
-    "Scanned all 2802 files in the tree (binary, dist, node_modules and .next skipped — generated/vendored paths, not source files).",
-    "History checked: 62 commits, newest first (git protocol — no git binary, no REST quota).",
+    "Scanned all 2802 files in the tree (binary, dist, node_modules and .next skipped - generated/vendored paths, not source files).",
+    "History checked: 62 commits, newest first (git protocol - no git binary, no REST quota).",
     "Public repos only. No secret is ever stored after the scan finishes, logged, or shown in full."
   ],
   "secrets": [],
@@ -121,6 +121,16 @@
       "severity": "medium",
       "detail": ".gitignore does not cover: .env, *.pem.",
       "fix": "Add .env, *.pem to .gitignore."
+    },
+    {
+      "id": "actions-script-injection",
+      "title": "Script injection in workflow run block",
+      "severity": "high",
+      "detail": ".github/workflows/network-validation.yml interpolates a GitHub expression (${{ ... }}) inside a run: block. An attacker who controls the interpolated value can inject shell commands that run with the workflow's permissions.",
+      "fix": "Pass the value through an environment variable (env:) instead of interpolating it into the run: script.",
+      "category": "actions",
+      "file": ".github/workflows/network-validation.yml",
+      "line": 44
     }
   ]
 }

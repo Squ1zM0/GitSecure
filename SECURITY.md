@@ -7,12 +7,12 @@ leaked secrets, known flaws in the frameworks and dependencies it uses,
 and security-posture gaps (missing SECURITY.md, no Dependabot, risky
 workflow patterns, and similar). It only scans public repos, it never
 shows a secret in full (redacted fragments only), and it never stores
-a report or a secret — every scan is fresh.
+a report or a secret - every scan is fresh.
 
 ## How to report a vulnerability
 
-If you find a security problem in GitSecure itself — the scanner, the
-website, or this repository — please report it by email:
+If you find a security problem in GitSecure itself - the scanner, the
+website, or this repository - please report it by email:
 
 **motdhvacr@gmail.com**
 
@@ -55,14 +55,14 @@ In scope:
 
 Out of scope:
 
-- Vulnerabilities in the repositories GitSecure *scans* — those belong
+- Vulnerabilities in the repositories GitSecure *scans* - those belong
   to the owner of that repo, not to this project. (GitSecure reports
   them; it does not fix them.)
-- Findings in GitSecure's own test fixtures (`tests/fixtures/`) — those
+- Findings in GitSecure's own test fixtures (`tests/fixtures/`) - those
   files deliberately contain fake secrets and old, vulnerable versions
   so the scanner's detection can be tested. They are placeholders, not
   real credentials, and the old versions are kept on purpose.
-- Rate limits, timeouts, or incomplete scans on very large repos —
+- Rate limits, timeouts, or incomplete scans on very large repos -
   those are known limits, stated in the scan report, not vulnerabilities.
 - Reports that need a GitHub token, a Vercel login, or access to
   someone else's account to reproduce.

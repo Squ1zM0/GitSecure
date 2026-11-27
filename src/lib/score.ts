@@ -8,12 +8,12 @@ const SECRET_DEDUCTION: Record<Severity, number> = { critical: 25, high: 15, med
 const VULN_DEDUCTION: Record<Severity, number> = { critical: 15, high: 10, medium: 5, low: 2, info: 0 };
 const POSTURE_DEDUCTION: Record<Severity, number> = { critical: 15, high: 10, medium: 5, low: 2, info: 0 };
 
-/** Phase 12 — triage-weighted secrets deduction (Freddy's direction,
+/** Phase 12 - triage-weighted secrets deduction (Freddy's direction,
  *  2026-11-26: an F for 34 test fixtures is a false alarm, so the score
  *  must reflect real risk). A likely-test-key finding deducts nothing,
  *  an uncertain finding deducts at half weight, a likely-genuine-leak
  *  finding deducts at full weight, and a finding with no triage
- *  annotation deducts at full weight — a test key is never assumed
+ *  annotation deducts at full weight - a test key is never assumed
  *  without evidence. Phase 10's "triage never changes the score" rule
  *  is overturned by this phase. */
 export function triageWeight(verdict: TriageVerdict | undefined): number {
@@ -25,8 +25,8 @@ export function triageWeight(verdict: TriageVerdict | undefined): number {
 /** The full scoring breakdown. `secretsFullWeight` /
  *  `secretsHalfWeight` / `secretsExcluded` count FINDINGS, not points.
  *  `wouldBeScore` is the score the old (Phase 10) rule would have
- *  given the same input — every secret at full weight, same other
- *  components — clamped 0–100. The score and the sections shown in a
+ *  given the same input - every secret at full weight, same other
+ *  components - clamped 0–100. The score and the sections shown in a
  *  report are always computed from the same triage annotations, so
  *  they can never disagree. */
 export interface ScoreDetail {
@@ -76,7 +76,7 @@ export function computeScore(args: { secrets: SecretFinding[]; vulnerabilities: 
  * remove these first". Without the breakdown it falls back to the old
  * wording (older callers / untriaged reports).
  * Phase 15 (finding 5): a provisional report must never claim the scan
- * is complete — pass provisional: true and the summary starts "So far: "
+ * is complete - pass provisional: true and the summary starts "So far: "
  * instead of "Scan complete. ". Finding 7: the zero-secrets part is
  * capitalised ("No leaked secrets…"), it opens a sentence. */
 export function plainSummary(args: { secrets: number; vulnerabilities: number; postureIssues: number; frameworks: number; secretsByVerdict?: { genuine: number; uncertain: number; test: number }; provisional?: boolean }): string {
@@ -84,45 +84,49 @@ export function plainSummary(args: { secrets: number; vulnerabilities: number; p
   const v = args.secretsByVerdict;
   if (args.secrets > 0 && v) {
     if (v.genuine > 0) {
-      parts.push(`${v.genuine} possible leaked secret${v.genuine === 1 ? "" : "s"} found — rotate and remove these first`);
+      parts.push(`${v.genuine} possible leaked secret${v.genuine === 1 ? "" : "s"} found - rotate and remove these first`);
       if (v.test > 0) parts.push(`${v.test} look like test keys and do not count toward the score`);
       if (v.uncertain > 0) parts.push(`${v.uncertain} need${v.uncertain === 1 ? "s" : ""} a human check and count at half weight`);
     } else if (v.uncertain > 0) {
-      parts.push(`${args.secrets} possible leaked secret${args.secrets === 1 ? "" : "s"} found — ${v.test} look like test keys and ${v.uncertain} need${v.uncertain === 1 ? "s" : ""} a human check; none is a confirmed leak`);
+      parts.push(`${args.secrets} possible leaked secret${args.secrets === 1 ? "" : "s"} found - ${v.test} look like test keys and ${v.uncertain} need${v.uncertain === 1 ? "s" : ""} a human check; none is a confirmed leak`);
     } else {
-      parts.push(`${args.secrets} possible leaked secret${args.secrets === 1 ? "" : "s"} found — all look like test keys, so none count toward the score`);
+      parts.push(`${args.secrets} possible leaked secret${args.secrets === 1 ? "" : "s"} found - all look like test keys, so none count toward the score`);
     }
-  } else if (args.secrets > 0) parts.push(`${args.secrets} possible leaked secret${args.secrets === 1 ? "" : "s"} found — rotate and remove these first`);
+  } else if (args.secrets > 0) parts.push(`${args.secrets} possible leaked secret${args.secrets === 1 ? "" : "s"} found - rotate and remove these first`);
   else parts.push("No leaked secrets were found in the files scanned");
   if (args.vulnerabilities > 0) parts.push(`${args.vulnerabilities} known vulnerabilit${args.vulnerabilities === 1 ? "y" : "ies"} in dependencies`);
   if (args.postureIssues > 0) parts.push(`${args.postureIssues} security hygiene issue${args.postureIssues === 1 ? "" : "s"} to fix`);
   if (args.frameworks > 0) parts.push(`${args.frameworks} framework${args.frameworks === 1 ? "" : "s"} fingerprinted`);
-  return `${args.provisional ? "So far: " : "Scan complete. "}${parts.join("; ")}. The full detail is in this report — no sign-in needed.`;
+  return `${args.provisional ? "So far: " : "Scan complete. "}${parts.join("; ")}. The full detail is in this report - no sign-in needed.`;
 }
 
 /** One plain line under the score: what the number means, and what
  *  would raise it. Never names files, lines, or secret fragments. */
-export function explainScore(args: { score: number; grade: string; secrets: number; vulnerabilities: number; postureIssues: number }): string {
+export function explainScore(args: { score: number; grade: string; secrets: number; vulnerabilities: number; postureIssues: number; postureHigh?: number }): string {
   const { score, grade } = args;
   const gradeWord = grade === "A" ? "excellent" : grade === "B" ? "good" : grade === "C" ? "fair" : grade === "D" ? "poor" : "needs urgent attention";
-  if (score >= 100) return "100 out of 100 (grade A) is a perfect score — nothing was found to fix in this scan.";
+  if (score >= 100) return "100 out of 100 (grade A) is a perfect score - nothing was found to fix in this scan.";
   let driver: string;
   if (args.secrets > 0) {
-    driver = `The biggest problem is ${args.secrets} possible leaked secret${args.secrets === 1 ? "" : "s"} — rotating and removing those would raise the score the most.`;
+    driver = `The biggest problem is ${args.secrets} possible leaked secret${args.secrets === 1 ? "" : "s"} - rotating and removing those would raise the score the most.`;
   } else if (args.vulnerabilities > 0) {
-    driver = `Most of the points lost come from ${args.vulnerabilities} known flaw${args.vulnerabilities === 1 ? "" : "s"} in dependencies — upgrading the affected packages would raise the score.`;
+    driver = `Most of the points lost come from ${args.vulnerabilities} known flaw${args.vulnerabilities === 1 ? "" : "s"} in dependencies - upgrading the affected packages would raise the score.`;
   } else if (args.postureIssues > 0) {
-    driver = `The points lost come from ${args.postureIssues} small security-hygiene issue${args.postureIssues === 1 ? "" : "s"} — fixing those would raise the score.`;
+    // A high-severity posture issue is not "small": drop the word
+    // when any high one exists (callers pass postureHigh for that).
+    driver = args.postureHigh
+      ? `The points lost come from ${args.postureIssues} security-hygiene issue${args.postureIssues === 1 ? "" : "s"}, including high-severity ones. Fixing those would raise the score.`
+      : `The points lost come from ${args.postureIssues} small security-hygiene issue${args.postureIssues === 1 ? "" : "s"}. Fixing those would raise the score.`;
   } else {
     driver = "Only a few points were lost, from minor issues in the scan.";
   }
   return `${score} out of 100 (grade ${grade}) is ${gradeWordWithArticle(grade)} score. ${driver}`;
 }
 
-/* Phase 7 — presentation helpers only. Scoring is untouched: these
+/* Phase 7 - presentation helpers only. Scoring is untouched: these
  * map the existing grade to a colour band (colour + label together,
- * never colour alone) and pull the one-sentence verdict — the biggest
- * problem — out of explainScore's driver for the report hero. */
+ * never colour alone) and pull the one-sentence verdict - the biggest
+ * problem - out of explainScore's driver for the report hero. */
 export type GradeBand = "good" | "fair" | "poor";
 
 export function gradeBand(grade: string): GradeBand {
@@ -135,7 +139,7 @@ export function gradeWord(grade: string): string {
   return grade === "A" ? "excellent" : grade === "B" ? "good" : grade === "C" ? "fair" : grade === "D" ? "poor" : "needs urgent attention";
 }
 
-/** The grade word with its article — "an excellent" for A, "a good"
+/** The grade word with its article - "an excellent" for A, "a good"
  *  for B, and so on. Phase 16: both score-explanation templates
  *  hard-coded "a", which rendered "is a excellent score" for grade A. */
 export function gradeWordWithArticle(grade: string): string {
@@ -144,15 +148,19 @@ export function gradeWordWithArticle(grade: string): string {
 }
 
 /** The hero verdict: the single biggest problem, in one sentence. */
-export function biggestProblem(args: { secrets: number; vulnerabilities: number; postureIssues: number }): string {
+export function biggestProblem(args: { secrets: number; vulnerabilities: number; postureIssues: number; postureHigh?: number }): string {
   if (args.secrets > 0) {
-    return `Biggest problem: ${args.secrets} possible leaked secret${args.secrets === 1 ? "" : "s"} — rotate and remove these first.`;
+    return `Biggest problem: ${args.secrets} possible leaked secret${args.secrets === 1 ? "" : "s"} - rotate and remove these first.`;
   }
   if (args.vulnerabilities > 0) {
-    return `Biggest problem: ${args.vulnerabilities} known flaw${args.vulnerabilities === 1 ? "" : "s"} in dependencies — upgrade the affected packages.`;
+    return `Biggest problem: ${args.vulnerabilities} known flaw${args.vulnerabilities === 1 ? "" : "s"} in dependencies - upgrade the affected packages.`;
   }
   if (args.postureIssues > 0) {
-    return `Biggest problem: ${args.postureIssues} small security-hygiene issue${args.postureIssues === 1 ? "" : "s"} to fix.`;
+    // As in explainScore: no "small" when a high-severity posture
+    // issue exists.
+    return args.postureHigh
+      ? `Biggest problem: ${args.postureIssues} security-hygiene issue${args.postureIssues === 1 ? "" : "s"} to fix.`
+      : `Biggest problem: ${args.postureIssues} small security-hygiene issue${args.postureIssues === 1 ? "" : "s"} to fix.`;
   }
-  return "Nothing found to fix — this repo looks clean in this scan.";
+  return "Nothing found to fix - this repo looks clean in this scan.";
 }

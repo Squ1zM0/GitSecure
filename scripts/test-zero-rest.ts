@@ -19,7 +19,7 @@
 //   3. Live: a full scanRepo("Squ1zM0", "TechDirect") against the
 //      real GitHub — branch + HEAD over the git protocol, files from
 //      the tarball, history over the git protocol — with 0
-//      api.github.com calls, and the report still 83/B with the
+//      api.github.com calls, and the report still 73/C with the
 //      whole tree scanned. The tree cross-check at the end is a
 //      TEST-side REST call made AFTER the counting wrapper is
 //      removed, so it is reported separately and never counted as a
@@ -229,7 +229,7 @@ async function main() {
     console.log(`live scan: ${wallMs}ms, score ${full.score}/${full.grade}, files ${full.counts.filesScanned}, history commits ${full.counts.historyCommitsScanned}`);
     console.log(`fetch calls by host during the scan: ${[...hosts.entries()].map(([h, n]) => `${h}=${n}`).join(", ") || "(none)"}`);
     check("live full scan made ZERO api.github.com requests", scanApiCalls === 0, `${scanApiCalls} calls`);
-    check("live full scan still scores 83/B", full.score === 83 && full.grade === "B", `${full.score}/${full.grade}`);
+    check("live full scan still scores 73/C (Phase 19: script injection in network-validation.yml)", full.score === 73 && full.grade === "C", `${full.score}/${full.grade}`);
     check("live full scan reports the default branch (main)", full.branch === "main", full.branch);
     check("live full scan pinned a 40-hex HEAD sha", /^[0-9a-f]{40}$/.test(full.commit), full.commit);
     if (liveHead.ok) {

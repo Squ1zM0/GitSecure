@@ -1,6 +1,6 @@
 // Phase 7 UI test. Run: npm run test:ui-phase7
 //
-// Design phase only — no scanner logic, scores, caps, redaction, or
+// Design phase only - no scanner logic, scores, caps, redaction, or
 // API/MCP contracts changed. This script proves, with no network:
 //   1. The score dial renders (SVG arc, band class, score + grade,
 //      accessible label) and gradeBand maps A/B -> good, C -> fair,
@@ -12,7 +12,7 @@
 //      file chips.
 //   4. The stylesheet carries a real dark mode (prefers-color-scheme),
 //      reduced-motion support, focus-visible rings, and >=44px tap
-//      targets — and the human pages carry no "Honest limits" or
+//      targets - and the human pages carry no "Honest limits" or
 //      sign-in copy.
 //   5. No literal secret-pattern values in the UI files.
 //
@@ -26,7 +26,7 @@
 //      runner-up deduction in the score explanation, the short GitHub
 //      link label, the never-empty "Used by" line, middle-truncated
 //      map labels with counts inside their nodes, 44 px tap targets,
-//      one recommended version per package — plus the "Roll all into
+//      one recommended version per package - plus the "Roll all into
 //      report" button in the score hero (the Markdown itself is
 //      covered by scripts/test-report-markdown.ts).
 //
@@ -53,7 +53,7 @@ import type { FullReport, SecretFinding, Vulnerability } from "../src/lib/types"
 
 let failures = 0;
 function check(name: string, ok: boolean, extra = "") {
-  console.log(`${ok ? "PASS" : "FAIL"}  ${name}${extra ? ` — ${extra}` : ""}`);
+  console.log(`${ok ? "PASS" : "FAIL"}  ${name}${extra ? ` - ${extra}` : ""}`);
   if (!ok) failures++;
 }
 
@@ -101,7 +101,7 @@ const fakeSecrets: SecretFinding[] = [
     id: "s2", type: "private-key", title: "Private key committed",
     severity: "high", confidence: "high", file: "keys/id_rsa", line: 1,
     commit: "abc1234", fragment: "wxyz…ab", fix: "Delete the key and generate a new one.",
-    plainEnglish: "A private key is in the repo — anyone with it can pretend to be you.",
+    plainEnglish: "A private key is in the repo - anyone with it can pretend to be you.",
   },
 ];
 const list = renderToString(
@@ -130,7 +130,7 @@ const triagedSecrets: SecretFinding[] = [
     triage: {
       verdict: "likely-test-key",
       signals: ["test-path:testing"],
-      explanation: "This looks like an intentional test key: it lives in a test path (tools/testing/selftests). It is still listed and still counted — if it ever signs real artifacts or grants real access, treat it as compromised and rotate it.",
+      explanation: "This looks like an intentional test key: it lives in a test path (tools/testing/selftests). It is still listed and still counted - if it ever signs real artifacts or grants real access, treat it as compromised and rotate it.",
       adjustedSeverity: "low",
       adjustedConfidence: "low",
       fix: "Confirm this key is only used by tests and never signs real artifacts; if it does, rotate it.",
@@ -174,7 +174,7 @@ const map = renderToString(
   }),
 ).replace(/<!-- -->/g, "");
 check("map renders an SVG spider", map.includes("<svg") && map.includes("This repo"));
-check("map carries its legend", map.includes("Bigger node — more findings"));
+check("map carries its legend", map.includes("Bigger node - more findings"));
 check("map nodes are keyboard reachable (role=button, tabIndex)", map.includes('role="button"') && map.includes("tabindex=\"0\""));
 check("map file chips are real buttons", map.includes("<button") && map.includes("settings.py (5)"));
 
@@ -191,7 +191,7 @@ check("CSS styles grade chips per band", css.includes(".grade-chip.good") && css
 check("CSS styles the loading spinner", css.includes(".spinner"));
 check("CSS buttons use an on-accent text colour (dark-mode contrast)", css.includes("--on-accent: #052e1e") && /button[^{]*\{[^}]*color: var\(--on-accent\)/.test(css));
 // Phase 15 finding 2 (real-DT follow-up): break-word does NOT break a
-// long path token when the line has other break points — the live DT
+// long path token when the line has other break points - the live DT
 // provisional report at 360 px kept the audit's exact path 454 px
 // wide. code.inline now uses anywhere, which still only breaks a token
 // when it would overflow, never gratuitously. The "no mid-word breaks"
@@ -203,7 +203,7 @@ const home = src("src/app/page.tsx");
 const reportPage = src("src/app/[owner]/[repo]/page.tsx");
 // Phase 9: the report rendering moved from the page into ReportView
 // (so the chunk driver can swap a provisional report for the finished
-// one without a reload) — the rendering checks read that file now.
+// one without a reload) - the rendering checks read that file now.
 const reportView = src("src/components/ReportView.tsx");
 check("home has no 'Honest limits' copy", !/Honest limits/i.test(home));
 check("home has no sign-in copy", !/sign in/i.test(home));
@@ -218,8 +218,8 @@ check("report view labels a provisional score as provisional", reportView.includ
 
 // --- 2c. Phase 11: verdict sections + usage map --------------------
 // Fixtures carry `usage` via the shared contract (SecretUsage on the
-// finding). The type field is not in src/lib/types.ts yet — the engine
-// worker is adding it — so the fixtures are typed with the local
+// finding). The type field is not in src/lib/types.ts yet - the engine
+// worker is adding it - so the fixtures are typed with the local
 // mirror from ReportLists and passed structurally.
 type SecretWithUsage = SecretFinding & { usage?: SecretUsage };
 const phase11Secrets: SecretWithUsage[] = [
@@ -231,7 +231,7 @@ const phase11Secrets: SecretWithUsage[] = [
     triage: {
       verdict: "likely-test-key",
       signals: ["test-path:testing"],
-      explanation: "This looks like an intentional test key: it lives in a test path (tools/testing/selftests). It is still listed and still counted — if it ever signs real artifacts or grants real access, treat it as compromised and rotate it.",
+      explanation: "This looks like an intentional test key: it lives in a test path (tools/testing/selftests). It is still listed and still counted - if it ever signs real artifacts or grants real access, treat it as compromised and rotate it.",
       adjustedSeverity: "low",
       adjustedConfidence: "low",
       fix: "Confirm this key is only used by tests and never signs real artifacts; if it does, rotate it.",
@@ -273,7 +273,7 @@ const phase11Secrets: SecretWithUsage[] = [
     triage: {
       verdict: "uncertain",
       signals: [],
-      explanation: "Nothing in this repo references this key — a true dead end. No test signals and no production signals either, so a human has to decide.",
+      explanation: "Nothing in this repo references this key - a true dead end. No test signals and no production signals either, so a human has to decide.",
       adjustedSeverity: "high",
       adjustedConfidence: "low",
       fix: "Rotate the key and move it to an environment variable.",
@@ -308,7 +308,7 @@ const sectionTag = (html: string, cls: string) => {
 const testSection = p11List.slice(p11List.indexOf("verdict-test"));
 check("phase11: likely-test-keys section exists with its own count", p11List.includes("Likely test keys") && p11List.includes("(1 finding)"));
 check("phase11: genuine-leaks section exists with its own count", p11List.includes("Likely genuine leaks") && p11List.includes("(1 finding)"));
-check("phase11: uncertain section exists with its own count", p11List.includes("Uncertain — needs a human check") && p11List.includes("(2 findings)"));
+check("phase11: uncertain section exists with its own count", p11List.includes("Uncertain - needs a human check") && p11List.includes("(2 findings)"));
 check("phase11: test-keys section is collapsed by default", !sectionTag(p11List, "verdict-test").includes("open"));
 check("phase11: genuine-leaks section is open by default", sectionTag(p11List, "verdict-genuine").includes("open"));
 check("phase11: uncertain section is open by default", sectionTag(p11List, "verdict-uncertain").includes("open"));
@@ -320,7 +320,7 @@ check("phase11: genuine leak is not in the test-keys section", !testSection.incl
 check("phase11: test key is in the test-keys section, with its test-key Fix", testSection.includes("tools/testing/selftests/sgx/sign_key.pem") && testSection.includes("Confirm this key is only used by tests"));
 check("phase11: counts line shows the honest split", p11List.includes("Of the 4 secrets, 1 looks like test keys") && p11List.includes("1 looks like genuine leaks, 2 uncertain."));
 check("phase11: dead-end finding carries the Dead end label", p11List.includes("Dead end"));
-check("phase11: dead-end explanation renders", p11List.includes("Nothing in this repo references this key — a true dead end"));
+check("phase11: dead-end explanation renders", p11List.includes("Nothing in this repo references this key - a true dead end"));
 check("phase11: in-use finding shows its references", p11List.includes("Used by: src/app.ts:10, tests/app.test.ts:5 (test)"));
 check("phase11: every finding keeps its GitHub link and anchor", p11List.includes("https://github.com/Squ1zM0/TechDirect/blob/main/src/config/prod.key#L1") && p11List.includes('id="secret-3"'));
 check("phase11: getUsage is defensive (absent -> undefined)", getUsage(phase11Secrets[3]) === undefined);
@@ -378,7 +378,7 @@ check("phase11 CSS: verdict sections, dead-end pill, map edges and track detail 
 // Edge labels are gated by zoom (fix round, headless evidence: 92
 // labels at fit zoom were an unreadable hairball): at the server
 // render's fit zoom (k≈1.06 < 1.5, nothing selected) the kind labels
-// are correctly ABSENT — the check below asserts the gating, not the
+// are correctly ABSENT - the check below asserts the gating, not the
 // labels. Labels appear for the selected track always, and for all
 // edges once zoomed past 1.5 (verified in the browser, not here).
 check("phase18 map: toolbar renders Zoom in/out, Reset view, Reset layout", usageMap.includes('aria-label="Zoom in"') && usageMap.includes('aria-label="Zoom out"') && usageMap.includes('aria-label="Reset view"') && usageMap.includes('aria-label="Reset layout"'));
@@ -392,7 +392,7 @@ check("phase18 map: detail-panel region renders with aria-live", usageMap.includ
 check("phase18 map: screen-reader summary names the counts by kind", usageMap.includes("Usage map: 4 findings and 7 files drawn. 2 code references, 1 test references, 2 own-file links."));
 // The Phase 11 fixtures carry no literal full secret value anywhere
 // (their fragments are redacted placeholders like "abcd…yz", and the
-// map never renders fragments at all — only titles and file:line).
+// map never renders fragments at all - only titles and file:line).
 // What is actually checkable: no provider-prefixed literal and no PEM
 // header reaches the map output, while a real file:line does (the
 // finding node's title carries its own file:line; a reference renders
@@ -406,8 +406,8 @@ check("phase18 CSS: toolbar buttons are 44 px", /\.map-toolbar button \{[^}]*min
 // Self-scan detail, measured Phase 13 (test-results/phase13-vuln-inventory.md
 // + scripts/test-deps-phase13.ts): 34 secrets (32 test keys excluded,
 // 2 uncertain at half weight, 0 genuine), secrets deduction 384 -> 8,
-// vulns 206 (73 vulns: 20 medium, 53 low — was 547 / 197 in Phase 12),
-// posture 84, unpinned 4 — score still 0/F, would-be score also 0/F.
+// vulns 206 (73 vulns: 20 medium, 53 low - was 547 / 197 in Phase 12),
+// posture 84, unpinned 4 - score still 0/F, would-be score also 0/F.
 const selfScanDetail: ScoreDetail = {
   score: 0, grade: "F", secretsDeduction: 8, secretsFullWeight: 0,
   secretsHalfWeight: 2, secretsExcluded: 32, wouldBeScore: 0,
@@ -447,7 +447,7 @@ const zeroExplain = stripTags(renderToString(React.createElement(ScoreExplanatio
 check("phase12: explanation handles zero secrets", zeroExplain.includes("No secrets were found") && zeroExplain.includes("no test-key adjustment"));
 
 const selfVerdict = adjustedVerdict(selfScanDetail, selfScanCounts);
-check("phase12: all-test-key verdict does not present secrets as the biggest problem", !selfVerdict.includes("possible leaked secrets — rotate") && !selfVerdict.startsWith("Biggest problem: 34"));
+check("phase12: all-test-key verdict does not present secrets as the biggest problem", !selfVerdict.includes("possible leaked secrets - rotate") && !selfVerdict.startsWith("Biggest problem: 34"));
 check("phase12: all-test-key verdict names the real driver (vulnerabilities)", selfVerdict.includes("Biggest problem: 73 known flaws in dependencies"));
 check("phase12: all-test-key verdict says the test keys are excluded", selfVerdict.includes("The 32 look like test keys and do not count toward the score; the 2 uncertain ones count at half weight"));
 check("phase12: all-excluded verdict (no uncertain) says all are excluded", adjustedVerdict(adjustedDetail, adjustedCounts).includes("The 4 possible leaked secrets all look like test keys, so they do not count toward the score"));
@@ -456,7 +456,7 @@ const genuineVerdict = adjustedVerdict(genuineDetail, genuineCounts);
 check("phase12: genuine-leak verdict still names the secrets", genuineVerdict.includes("Biggest problem: 2 genuine leaked secrets"));
 
 const selfExplainScore = adjustedExplainScore(0, "F", selfScanDetail, selfScanCounts);
-check("phase12: explainScore names the real driver, not the test keys", selfExplainScore.includes("73 known flaws") && !selfExplainScore.includes("possible leaked secrets — rotating"));
+check("phase12: explainScore names the real driver, not the test keys", selfExplainScore.includes("73 known flaws") && !selfExplainScore.includes("possible leaked secrets - rotating"));
 check("phase12: explainScore says the test keys are excluded", selfExplainScore.includes("do not count toward the score"));
 check("phase12: genuine-leak explainScore still names the secrets", adjustedExplainScore(40, "D", genuineDetail, genuineCounts).includes("2 genuine leaked secrets"));
 check("phase12: explainScore falls back with no scoreDetail", adjustedExplainScore(83, "B", undefined, { secrets: 2, vulnerabilities: 4, postureIssues: 1 }).includes("2 possible leaked secrets"));
@@ -469,7 +469,7 @@ const fakeReport = (detail: ScoreDetail | undefined): FullReport =>
     score: detail ? detail.score : 83, grade: detail ? detail.grade : "B",
     ...(detail ? { scoreDetail: detail } : {}),
     counts: { secrets: 4, testKeySecrets: 4, vulnerabilities: 1, frameworks: 2, dependencies: 5, postureIssues: 1, filesScanned: 10, historyCommitsScanned: 3 },
-    summary: "Scan complete. 4 possible leaked secrets found — rotate and remove these first; 1 known vulnerability in dependencies; 1 security hygiene issue to fix; 2 frameworks fingerprinted. The full detail is in this report — no sign-in needed.",
+    summary: "Scan complete. 4 possible leaked secrets found - rotate and remove these first; 1 known vulnerability in dependencies; 1 security hygiene issue to fix; 2 frameworks fingerprinted. The full detail is in this report - no sign-in needed.",
     scannedAt: "2026-11-26T00:00:00.000Z", historyDepth: "Full history, newest first.",
     limits: ["Scanned all 10 files in the tree."], secrets: [], frameworks: [], dependencies: [], vulnerabilities: [], posture: [],
   }) as unknown as FullReport;
@@ -488,7 +488,7 @@ check("phase12: MCP prose states the new weights, not the old rule", mcp.include
 // Findings are numbered as in test-results/phase15-ux-audit.md, and
 // the reason for each behaviour change is recorded on the check.
 
-// Finding 8: a score-0 dial must not render a stray red dot — the arc
+// Finding 8: a score-0 dial must not render a stray red dot - the arc
 // uses a butt cap at 0 (round cap otherwise).
 const dialZero = renderToString(React.createElement(ScoreDial, { score: 0, grade: "F" }));
 check("phase15 finding 8: score-0 dial uses a butt cap (no stray dot)", dialZero.includes('stroke-linecap="butt"'));
@@ -497,25 +497,25 @@ check("phase15 finding 8: a normal score keeps the round cap", dialNormal.includ
 
 // Finding 13: the score explanation names the runner-up deduction,
 // not just the top driver. TechDirect's hero said the points lost
-// came from "3 small security-hygiene issues" and never mentioned
+// came from "4 security-hygiene issues" and never mentioned
 // its 4 dependency vulnerabilities.
 const tdDetail: ScoreDetail = {
-  score: 83, grade: "B", secretsDeduction: 0, secretsFullWeight: 0,
-  secretsHalfWeight: 0, secretsExcluded: 0, wouldBeScore: 83,
-  vulnDeduction: 8, postureDeduction: 9, unpinnedDeduction: 0,
+  score: 73, grade: "C", secretsDeduction: 0, secretsFullWeight: 0,
+  secretsHalfWeight: 0, secretsExcluded: 0, wouldBeScore: 73,
+  vulnDeduction: 8, postureDeduction: 19, unpinnedDeduction: 0,
 };
-const tdCounts = { secrets: 0, vulnerabilities: 4, postureIssues: 3 };
-const tdExplain = adjustedExplainScore(83, "B", tdDetail, tdCounts);
-check("phase15 finding 13: TechDirect explanation still names the top driver", tdExplain.includes("3 small security-hygiene issues"));
+const tdCounts = { secrets: 0, vulnerabilities: 4, postureIssues: 4, postureHigh: 1 };
+const tdExplain = adjustedExplainScore(73, "C", tdDetail, tdCounts);
+check("phase15 finding 13: TechDirect explanation still names the top driver", tdExplain.includes("4 security-hygiene issues"));
 check("phase15 finding 13: TechDirect explanation appends the runner-up vulns with their points", tdExplain.includes("Plus 4 known flaws in dependencies, which cost 8 points"));
-const singleDriver = adjustedExplainScore(91, "B", { ...tdDetail, vulnDeduction: 0 }, { secrets: 0, vulnerabilities: 0, postureIssues: 3 });
+const singleDriver = adjustedExplainScore(91, "B", { ...tdDetail, vulnDeduction: 0 }, { secrets: 0, vulnerabilities: 0, postureIssues: 3, postureHigh: 0 });
 check("phase15 finding 13: no runner-up is appended when nothing else deducts", !singleDriver.includes("Plus"));
 const secretsRunnerUp = adjustedExplainScore(70, "C",
   { score: 70, grade: "C", secretsDeduction: 25, secretsFullWeight: 1, secretsHalfWeight: 0, secretsExcluded: 0, wouldBeScore: 70, vulnDeduction: 30, postureDeduction: 0, unpinnedDeduction: 0 },
   { secrets: 1, vulnerabilities: 3, postureIssues: 0 });
 check("phase15 finding 13: a secrets runner-up names the genuine leaks", secretsRunnerUp.includes("Plus 1 genuine leaked secret, which cost 25 points"));
 
-// Finding 2: the GitHub link label is short ("View on GitHub") — the
+// Finding 2: the GitHub link label is short ("View on GitHub") - the
 // long path used to be part of the label and pushed a 360 px DT
 // report 66 px wide. The path is already shown in the line above.
 const longPathSecret: SecretFinding = {
@@ -528,7 +528,7 @@ const longPathList = renderToString(
   React.createElement(SecretsList, { secrets: [longPathSecret], owner: "DefinitelyTyped", repo: "DefinitelyTyped", branch: "master" }),
 ).replace(/<!-- -->/g, "");
 check("phase15 finding 2: GitHub link label is short", longPathList.includes(">View on GitHub<"));
-check("phase15 finding 2: the long path is not in the link label", !longPathList.includes("View on GitHub — types/"));
+check("phase15 finding 2: the long path is not in the link label", !longPathList.includes("View on GitHub - types/"));
 check("phase15 finding 2: the blob link still points at the exact file and line", longPathList.includes("https://github.com/DefinitelyTyped/DefinitelyTyped/blob/master/types/nginstack__datasource/lib/DataSourceDataType.d.ts#L1"));
 check("phase15 finding 2: the path is still shown in the row above the link", longPathList.includes("types/nginstack__datasource/lib/DataSourceDataType.d.ts:1"));
 
@@ -615,7 +615,7 @@ check("phase15 finding 12: file-chip is 44 px", /button\.file-chip \{[^}]*min-he
 // Finding 2 (CSS half) + finding 4 (CSS half): wrap + halo rules.
 check("phase15 finding 2: .github-link wraps anywhere", /\.github-link \{[^}]*overflow-wrap: anywhere/.test(css));
 // Finding 2 (real-DT follow-up): break-word does NOT break a long
-// file-path token when the line has other break points — the live DT
+// file-path token when the line has other break points - the live DT
 // provisional report at 360 px kept the audit's exact path
 // (types/nginstack__datasource/.../DataSourceDataType.d.ts:14) 454 px
 // wide. code.inline must use anywhere so the token itself breaks.
@@ -623,7 +623,7 @@ check("phase15 finding 2: code.inline wraps anywhere (long file paths break)", /
 check("phase15 finding 2: no break-word left on code.inline", !/code\.inline, \.finding code \{[^}]*overflow-wrap: break-word/.test(css));
 // Finding 2 (real-DT follow-up, second contributor): the Frameworks list
 // on the live DT provisional report carried 40-char SHA versions as plain
-// text — no break opportunity — and the report measured 411 px wide at a
+// text - no break opportunity - and the report measured 411 px wide at a
 // 360 px viewport even after the code.inline fix. The list items and the
 // finding rows wrap anywhere so a token that would overflow breaks.
 check("phase15 finding 2: report-list items wrap anywhere", /\.report-list li \{[^}]*overflow-wrap: anywhere/.test(css));
@@ -645,7 +645,7 @@ const jsYamlVulns: Vulnerability[] = [
 ];
 const vulnList = renderToString(React.createElement(VulnerabilitiesList, { vulnerabilities: jsYamlVulns })).replace(/<!-- -->/g, "");
 const vulnFixLines = vulnList.match(/<p class="fix">.*?<\/p>/g) ?? [];
-check("phase15 finding 15: every js-yaml Fix line names the single recommended version", vulnFixLines.filter((l) => l.includes("js-yaml")).length === 4 && vulnFixLines.filter((l) => l.includes("js-yaml")).every((l) => l.includes("Upgrade js-yaml to 4.3.2 or later — this covers all 4 advisories for this version.")));
+check("phase15 finding 15: every js-yaml Fix line names the single recommended version", vulnFixLines.filter((l) => l.includes("js-yaml")).length === 4 && vulnFixLines.filter((l) => l.includes("js-yaml")).every((l) => l.includes("Upgrade js-yaml to 4.3.2 or later - this covers all 4 advisories for this version.")));
 check("phase15 finding 15: no Fix line names a losing version", vulnFixLines.filter((l) => l.includes("3.15.0") || l.includes("4.3.1") || l.includes("4.2.0")).length === 0);
 check("phase15 finding 15: the single-version lodash Fix is unchanged", vulnList.includes("Fix:</b> Upgrade lodash to 4.17.21 or later."));
 check("phase15 finding 15: recommendedFixVersions picks the max (4.3.2 of 4.3.2/3.15.0/4.3.1/4.2.0)", recommendedFixVersions(jsYamlVulns).get("js-yaml@4.1.1")?.recommended === "4.3.2");
@@ -659,7 +659,7 @@ check("phase15 finding 15: a pre-release sorts below its release", compareVersio
 const heroHtml = renderToString(React.createElement(ReportView, { report: fakeReport(adjustedDetail) }));
 check("roll-all: the button renders in the report hero", heroHtml.includes("Roll all into report"));
 check("roll-all: the button sits in the score hero, above the stat grid", heroHtml.indexOf("Roll all into report") > heroHtml.indexOf("score-hero") && heroHtml.indexOf("Roll all into report") < heroHtml.indexOf("stat-grid"));
-check("roll-all: the button explains what it downloads", heroHtml.includes("One Markdown file — score, summary, and every finding."));
+check("roll-all: the button explains what it downloads", heroHtml.includes("One Markdown file - score, summary, and every finding."));
 check("roll-all: the hero CSS puts the button top-right and full-width on phones", /\.roll-all \{[^}]*margin-left: auto/.test(css) && css.includes(".roll-all button { width: 100%; }"));
 
 // --- 6. No literal secret-pattern values in the UI files ------------

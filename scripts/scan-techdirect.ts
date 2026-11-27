@@ -9,7 +9,7 @@
 // counts.filesScanned equals that count. TechDirect has 2,802 files in
 // the tree; the only skips are binary / dist / node_modules / .next
 // paths, which are not source files to scan. Also asserts the known
-// score stays 83/B and that the limits line says the whole tree was
+// score stays 73/C and that the limits line says the whole tree was
 // scanned. History: 62 commits via the ephemeral clone (Phase 2).
 
 import { writeFileSync, mkdirSync } from "node:fs";
@@ -45,8 +45,8 @@ async function main() {
   if (full.counts.filesScanned !== expected) {
     throw new Error(`filesScanned mismatch: got ${full.counts.filesScanned}, tree says ${expected} — the scan did not cover the whole tree`);
   }
-  if (full.score !== 83 || full.grade !== "B") {
-    throw new Error(`score changed: got ${full.score}/${full.grade}, expected 83/B`);
+  if (full.score !== 73 || full.grade !== "C") {
+    throw new Error(`score changed: got ${full.score}/${full.grade}, expected 73/C`);
   }
   if (!full.limits.some((l) => /Scanned all \d+ files in the tree/.test(l))) {
     throw new Error(`limits do not say the whole tree was scanned: ${JSON.stringify(full.limits)}`);

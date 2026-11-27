@@ -1,4 +1,4 @@
-// "Use with your AI assistant (MCP)" — the human view of the MCP server.
+// "Use with your AI assistant (MCP)" - the human view of the MCP server.
 // Full version on the home page (all four client snippets); compact
 // version on the report page (server URL + the Claude snippet + a link
 // back to the home page for the rest). Copy buttons use the clipboard
@@ -15,7 +15,7 @@ function CopyButton({ text, label }: { text: string; label: string }) {
     try {
       await navigator.clipboard.writeText(text);
     } catch {
-      // Clipboard API unavailable (older browser, no permission) — fall
+      // Clipboard API unavailable (older browser, no permission) - fall
       // back to the old select-and-copy path.
       const ta = document.createElement("textarea");
       ta.value = text;
@@ -42,7 +42,7 @@ function Snippet({ snippet }: { snippet: McpSnippet }) {
     <div className="snippet">
       <div className="copy-row">
         <div>
-          <b>{snippet.client}</b> <span className="muted small">— {snippet.where}</span>
+          <b>{snippet.client}</b> <span className="muted small">- {snippet.where}</span>
         </div>
         <CopyButton text={snippet.json} label={`${snippet.client} config`} />
       </div>
@@ -75,7 +75,7 @@ export default function McpSection({ compact = false }: { compact?: boolean }) {
     <div className="card" id="mcp">
       <h2>Use with your AI assistant (MCP)</h2>
       <p>
-        MCP lets an AI assistant like Claude call GitSecure for you — no account needed.
+        MCP lets an AI assistant like Claude call GitSecure for you - no account needed.
       </p>
       <p>
         Point your AI assistant at GitSecure and it can scan a repo for you. Server URL:

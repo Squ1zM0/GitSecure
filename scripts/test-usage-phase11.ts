@@ -1,9 +1,9 @@
-// Phase 11 usage test — whether anything in the repo still
+// Phase 11 usage test - whether anything in the repo still
 // references a secret finding's identifier, and the triage
 // feed-back that follows. Run: npm run test:usage-phase11
 //
 // Fixtures use `__SECRET_n__` placeholders and assemble fakes in
-// memory — NO literal secret-pattern values anywhere in this file
+// memory - NO literal secret-pattern values anywhere in this file
 // (grep-verified; see the check at the end). Findings are built by
 // hand (no detector run), so no real credential pattern is needed:
 // usage works on identifiers (names), never on values.
@@ -19,7 +19,7 @@
 //   (vi)  triage-upgrade rule cases (prod usage -> genuine, docs-only
 //         usage on a decisive key -> stays test, dead end reinforces)
 //   (ix)  LIVE REGRESSION (2026-11-26): a comment mention is not
-//         usage — `api_key` named in usage.ts's own doc comments
+//         usage - `api_key` named in usage.ts's own doc comments
 //         wrongly upgraded the test-scanner fixture to
 //         likely-genuine-leak; comments are stripped before matching
 
@@ -34,7 +34,7 @@ import type { HeadPartial, SecretFinding } from "../src/lib/types";
 
 let failures = 0;
 function check(name: string, ok: boolean, extra = "") {
-  console.log(`${ok ? "PASS" : "FAIL"}  ${name}${extra ? ` — ${extra}` : ""}`);
+  console.log(`${ok ? "PASS" : "FAIL"}  ${name}${extra ? ` - ${extra}` : ""}`);
   if (!ok) failures++;
 }
 
@@ -69,7 +69,7 @@ function ctxFrom(contents: Map<string, string>) {
   };
 }
 
-const DEAD_END_SENTENCE = "Nothing in this repo references this key — a true dead end.";
+const DEAD_END_SENTENCE = "Nothing in this repo references this key - a true dead end.";
 
 // --- (i) key file referenced by src/ code: in use, triage upgraded ---
 const keyContents = filesMap([
@@ -190,7 +190,7 @@ check("(vi-a) prod usage: explanation names src/service.ts", /src\/service\.ts/.
 // (vi-b) decisive fingerprint + docs-only usage -> stays likely-test-key.
 //
 // PHASE 14 BEHAVIOUR CHANGE (Bug 2 fix): a docs/prose mention is
-// not usage at all — it is not recorded in referencedBy, so a
+// not usage at all - it is not recorded in referencedBy, so a
 // finding mentioned only in docs is a dead end, not "referenced
 // from documentation". Before the fix this case asserted the
 // docs/guide.md reference was recorded in referencedBy with a
@@ -280,7 +280,7 @@ check(
 );
 
 // --- (vii) dogfood regression: a bare URL line has no identifier ---
-// The fixture line is just a URL in an array — its scheme
+// The fixture line is just a URL in an array - its scheme
 // (`postgres`) is not a variable name, and no assignment precedes
 // it. Before the match-anchored fix it yielded `postgres`, which
 // matched the detector's own prefilter line in src/lib/secrets.ts
@@ -309,7 +309,7 @@ check(
 // The finding's value sits inside a test's string literal; the
 // line's own assignment (`const hidden = …`) is the test's variable,
 // not the credential's name. The name attached to the match is
-// `password` — generic — so there is no identifier at all. Before
+// `password` - generic - so there is no identifier at all. Before
 // the match-anchored fix the line-start fallback yielded `hidden`,
 // which matched `hidden` attributes across the UI and wrongly
 // upgraded the fixture to likely-genuine-leak.
@@ -352,7 +352,7 @@ computeUsageForFindings(
   [commentFinding],
   filesMap([
     ["scripts/test-scanner.ts", `${"// filler\n".repeat(103)}${commentLine}\n`],
-    // Doc comments naming the identifier — the exact live false flip.
+    // Doc comments naming the identifier - the exact live false flip.
     ["src/lib/usage.ts", `/** The name inside a detector match: \`api_key\` from \`"api_key": "…"\`. */\n// set api_key in config before running\nconst x = 1;\n`],
     // A # full-line comment in a Python file naming it too.
     ["src/app.py", `# configure api_key before deploying\nprint("ok")\n`],
@@ -396,15 +396,15 @@ const regexTrap = stripComments(
   `const m = /^\\s*["']?([A-Za-z_][A-Za-z0-9_.\\-]*)["']?\\s*[:=]/.exec(match);\n` +
   `/** The assignment name: ("api_key": "ghp_…"). */\nconst y = api_key;\n`,
 );
-check("(ix) stripComments: regex-quote trap — block comment after a regex is stripped", !regexTrap.split("\n")[1].includes("api_key"), JSON.stringify(regexTrap));
-check("(ix) stripComments: regex-quote trap — real reference on the next line survives", regexTrap.split("\n")[2].includes("api_key"), JSON.stringify(regexTrap));
+check("(ix) stripComments: regex-quote trap - block comment after a regex is stripped", !regexTrap.split("\n")[1].includes("api_key"), JSON.stringify(regexTrap));
+check("(ix) stripComments: regex-quote trap - real reference on the next line survives", regexTrap.split("\n")[2].includes("api_key"), JSON.stringify(regexTrap));
 
 // --- (x) LIVE REGRESSION (Phase 14, Bug 2): a docs/prose mention is not usage ---
 // The two uncertain self-scan findings (scripts/test-scanner.ts:104
 // and scripts/test-usage-phase11.ts:333, both `api_key` fixtures)
 // were kept uncertain by one signal, `usage-referenced`, whose only
 // non-test references were prose mentions in GITSECURE.md:1294/1301
-// and README.md:1228 — the Phase 11.1 write-up itself describing
+// and README.md:1228 - the Phase 11.1 write-up itself describing
 // the comment-strip fix. Those lines quote the identifier while
 // explaining a fix; they never use the value. A `.md` mention is
 // not code using a credential.
@@ -489,13 +489,13 @@ const genericTriage = triageFinding(genericFinding, { usage: genericFinding.usag
 check("(generic) generic name: no usage-dead-end signal without an identifier", !genericTriage.triage.signals.includes("usage-dead-end"), genericTriage.triage.signals.join(","));
 
 // --- Regression: usage never drops a finding; score DOES change with usage (Phase 12) ---
-// Phase 11 said "score never changes with usage" — that was the Phase 10
+// Phase 11 said "score never changes with usage" - that was the Phase 10
 // rule, OVERTURNED in Phase 12 (Freddy, 2026-11-26): the score must
 // reflect real risk. Before triage all 5 criticals deduct full (125,
 // 0/F). After usage-aware triage the 3 fixture findings deduct nothing
 // (likely-test-key), the src/ github-token deducts full 25
 // (likely-genuine-leak), and the src/ private-key deducts half 12.5
-// (uncertain) — weighted 38, score 62/C. wouldBeScore stays 0/F.
+// (uncertain) - weighted 38, score 62/C. wouldBeScore stays 0/F.
 // Usage still never drops a finding and never changes detector severity.
 // Fresh findings (the cases above keep their own usage; this section
 // must not recompute it).
@@ -514,7 +514,7 @@ const scoreBefore = computeScore({ secrets: mixed, vulnerabilities: [], posture:
 const triagedMixed = mixed.map((f) => ({ ...f }));
 for (const f of triagedMixed) f.triage = triageFinding(f, { usage: f.usage }).triage;
 const scoreAfter = computeScore({ secrets: triagedMixed, vulnerabilities: [], posture: [], unpinnedCount: 0 });
-check("Scoring rule (Phase 12): usage-aware triage changes the score — test keys drop out (62/C, was 0/F untriaged)", scoreAfter.score === 62 && scoreAfter.grade === "C" && scoreBefore.score === 0, `${scoreBefore.score}/${scoreBefore.grade} vs ${scoreAfter.score}/${scoreAfter.grade}`);
+check("Scoring rule (Phase 12): usage-aware triage changes the score - test keys drop out (62/C, was 0/F untriaged)", scoreAfter.score === 62 && scoreAfter.grade === "C" && scoreBefore.score === 0, `${scoreBefore.score}/${scoreBefore.grade} vs ${scoreAfter.score}/${scoreAfter.grade}`);
 check("Scoring rule (Phase 12): deduction 38 = genuine 25 + uncertain 12.5, 3 test keys at 0", scoreAfter.secretsDeduction === 38 && scoreAfter.secretsFullWeight === 1 && scoreAfter.secretsHalfWeight === 1 && scoreAfter.secretsExcluded === 3, `ded=${scoreAfter.secretsDeduction} full=${scoreAfter.secretsFullWeight} half=${scoreAfter.secretsHalfWeight} excluded=${scoreAfter.secretsExcluded}`);
 check("Scoring rule (Phase 12): wouldBeScore is the old-rule score (0/F)", scoreAfter.wouldBeScore === 0 && scoreAfter.wouldBeScore === scoreBefore.score, `wouldBe=${scoreAfter.wouldBeScore}`);
 check("Scoring rule: detector severity untouched by usage", triagedMixed.every((f, i) => f.severity === mixed[i].severity));

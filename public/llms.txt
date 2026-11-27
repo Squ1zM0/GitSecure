@@ -2,7 +2,7 @@
 
 > GitSecure is the security mirror for GitHub. Take any public repo, swap
 > `github.com` for `git-secure.com`, and get a plain-English security report
-> — no install, no sign-up.
+> - no install, no sign-up.
 >
 > `github.com/Squ1zM0/GitSecure` → `git-secure.com/Squ1zM0/GitSecure`
 
@@ -14,14 +14,14 @@
 
 Paste or type any public GitHub repo (`owner/repo`) and GitSecure returns a
 plain-English security report: a score from 0–100 with a letter grade, counts,
-a one-paragraph summary, and the full detail — file names, line numbers,
+a one-paragraph summary, and the full detail - file names, line numbers,
 redacted secret fragments, framework versions, and vulnerability IDs with the
 version that fixes each one. Every finding says what it is, what it lets an
 attacker do, and the exact fix, in order.
 
 It checks four things:
 
-- **Leaked secrets** — Discord and Slack webhooks, AWS keys, GitHub tokens,
+- **Leaked secrets** - Discord and Slack webhooks, AWS keys, GitHub tokens,
   Stripe and OpenAI keys, database URLs, private keys, committed `.env`
   files, hardcoded passwords. Checked in current files **and in full
   history** (newest-first). A secret deleted from HEAD but still in an old
@@ -29,7 +29,7 @@ It checks four things:
   (`likely-test-key`, `likely-genuine-leak`, or `uncertain`); test keys
   deduct nothing from the score, uncertain findings half, genuine leaks
   in full, and the report shows the breakdown.
-- **Frameworks** — what the repo is built with, with exact versions from
+- **Frameworks** - what the repo is built with, with exact versions from
   lockfiles where possible: JS/TS (Next.js, React, Vue, Angular, Svelte,
   Vite, Express, Nest, Nuxt, Astro), Python (Django, Flask, FastAPI), Rust
   (Cargo / RustSec via OSV), Go (Gin, Echo, Fiber), Ruby (Rails, Sinatra),
@@ -38,12 +38,12 @@ It checks four things:
   Terraform, GitHub Actions, Vercel and Supabase config. Unpinned (`*` /
   `latest`) versions are flagged; if a version cannot be determined, the
   report says so instead of guessing.
-- **Dependency flaws** — known vulnerabilities in direct and transitive
+- **Dependency flaws** - known vulnerabilities in direct and transitive
   dependencies, checked against OSV.dev (a free public database of known
   software flaws; npm / PyPI / crates.io / Go / RubyGems / Packagist /
   Maven / NuGet), with full advisory detail (a plain summary, a severity
   score, and the version that fixes it) for every advisory found.
-- **Security posture** — missing `SECURITY.md`, no Dependabot, `.gitignore`
+- **Security posture** - missing `SECURITY.md`, no Dependabot, `.gitignore`
   gaps, and risky GitHub Actions patterns (`pull_request_target`,
   `write-all`, secrets echoed into logs).
 
@@ -63,11 +63,11 @@ It checks four things:
 ## How to use it
 
 - **Web:** go to https://git-secure.com/ and enter `owner/repo`, or go
-  straight to `https://git-secure.com/{owner}/{repo}` — for example
+  straight to `https://git-secure.com/{owner}/{repo}` - for example
   https://git-secure.com/Squ1zM0/TechDirect
 - **API:** `GET https://git-secure.com/api/scan/{owner}/{repo}` returns the
   full JSON report. A small repo answers 200 in one request; a large repo
-  answers 202 with a cursor and the partial results so far — resume with
+  answers 202 with a cursor and the partial results so far - resume with
   `?cursor=...` on the same endpoint, or advance one chunk at a time with
   `POST /api/scan/chunk` (body `{ cursor, head?, historyFindings? }`).
   Errors carry honest statuses: 400 bad owner/repo format or bad cursor,
@@ -76,17 +76,17 @@ It checks four things:
 - **MCP (for AI assistants):** canonical server URL
   `https://git-secure.com/mcp` (`/api/mcp` is an alias). Streamable HTTP,
   stateless, no sign-up, no API key. A plain `GET /mcp` is refused with a
-  4xx — MCP clients use POST. Config snippet:
+  4xx - MCP clients use POST. Config snippet:
   `{ "mcpServers": { "gitsecure": { "url": "https://git-secure.com/mcp" } } }`
 
 ## MCP tools
 
-- `scan_repo` (owner, repo) — run a live security scan, return the full report.
-- `get_report` (owner, repo) — read or refresh the full report for a repo
+- `scan_repo` (owner, repo) - run a live security scan, return the full report.
+- `get_report` (owner, repo) - read or refresh the full report for a repo
   (runs a fresh live scan; reports are never stored).
-- `resume_scan` (cursor) — continue a scan that is still running, from the
+- `resume_scan` (cursor) - continue a scan that is still running, from the
   cursor `scan_repo` or `get_report` returned.
-- `list_checks` (no args) — what GitSecure checks, in plain English, plus
+- `list_checks` (no args) - what GitSecure checks, in plain English, plus
   the scan notes.
 
 ## Limits, stated honestly
@@ -101,7 +101,7 @@ It checks four things:
   the GitHub API. Only physical guards remain: a 500 MB streaming guard
   on the tarball download (tripping it switches to per-file fetches) and
   a 150 MB pack-download bound (past it, history goes through the API
-  path instead). A history failure never fails the scan — the report
+  path instead). A history failure never fails the scan - the report
   carries a note and the HEAD scan still completes in full.
 - **GitHub rate limits:** unauthenticated GitHub API is 60 requests/hour.
   A scan uses roughly 7 API calls plus raw file fetches, but the API
@@ -126,7 +126,7 @@ It checks four things:
 
 ## Optional
 
-- `GITHUB_TOKEN` — a GitHub token raises the API rate limit from 60 to
+- `GITHUB_TOKEN` - a GitHub token raises the API rate limit from 60 to
   5,000 requests/hour. Server-side only, never in the repo. Without it,
   scans may hit the unauthenticated limit.
 - No paid tier exists. No user counts or scan totals are published.

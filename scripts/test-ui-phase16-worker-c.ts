@@ -1,11 +1,11 @@
 // Phase 16 worker C tests. Run: npm run test:ui-phase16c
 //
-// Covers the three Phase 16 worker-C fixes — no network:
+// Covers the three Phase 16 worker-C fixes - no network:
 //   1. Honest timing copy: the "15–30 seconds" claim is scoped to
 //      small repos on the home scan-status line and the loading
 //      screen, and the live progress card shows a history pace
 //      measured from real chunk progress (historyRatePerMin) or the
-//      no-number "large repos take longer" wording — never an
+//      no-number "large repos take longer" wording - never an
 //      invented estimate. Live evidence: vinta/awesome-python took
 //      16 minutes for 3,350 history commits while the page claimed
 //      "usually takes 15–30 seconds".
@@ -14,14 +14,14 @@
 //      check runs at assemble time). The vulnerabilities section, the
 //      stat tile, and the Markdown report all say "not checked yet"
 //      while provisional, and the finished report shows the real
-//      count — so the section and the "Dependencies not checked yet"
+//      count - so the section and the "Dependencies not checked yet"
 //      progress line agree.
-//   3. Typo: "91 out of 100 (grade A) is a excellent score" —
+//   3. Typo: "91 out of 100 (grade A) is a excellent score" -
 //      "an excellent score" (gradeWordWithArticle, shared by both
 //      score-explanation templates).
 //
 // Fixtures use `__SECRET_n__` placeholders only where a finding is
-// needed — this file needs none: the live-case fixture has 0 secrets.
+// needed - this file needs none: the live-case fixture has 0 secrets.
 // NO literal secret-pattern values anywhere in this file
 // (grep-verified; see the check at the end).
 
@@ -41,7 +41,7 @@ import type { HeadPartial, Severity } from "../src/lib/types";
 
 let failures = 0;
 function check(name: string, ok: boolean, extra = "") {
-  console.log(`${ok ? "PASS" : "FAIL"}  ${name}${extra ? ` — ${extra}` : ""}`);
+  console.log(`${ok ? "PASS" : "FAIL"}  ${name}${extra ? ` - ${extra}` : ""}`);
   if (!ok) failures++;
 }
 
@@ -108,7 +108,7 @@ check("ScanProgress wires the measured rate (no invented ETA)", src("src/compone
 const provHtml = render(React.createElement(ReportView, { report: prov }));
 check("provisional report: vuln heading says not checked yet", provHtml.includes("Dependency vulnerabilities (not checked yet)"));
 check("provisional report: vuln body says the check has not run", provHtml.includes("been checked for known flaws yet"));
-check("provisional report: stat tile says not checked yet", provHtml.includes("dependency vulnerabilities — not checked yet"));
+check("provisional report: stat tile says not checked yet", provHtml.includes("dependency vulnerabilities - not checked yet"));
 check("provisional report: no 0 vulnerability count anywhere", !provHtml.includes("Dependency vulnerabilities (0)") && !provHtml.includes("No known vulnerabilities were found in the dependencies checked"));
 
 const done = { ...prov, provisional: false };
@@ -130,7 +130,7 @@ const scanHtml = render(
 );
 check("live progress view: report section and footer agree (both 'not checked yet')", scanHtml.includes("Dependency vulnerabilities (not checked yet)") && scanHtml.includes("Dependencies not checked yet"));
 check("live progress view: no 0 vulnerability count while the check is pending", !scanHtml.includes("Dependency vulnerabilities (0)"));
-check("live progress view: history timing says large repos take several minutes", scanHtml.includes("History is the slow part on a big repo — a repo with thousands of commits takes several minutes."));
+check("live progress view: history timing says large repos take several minutes", scanHtml.includes("History is the slow part on a big repo - a repo with thousands of commits takes several minutes."));
 check("live progress view: no invented per-minute rate on first paint", !scanHtml.includes(" a minute"));
 
 // Markdown carries the same agreement.

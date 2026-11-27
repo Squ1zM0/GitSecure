@@ -8,7 +8,7 @@
     "react-dom": "19.3.0",
     "zod": "4.6.7"
   },
-  "description": "GitSecure \u2014 swap github.com for git-secure.com and get a security report for a public repo: leaked secrets, framework flaws, dependency vulnerabilities, and posture. Everyone gets the full report \u2014 no sign-up, no login.",
+  "description": "GitSecure - swap github.com for git-secure.com and get a security report for a public repo: leaked secrets, framework flaws, dependency vulnerabilities, and posture. Everyone gets the full report - no sign-up, no login.",
   "devDependencies": {
     "@types/node": "^20",
     "@types/react": "^19",
@@ -46,7 +46,10 @@
     "test:phase17-worker-b": "tsx scripts/test-phase17-worker-b.ts",
     "test:phase17-worker-c": "tsx scripts/test-phase17-worker-c.ts",
     "test:phase17-worker-f": "tsx scripts/test-phase17-worker-f.ts",
-    "test:zero-rest": "tsx scripts/test-zero-rest.ts"
+    "test:zero-rest": "tsx scripts/test-zero-rest.ts",
+    "test:code-risks-phase19": "tsx scripts/test-code-risks-phase19.ts",
+    "test:posture-phase19": "tsx scripts/test-posture-phase19.ts",
+    "test:map-phase19": "tsx scripts/test-map-phase19.ts"
   },
   "version": "0.1.0"
 }

@@ -1,5 +1,5 @@
 // Dependency vulnerability lookup via OSV.dev (free, no key).
-// https://api.osv.dev/v1/querybatch — POST { queries: [{ package: { name, ecosystem }, version }] }
+// https://api.osv.dev/v1/querybatch - POST { queries: [{ package: { name, ecosystem }, version }] }
 // Ecosystems used: npm, PyPI, crates.io. Never sends secret values.
 // If OSV is unreachable the scan continues and reports the check as unavailable.
 
@@ -37,13 +37,13 @@ function fixedVersion(vuln: Record<string, unknown>): string | null {
 // in small parallel batches.
 // Phase 8: NO time budgets either. The query phase asks OSV about EVERY
 // pinned dependency, in batches of QUERY_BATCH_SIZE, and the detail
-// phase fetches full detail for EVERY unique advisory ID — neither
+// phase fetches full detail for EVERY unique advisory ID - neither
 // phase stops early any more, so no advisory is ever left ID-only and
 // no dependency is ever left unchecked for flaws. This only works
 // because the scan now runs as a background job (see jobs.ts): the old
 // 15 s query / 12 s detail budgets existed to fit the 55 s route
 // timeout, and that timeout is gone. Callers that still need a budget
-// (a test, a one-shot script) can pass one explicitly via opts — the
+// (a test, a one-shot script) can pass one explicitly via opts - the
 // default is no budget. A budget that runs out still never drops a
 // finding from the list; the report says how many were checked / got
 // full detail. onProgress reports depsChecked and advisoriesDetailed
@@ -91,11 +91,11 @@ export async function checkDependencies(deps: Dependency[], opts: CheckDependenc
   if (queryable.length === 0) return empty;
   const ecosystemMap: Record<string, string> = { npm: "npm", pypi: "PyPI", crates: "crates.io", go: "Go", ruby: "RubyGems", php: "Packagist", java: "Maven", dotnet: "NuGet", actions: "GitHub Actions", pub: "Pub" };
   // Query phase: every pinned dep, QUERY_BATCH_SIZE per querybatch call.
-  // No budget by default (Phase 8) — at least one batch always runs.
+  // No budget by default (Phase 8) - at least one batch always runs.
   // Collect (dep, vuln id) pairs from every batch that answers.
   const pairs: { dep: Dependency; id: string }[] = [];
   // Phase 16: a phase deadline is the earlier of its own budget and
-  // the loop deadline (a duration vs an absolute time — both are
+  // the loop deadline (a duration vs an absolute time - both are
   // resolved to an absolute deadline here).
   const phaseDeadline = (budgetMs: number | null | undefined): number | null => {
     const fromBudget = budgetMs != null ? Date.now() + budgetMs : null;
@@ -113,7 +113,7 @@ export async function checkDependencies(deps: Dependency[], opts: CheckDependenc
       const batch = queryable.slice(i, i + QUERY_BATCH_SIZE);
       const controller = new AbortController();
       // Phase 16: an in-flight query is capped at the time left to
-      // the loop deadline, not the full 15 s — otherwise a query
+      // the loop deadline, not the full 15 s - otherwise a query
       // started just before the deadline overruns it by up to 15 s.
       const queryTimeout = opts.deadlineMs != null ? Math.min(15_000, Math.max(500, opts.deadlineMs - Date.now())) : 15_000;
       const timer = setTimeout(() => controller.abort(), queryTimeout);
@@ -150,7 +150,7 @@ export async function checkDependencies(deps: Dependency[], opts: CheckDependenc
   }
   if (pairs.length === 0) return { vulnerabilities: [], unavailable, advisoriesFound: 0, detailCapped: 0, depsChecked, depsQueryable: queryable.length };
   // Detail phase: full detail for EVERY unique advisory ID, in small
-  // parallel batches. No budget by default (Phase 8) — advisories past
+  // parallel batches. No budget by default (Phase 8) - advisories past
   // an explicit budget are listed with ID only, never dropped.
   const uniqueIds = [...new Set(pairs.map((p) => p.id))];
   const detailDeadline = phaseDeadline(opts.detailBudgetMs);
@@ -184,14 +184,14 @@ export async function checkDependencies(deps: Dependency[], opts: CheckDependenc
       installedVersion: dep.version,
       fixedVersion: fixed,
       severity,
-      summary: summary ? summary.slice(0, 300) : `A known vulnerability (${id}) affects this package version. Full detail was not fetched for this advisory — see osv.dev/vulnerability/${id}.`,
+      summary: summary ? summary.slice(0, 300) : `A known vulnerability (${id}) affects this package version. Full detail was not fetched for this advisory - see osv.dev/vulnerability/${id}.`,
       // Plain English, one line: what the flaw is (in the advisory's own
       // words), what it lets an attacker do, and what to upgrade to.
       // The advisory summary is the human-written description; the fix
       // line is ours. Keep it to one sentence of summary + the upgrade.
       plainEnglish: summary
-        ? `${summary.endsWith(".") ? summary : `${summary}.`} This affects ${dep.name} ${dep.version ?? ""}. ${fixed ? `Upgrade to ${fixed} or later to fix it.` : "No fixed version was listed in the detail fetched — check the advisory before upgrading."}`
-        : `${dep.name} ${dep.version ?? ""} has a known security flaw (${id}). ${fixed ? `Upgrade to ${fixed} or later to fix it.` : "No fixed version was listed in the detail fetched — check the advisory before upgrading."}`,
+        ? `${summary.endsWith(".") ? summary : `${summary}.`} This affects ${dep.name} ${dep.version ?? ""}. ${fixed ? `Upgrade to ${fixed} or later to fix it.` : "No fixed version was listed in the detail fetched - check the advisory before upgrading."}`
+        : `${dep.name} ${dep.version ?? ""} has a known security flaw (${id}). ${fixed ? `Upgrade to ${fixed} or later to fix it.` : "No fixed version was listed in the detail fetched - check the advisory before upgrading."}`,
       upgrade: fixed ? `Upgrade ${dep.name} to ${fixed} or later.` : `Check advisory ${id} for ${dep.name} and upgrade to a patched version.`,
     };
   });

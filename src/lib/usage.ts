@@ -1,10 +1,10 @@
-// Secret usage analysis (Phase 11) — for every secret finding,
+// Secret usage analysis (Phase 11) - for every secret finding,
 // determine from the repo's own files what the value depends on and
 // whether anything else uses it.
 //
 // The search is IDENTIFIER-ONLY. A finding's identifier is the
 // variable / env name, the key filename, or the config key it was
-// assigned to — never the secret value itself, never the redacted
+// assigned to - never the secret value itself, never the redacted
 // fragment. The value string is never searched for, never stored,
 // and never leaves this module: a file that contains the secret
 // value but never names it is NOT a reference (proved by the
@@ -14,8 +14,8 @@
 // line: the name whose assignment's value IS the matched secret
 // (the name inside the match itself for the password-style
 // detectors, or the `NAME =` immediately before the value for the
-// rest). A bare URL line has no such name — its scheme (`postgres`)
-// is not an identifier — and a line whose match sits inside a
+// rest). A bare URL line has no such name - its scheme (`postgres`)
+// is not an identifier - and a line whose match sits inside a
 // string (a test that builds a fake secret in memory) yields the
 // name inside the string, never the test's own variable. When the
 // line has no detector match at all, the fallback is the assignment
@@ -25,26 +25,26 @@
 // file (never the file the finding came from), bounded by
 // non-identifier characters, so `MY_KEY` does not match inside
 // `MY_API_KEY`. References in test files are recorded separately
-// (referencedByTests) and do NOT count as "in use" — only a
+// (referencedByTests) and do NOT count as "in use" - only a
 // reference from non-test code makes a finding live. Test files are
 // classified with the Phase 10 test-path detection (isTestFilePath
 // in triage.ts).
 //
 // What does NOT count: the finding's own file; ignore-files
-// (.gitignore, .gitattributes, .dockerignore, .npmignore — they
+// (.gitignore, .gitattributes, .dockerignore, .npmignore - they
 // name files to exclude, they do not use the value); matches on
 // the secret value itself; mentions of the identifier inside
 // COMMENTS (a doc comment naming an example, "set api_key in
-// config" — stripComments removes those before matching, or a
+// config" - stripComments removes those before matching, or a
 // test fixture's generic name would flip to likely-genuine-leak
 // on the strength of prose); mentions in DOCUMENTATION / PROSE
 // files (Phase 14: a `.md` / `.txt` / `.rst` / `.adoc` file, or a
-// file under `docs/` — see isDocsPath in triage.ts — quoting the
+// file under `docs/` - see isDocsPath in triage.ts - quoting the
 // identifier while describing it is not code using the value, so
 // it is not a reference at all, not even a non-test one: the
 // Phase 11.1 write-up itself naming `api_key` kept two test
 // fixtures uncertain on prose alone); and generic names (`key`, `token`,
-// `password`, …) which are too common to mean anything — a finding
+// `password`, …) which are too common to mean anything - a finding
 // whose line yields no usable identifier gets an empty usage
 // annotation with deadEnd: false, i.e. "liveness undetermined",
 // never a false dead end. Test files are classified with the Phase
@@ -52,7 +52,7 @@
 // `.env` basename is NOT an identifier for an .env-file finding:
 // every repo mentions ".env" in prose ("committed .env files",
 // "add .env to .gitignore"), and none of those mentions loads the
-// file — an .env file's identifiers are its variable names only.
+// file - an .env file's identifiers are its variable names only.
 //
 // Lists are capped at 10 entries each with true totals. The search
 // is one prefilter pass per file (a single alternation regex over
@@ -60,7 +60,7 @@
 // files that pass the prefilter, so a repo with hundreds of
 // findings does not pay findings × files full scans.
 //
-// Pure functions of (findings, files) — no I/O, no crypto, no
+// Pure functions of (findings, files) - no I/O, no crypto, no
 // secret values. The caller supplies the file corpus (a Map of
 // path -> content) and, per finding, the context the identifier is
 // extracted from (the finding's line text and, for .env files, the
@@ -74,7 +74,7 @@ import type { SecretFinding, SecretUsage } from "./types";
 /** Entries kept per reference list (first 10, in file order). */
 export const USAGE_LIST_CAP = 10;
 
-/** Basenames that name files to exclude — they never "use" a value. */
+/** Basenames that name files to exclude - they never "use" a value. */
 const IGNORE_FILE_BASENAMES = new Set([
   ".gitignore",
   ".gitattributes",
@@ -84,7 +84,7 @@ const IGNORE_FILE_BASENAMES = new Set([
 
 /** Variable names too generic to identify anything: matching them
  *  would call nearly every file in a repo a "reference". Compared
- *  case-insensitively, exact match only — `db_password` and
+ *  case-insensitively, exact match only - `db_password` and
  *  `security-password` are specific enough to keep. */
 const GENERIC_NAMES = new Set([
   "key", "token", "secret", "password", "passwd", "pwd", "value",
@@ -136,7 +136,7 @@ function usableName(name: string): boolean {
 /** The name inside a detector match itself, for the password-style
  *  detectors whose pattern includes the assignment (`password =
  *  "…"`, `security-password="…"`). Null when the match does not
- *  start with a name — including a bare URL, whose scheme
+ *  start with a name - including a bare URL, whose scheme
  *  (`postgres:`) looks like a name but is not one. */
 function matchName(match: string): string | null {
   const m = /^\s*["']?([A-Za-z_][A-Za-z0-9_.\-]*)["']?\s*[:=]/.exec(match);
@@ -163,7 +163,7 @@ function prefixName(prefix: string): string | null {
  *  type is used. Returns undefined when the line holds no detector
  *  match at all (the caller then falls back to the line-start
  *  name); null when a match exists but no usable name is attached
- *  to it — that answer is definitive, and no fallback runs. */
+ *  to it - that answer is definitive, and no fallback runs. */
 function matchAnchoredName(finding: SecretFinding, lineText: string): string | null | undefined {
   const detector = DETECTORS.find((d) => d.id === finding.type);
   if (!detector) return undefined;
@@ -185,7 +185,7 @@ function matchAnchoredName(finding: SecretFinding, lineText: string): string | n
  *  finding, or a value the detectors cannot re-match): the
  *  assignment at the start of the line, ignoring leading keywords
  *  (`const`, `export`, …) and an optional list bullet. A name
- *  followed by `://` is a URL scheme, not an assignment — a bare
+ *  followed by `://` is a URL scheme, not an assignment - a bare
  *  URL line yields no identifier. */
 function lineStartName(lineText: string): string | null {
   const m = /^\s*(?:[-*]\s+)?(?:(?:export|const|let|var|public|private|static|readonly|final)\s+)*["'`]?([A-Za-z_][A-Za-z0-9_.\-]*)["'`]?\s*[:=]/.exec(lineText);
@@ -213,7 +213,7 @@ function normalizeName(raw: string): string | null {
   for (const prefix of ["process.env.", "os.environ.", "os.environ[", "environ.", "env."]) {
     if (name.startsWith(prefix)) name = name.slice(prefix.length);
   }
-  // Dotted config keys keep their full form (`database.url`) —
+  // Dotted config keys keep their full form (`database.url`) -
   // except an env access, whose last segment is the variable.
   // (The prefixes above already handled the env case.)
   name = name.replace(/\]$/, "");
@@ -236,8 +236,8 @@ function envVarNames(content: string): string[] {
 }
 
 /** Extract the identifiers for one finding. Never the secret value,
- *  never the fragment — only names: the key filename (private keys),
- *  the variable names an .env file defines (.env files — never the
+ *  never the fragment - only names: the key filename (private keys),
+ *  the variable names an .env file defines (.env files - never the
  *  bare `.env` basename, which every repo mentions in prose), or
  *  the assignment name on the finding's line (everything else). */
 export function extractIdentifiers(finding: SecretFinding, ctx: FindingContext = {}): string[] {
@@ -245,7 +245,7 @@ export function extractIdentifiers(finding: SecretFinding, ctx: FindingContext =
     const base = basename(finding.file);
     const ids = [base];
     // The stem too, when it is specific enough to mean the file
-    // (`sign_key` in a Makefile) — never a generic stem (`prod`).
+    // (`sign_key` in a Makefile) - never a generic stem (`prod`).
     const dot = base.lastIndexOf(".");
     const stem = dot > 0 ? base.slice(0, dot) : base;
     if (stem !== base && stem.length >= 5 && !GENERIC_STEMS.has(stem.toLowerCase())) {
@@ -266,7 +266,7 @@ export function extractIdentifiers(finding: SecretFinding, ctx: FindingContext =
 
 // Test-file classification is the Phase 10 detection, reused from
 // triage.ts (isTestFilePath: test path segment or test filename
-// token). isProductionPath is also reused from triage.ts — it is the
+// token). isProductionPath is also reused from triage.ts - it is the
 // Phase 11 upgrade rule's production-path definition, used here only
 // to order the capped reference list (production references first).
 // Both are imported above; neither is redefined here.
@@ -279,7 +279,7 @@ function escapeRegExp(s: string): string {
  *  replacing every comment character with a space so offsets and
  *  line numbers are unchanged. A mention of an identifier inside a
  *  comment ("set api_key in config", a doc comment naming an
- *  example) is not a use of the value — counting it flipped a test
+ *  example) is not a use of the value - counting it flipped a test
  *  fixture to likely-genuine-leak live (api_key named in usage.ts's
  *  own doc comments). String literals are NOT stripped:
  *  `process.env["api_key"]` and `"api_key": "…"` in code are real
@@ -314,7 +314,7 @@ export function stripComments(content: string): string {
       if (ch === "\\") { i += 2; continue; }
       if (ch === q) state = "code";
       // Single/double-quoted strings cannot span lines: a newline
-      // ends them. (A regex literal full of quotes — /^[\"']?…/ —
+      // ends them. (A regex literal full of quotes - /^[\"']?…/ -
       // leaves the tracker in quote state at end of line; without
       // this reset the next line's block comment never opens, and a
       // comment mention past it counts as a reference. Backtick
@@ -377,7 +377,7 @@ export function findIdentifierOccurrences(content: string, identifier: string): 
   return lines;
 }
 
-/** Compute usage for every finding, in place (same array back — the
+/** Compute usage for every finding, in place (same array back - the
  *  list never changes, so a usage pass can never drop a finding).
  *
  *  `files` is the corpus to search: the scanned HEAD files. `getContext`
@@ -407,7 +407,7 @@ export function computeUsageForFindings(
   // Prefilter: one alternation regex over all identifiers. A file
   // that matches no identifier at all is skipped without any
   // per-identifier work. The prefilter is deliberately a superset
-  // (no word boundaries): it can only admit files, never hide one —
+  // (no word boundaries): it can only admit files, never hide one -
   // attribution below applies the strict bounded match.
   const sorted = [...allIdentifiers].sort((a, b) => b.length - a.length);
   const prefilter = sorted.length > 0 ? new RegExp(sorted.map(escapeRegExp).join("|")) : null;
@@ -421,7 +421,7 @@ export function computeUsageForFindings(
     for (const path of paths) {
       const base = basename(path);
       if (IGNORE_FILE_BASENAMES.has(base)) continue;
-      // Phase 14: documentation / prose is not usage — a `.md`
+      // Phase 14: documentation / prose is not usage - a `.md`
       // (or `.txt` / `.rst` / `.adoc`, or `docs/`) file quoting
       // the identifier while describing it never uses the value,
       // so it contributes to neither reference list. Test files

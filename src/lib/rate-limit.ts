@@ -3,7 +3,7 @@
 // Freddy hit the "GitHub's request limit was hit" page live and it
 // stranded him: only a "Scan another repo" button, no sense of how
 // long to wait. The limit is the shared unauthenticated GitHub quota
-// (60 requests/hour from the egress IP — Freddy's standing ruling
+// (60 requests/hour from the egress IP - Freddy's standing ruling
 // from Phase 6 still holds: no GITHUB_TOKEN, do not raise it). What
 // this module does is make the dead-end page helpful instead: when
 // GitHub's own response says when the limit resets, the page says
@@ -18,7 +18,7 @@
 //   - `retry-after` (seconds): GitHub sends it on secondary limits.
 //   - `x-ratelimit-reset` (epoch seconds): the primary quota's reset.
 // A reset time in the past (clock skew, or an already-reset limit)
-// counts as unknown — the copy falls back to "within the hour".
+// counts as unknown - the copy falls back to "within the hour".
 
 /** Read a rate-limit reset time (epoch ms) from a response's headers.
  *  Returns null when GitHub did not say, or the time is not in the
@@ -62,12 +62,12 @@ export function resetPhrase(resetAtMs: number | null, now: number = Date.now()):
  *  the existing honest tone ("Too many requests went to GitHub at
  *  once…") and adds the wait, honestly known or hourly. */
 export function rateLimitBody(resetAtMs: number | null, now: number = Date.now()): string {
-  return `Too many requests went to GitHub at once, so this scan couldn't run right now. GitHub's request limit ${resetPhrase(resetAtMs, now)} — try this scan again then.`;
+  return `Too many requests went to GitHub at once, so this scan couldn't run right now. GitHub's request limit ${resetPhrase(resetAtMs, now)} - try this scan again then.`;
 }
 
 /** Chunk-driver rate-limit copy (ScanProgress): the scan paused
  *  mid-flight rather than failing before it started, so it says
  *  where the scan resumes from as well as how long to wait. */
 export function rateLimitPausedBody(resetAtMs: number | null, now: number = Date.now()): string {
-  return `GitHub's request limit was hit, so the scan paused here. The limit ${resetPhrase(resetAtMs, now)} — retry then, and the scan picks up from the last finished chunk.`;
+  return `GitHub's request limit was hit, so the scan paused here. The limit ${resetPhrase(resetAtMs, now)} - retry then, and the scan picks up from the last finished chunk.`;
 }

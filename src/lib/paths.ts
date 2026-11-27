@@ -1,5 +1,5 @@
 // Shared path-skip rules: which files the scanner never reads.
-// Single source of truth — used by the HEAD-tree scan (scan.ts) and the
+// Single source of truth - used by the HEAD-tree scan (scan.ts) and the
 // full-history clone scan (history.ts) so both skip the same generated /
 // vendored / binary paths.
 

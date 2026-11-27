@@ -1,4 +1,4 @@
-// Phase 15 worker A — scan resilience and honest progress.
+// Phase 15 worker A - scan resilience and honest progress.
 // Run: npm run test:resilience-phase15
 //
 // Covers the audit findings this worker fixed (see
@@ -10,7 +10,7 @@
 //       running" (ReportView `paused` prop, wired in ScanProgress).
 //   3b. The chunk-error card names the failure reason (rate limit vs
 //       network vs other) and the progress reached (files / commits /
-//       secrets so far) — the driver already holds those numbers.
+//       secrets so far) - the driver already holds those numbers.
 //   5. Provisional reports say "So far: ", never "Scan complete."
 //      (functional check via buildProvisionalReport; the unit checks
 //      live in test-score-phase12.ts).
@@ -36,7 +36,7 @@ const src = (rel: string) => readFileSync(join(ROOT, rel), "utf8");
 
 let failures = 0;
 function check(name: string, ok: boolean, extra = "") {
-  console.log(`${ok ? "PASS" : "FAIL"}  ${name}${extra ? ` — ${extra}` : ""}`);
+  console.log(`${ok ? "PASS" : "FAIL"}  ${name}${extra ? ` - ${extra}` : ""}`);
   if (!ok) failures++;
 }
 
@@ -53,7 +53,7 @@ const reportView = src("src/components/ReportView.tsx");
 check("ReportView accepts a paused prop", /paused\?: boolean/.test(reportView));
 check(
   "paused banner says history and dependency checks stopped here",
-  reportView.includes("paused — history and dependency checks stopped here"),
+  reportView.includes("paused - history and dependency checks stopped here"),
 );
 check(
   "running banner still says 'still running' when not paused",
@@ -65,7 +65,7 @@ check("ScanProgress running state renders the provisional report unpaused", scan
 
 // --- 3b. Chunk-error card: reason + progress reached. ---
 check("chunk-error copy distinguishes the rate-limit reason", scanProgress.includes("GitHub's request limit was hit, so the scan paused here"));
-check("chunk-error copy distinguishes the network reason", scanProgress.includes("The scan couldn't be reached — check your connection"));
+check("chunk-error copy distinguishes the network reason", scanProgress.includes("The scan couldn't be reached - check your connection"));
 check("chunk-error copy keeps the generic reason for other failures", scanProgress.includes("GitHub didn't answer as expected. Try again in a bit"));
 check("a 429 fails fast instead of burning three retries", scanProgress.includes('fail("rate-limit", rateLimitPausedBody(resetAtMs))'));
 check("chunk-error card shows files scanned so far", scanProgress.includes("files scanned") && scanProgress.includes("So far:"));
@@ -96,7 +96,7 @@ check("provisional report is still flagged provisional", provisional.provisional
 // --- Rate-limit recovery (Freddy's live dead-end, Phase 15 add-on). ---
 // The page he hit only offered "Scan another repo" and no sense of
 // the wait. The fix: a "Try this scan again" button (same reload
-// mechanism as "Retry this scan") plus honest reset wording —
+// mechanism as "Retry this scan") plus honest reset wording -
 // "resets in about N minutes" when GitHub's response said when,
 // "resets within the hour" when it did not, never an invented
 // countdown. No GITHUB_TOKEN anywhere in this path (standing ruling).
@@ -147,7 +147,7 @@ check(
 // Phase 16: the error page moved out of the report page (which renders
 // the progress shell immediately now) into the shared error-copy module,
 // shown by ScanProgress when a scan fails before any progress. The
-// words are unchanged — only their home moved.
+// words are unchanged - only their home moved.
 const errorCopySrc = src("src/lib/scan-error-copy.ts");
 check("scan error copy uses the honest reset body for rate limits", errorCopySrc.includes("rateLimitBody(resetAtMs"));
 check("ScanProgress terminal errors use the shared error copy", scanProgress.includes("scanErrorCopy(terminalError.kind"));

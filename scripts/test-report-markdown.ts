@@ -3,10 +3,10 @@
 // The Markdown builder (src/lib/report-markdown.ts) is pure: it takes
 // the FullReport the page already has and returns the whole scan as
 // one document. This script proves, with no network and no browser:
-//   1. The file contains EVERY finding from a fixture report —
+//   1. The file contains EVERY finding from a fixture report -
 //      secrets (including the likely-test-key one the page hides in a
 //      collapsed section), vulnerabilities, posture issues, frameworks,
-//      dependencies — plus score, summary, explanation, and metadata.
+//      dependencies - plus score, summary, explanation, and metadata.
 //   2. Secrets stay fragment-only: the output contains each redacted
 //      fragment and no full secret value (a decoy full value planted
 //      on a finding via an extra property must not leak in).
@@ -17,7 +17,7 @@
 //      page reconciles them (one version per package).
 //
 // Fixtures use redacted fragments ("abcd…yz") and hand-built
-// findings — NO literal secret-pattern values anywhere in this file
+// findings - NO literal secret-pattern values anywhere in this file
 // (grep-verified; see the check at the end).
 
 import { buildReportMarkdown, reportMarkdownFilename } from "../src/lib/report-markdown";
@@ -25,7 +25,7 @@ import type { FullReport, SecretFinding, Vulnerability } from "../src/lib/types"
 
 let failures = 0;
 function check(name: string, ok: boolean, extra = "") {
-  console.log(`${ok ? "PASS" : "FAIL"}  ${name}${extra ? ` — ${extra}` : ""}`);
+  console.log(`${ok ? "PASS" : "FAIL"}  ${name}${extra ? ` - ${extra}` : ""}`);
   if (!ok) failures++;
 }
 
@@ -54,7 +54,7 @@ const fixtureSecrets: SecretFinding[] = [
   mkSecret({
     file: "src/config/prod.key", line: 1, type: "private-key", title: "Private key committed",
     severity: "low", fragment: "----…--",
-    plainEnglish: "A private key is in the repo — anyone with it can pretend to be you.",
+    plainEnglish: "A private key is in the repo - anyone with it can pretend to be you.",
     fix: "Treat this key as compromised: generate a new key pair, replace it everywhere it was used, and remove the old one from git history.",
     triage: {
       verdict: "likely-genuine-leak", signals: ["prod-filename:prod"],
@@ -122,7 +122,7 @@ const fixture: FullReport = {
     vulnDeduction: 10, postureDeduction: 11, unpinnedDeduction: 0,
   },
   counts: { secrets: 3, testKeySecrets: 1, vulnerabilities: 5, frameworks: 2, dependencies: 3, postureIssues: 4, filesScanned: 10, historyCommitsScanned: 3 },
-  summary: "Scan complete. 3 possible leaked secrets found — 1 look like test keys and 1 needs a human check; 5 known vulnerabilities in dependencies; 4 security hygiene issues to fix; 2 frameworks fingerprinted. The full detail is in this report — no sign-in needed.",
+  summary: "Scan complete. 3 possible leaked secrets found - 1 look like test keys and 1 needs a human check; 5 known vulnerabilities in dependencies; 4 security hygiene issues to fix; 2 frameworks fingerprinted. The full detail is in this report - no sign-in needed.",
   scannedAt: "2026-11-26T00:00:00.000Z", historyDepth: "Full history, newest first.",
   limits: ["Scanned all 10 files in the tree."],
   secrets: fixtureSecrets,
@@ -157,7 +157,7 @@ check("filename is gitsecure-report-{owner}-{repo}-{short-sha}.md", reportMarkdo
 
 // --- 2. Score, summary, explanation ---------------------------------
 check("md has the report title", md.includes("# GitSecure report: Squ1zM0/FixtureRepo"));
-check("md has score and grade", md.includes("72 out of 100 (grade C — fair)"));
+check("md has score and grade", md.includes("72 out of 100 (grade C - fair)"));
 check("md has the verdict naming the real driver", md.includes("Biggest problem: 4 small security-hygiene issues to fix."));
 check("md has the summary", md.includes(fixture.summary));
 check("md names the runner-up deduction (Phase 15 finding 13)", md.includes("Plus 5 known flaws in dependencies, which cost 10 points"));
@@ -173,7 +173,7 @@ check("md lists the test-only usage with its test reference", md.includes("tests
 check("md has one ### heading per finding (3 secrets + 5 vulns + 4 posture)", (md.match(/^### \d+\. /gm) ?? []).length === 3 + 5 + 4, `${(md.match(/^### \d+\. /gm) ?? []).length}`);
 
 // --- 4. Vulnerabilities: reconciled Fix lines ------------------------
-check("md reconciles js-yaml to one version (4.3.2, all 4 advisories)", md.includes("Upgrade js-yaml to 4.3.2 or later — this covers all 4 advisories for this version."));
+check("md reconciles js-yaml to one version (4.3.2, all 4 advisories)", md.includes("Upgrade js-yaml to 4.3.2 or later - this covers all 4 advisories for this version."));
 const fixLines = md.match(/^Fix: .*$/gm) ?? [];
 check("md Fix lines never name the losing versions", fixLines.filter((l) => l.includes("3.15.0") || l.includes("4.3.1") || l.includes("4.2.0")).length === 0, fixLines.filter((l) => l.includes("js-yaml")).join(" | "));
 check("md keeps the single-version lodash Fix unchanged", md.includes("Fix: Upgrade lodash to 4.17.21 or later."));
@@ -199,10 +199,10 @@ check("md contains no secret-pattern values (fragments only)", !leaked);
 const mdProv = buildReportMarkdown({ ...fixture, provisional: true });
 check("provisional md is labelled provisional with what is still running", mdProv.includes("Provisional report") && mdProv.includes("still running"));
 const mdPaused = buildReportMarkdown({ ...fixture, provisional: true }, { paused: true });
-check("paused provisional md says paused, not still running", mdPaused.includes("paused — history and dependency checks stopped here"));
+check("paused provisional md says paused, not still running", mdPaused.includes("paused - history and dependency checks stopped here"));
 check("finished md is not labelled provisional", !md.includes("Provisional report"));
 const mdProvEmpty = buildReportMarkdown({ ...fixture, provisional: true, vulnerabilities: [], counts: { ...fixture.counts, vulnerabilities: 0 } });
-check("provisional md says vulns are not checked yet, not 'none found'", mdProvEmpty.includes("Dependency checks are still running — no vulnerabilities listed yet."));
+check("provisional md says vulns are not checked yet, not 'none found'", mdProvEmpty.includes("Dependency checks are still running - no vulnerabilities listed yet."));
 
 // --- 8. No literal secret-pattern values in this file ---------------
 import { readFileSync } from "node:fs";

@@ -3,19 +3,19 @@
 // Proves, mostly with no network:
 //   1. Cursors round-trip (encode → decode identical), and bogus cursors
 //      (garbage, wrong version, wrong repo, negative/huge numbers,
-//      non-object) are rejected with a plain-English ScanError 400 —
+//      non-object) are rejected with a plain-English ScanError 400 -
 //      never a crash, never a stack trace. advanceScan answers the
 //      same 400 for a bogus cursor.
 //   2. A scan interrupted mid-history RESUMES and produces the
-//      identical final findings to an uninterrupted scan — on both
+//      identical final findings to an uninterrupted scan - on both
 //      history paths, with all server state dropped between chunks
 //      (clearHistoryCache between git chunks; the API chunks are pure
 //      functions of the cursor state):
 //        (a) API path: mock GitHub API, 3 commits, paginated list,
-//            chunk size 1 — findings + commitsScanned match the
+//            chunk size 1 - findings + commitsScanned match the
 //            uninterrupted scanHistoryViaApi exactly.
 //        (b) Git path: real smart-HTTP fixture repo, 3 commits, chunk
-//            size 1 — findings + commitsScanned match the
+//            size 1 - findings + commitsScanned match the
 //            uninterrupted scanHistoryViaGit exactly.
 //   3. API chunking survives a rate limit mid-history (cursor points
 //      at the rate-limited commit; a later chunk retries it), skips a
@@ -39,10 +39,10 @@
 //      dead-end copy is gone, the chunk endpoint exists, and the
 //      cursor protocol is documented in README.md.
 //   9. Phase 15 (finding 1): a fetch timeout inside the HEAD chunk
-//      returns a partial cursor (stage "head") instead of throwing —
+//      returns a partial cursor (stage "head") instead of throwing -
 //      so ScanProgress mounts and the resume path engages. Mocked at
 //      the chunk-driver level: the repo-info and HEAD-sha fetches
-//      answer, the tarball body stream aborts mid-download — no live
+//      answer, the tarball body stream aborts mid-download - no live
 //      100k-file repo involved. And a timeout before the HEAD meta is
 //      known still throws (nothing scanned yet, nothing to resume).
 //
@@ -69,7 +69,7 @@ import type { HeadPartial, SecretFinding } from "../src/lib/types";
 
 let failures = 0;
 function check(name: string, ok: boolean, extra = "") {
-  console.log(`${ok ? "PASS" : "FAIL"}  ${name}${extra ? ` — ${extra}` : ""}`);
+  console.log(`${ok ? "PASS" : "FAIL"}  ${name}${extra ? ` - ${extra}` : ""}`);
   if (!ok) failures++;
 }
 
@@ -235,7 +235,7 @@ async function main() {
 
     // Rate limit mid-history: chunk 1 hits the limit on MID, chunk 2
     // (limit lifted) retries MID, chunk 3 scans OLD. The cursor points
-    // at the rate-limited commit — nothing is skipped, nothing repeats.
+    // at the rate-limited commit - nothing is skipped, nothing repeats.
     let midAttempts = 0;
     const rlServer = createServer((req: IncomingMessage, res: ServerResponse) => {
       const url = new URL(req.url ?? "/", `http://${req.headers.host}`);
@@ -290,7 +290,7 @@ async function main() {
     }
 
     // A commit whose detail fetch fails (500) is skipped and counted,
-    // and the chunk moves on — no stall, no crash.
+    // and the chunk moves on - no stall, no crash.
     const skipServer = createServer((req: IncomingMessage, res: ServerResponse) => {
       const url = new URL(req.url ?? "/", `http://${req.headers.host}`);
       if (url.pathname === "/repos/testowner/testrepo/commits") {
@@ -406,7 +406,7 @@ async function main() {
       const whole = await scanHistoryViaGit("gitowner", "gitrepo", "main", { cloneUrlOverride: gitBase });
       check("git reference scan succeeds, all 3 commits", whole.ok && whole.commitsScanned === 3, `${whole.commitsScanned} scanned`);
 
-      // Chunked: one commit per chunk, cache dropped between chunks —
+      // Chunked: one commit per chunk, cache dropped between chunks -
       // the "server restarted" simulation. No chunk may depend on the
       // previous chunk's in-memory state.
       clearHistoryCache();
@@ -479,7 +479,7 @@ async function main() {
   // Stopped-early history is labelled incomplete, never complete.
   const partialAssembled = await assembleReport(head, {
     findings: [historyFinding], commitsScanned: 2, ok: false, method: "api",
-    note: "GitHub API rate limit was hit — scanned 2 commits before stopping. Setting a GITHUB_TOKEN raises the limit.",
+    note: "GitHub API rate limit was hit - scanned 2 commits before stopping. Setting a GITHUB_TOKEN raises the limit.",
   });
   check("partial-history report says history is incomplete", partialAssembled.limits.some((l) => l.includes("History incomplete: 2 newest commits")), partialAssembled.limits.join(" | "));
   check("partial-history report carries the rate-limit note", partialAssembled.limits.some((l) => l.includes("rate limit")), partialAssembled.limits.join(" | "));
@@ -505,12 +505,12 @@ async function main() {
   check("wrong-shaped saved progress loads as nothing", loadProgress(storage, "testowner", "testrepo") === null);
   check(
     "resume line names the exact counts (singular)",
-    resumedLine(1, 1) === "Resumed — picked up where it left off (1 history commit checked, 1 secret found so far).",
+    resumedLine(1, 1) === "Resumed - picked up where it left off (1 history commit checked, 1 secret found so far).",
     resumedLine(1, 1),
   );
   check(
     "resume line names the exact counts (plural, thousands)",
-    resumedLine(1234, 5) === "Resumed — picked up where it left off (1,234 history commits checked, 5 secrets found so far).",
+    resumedLine(1234, 5) === "Resumed - picked up where it left off (1,234 history commits checked, 5 secrets found so far).",
     resumedLine(1234, 5),
   );
   saveReport(storage, "testowner", "testrepo", assembled, "a".repeat(40));
@@ -536,7 +536,7 @@ async function main() {
   check("complete scan has no cap language", !/cap|limit|truncat/i.test(completeLimits.slice(0, 2).join(" ")), completeLimits.join(" | "));
   const partialLimits = buildLimits({
     filesScanned: 100, filesTotal: 200, historyOk: true, historyMethod: "api",
-    historyCommitsScanned: 48, historyMs: 0, historyNote: "GitHub API rate limit was hit — scanned 48 commits before stopping. Setting a GITHUB_TOKEN raises the limit.",
+    historyCommitsScanned: 48, historyMs: 0, historyNote: "GitHub API rate limit was hit - scanned 48 commits before stopping. Setting a GITHUB_TOKEN raises the limit.",
     depsChecked: 1, depsQueryable: 5, depsTotal: 9, advisoriesTotal: 3, detailCapped: 1,
     treeTruncated: true, tarballFallback: true,
   });
@@ -577,16 +577,16 @@ async function main() {
   const SHA_TIMEOUT = "b".repeat(40);
   const realFetch = globalThis.fetch;
   // Phase 15 (worker D): the HEAD meta (branch + HEAD sha) no longer
-  // comes from the REST repo-info call — it comes from one
-  // git-protocol info/refs request — so the fetch stub below answers
+  // comes from the REST repo-info call - it comes from one
+  // git-protocol info/refs request - so the fetch stub below answers
   // ONLY the tarball. The meta is supplied by the test-only resolver
   // override (the mock-git-server equivalent for the driver test:
   // branch main, HEAD sha SHA_TIMEOUT). Any fetch call to a REST URL
-  // would throw "unexpected URL" — proving the meta no longer uses
+  // would throw "unexpected URL" - proving the meta no longer uses
   // fetch at all. The tarball body delivers one real file, then
   // aborts mid-download (the torvalds/linux slow-download-day
   // failure, at the driver level). The one file proves the partial
-  // keeps the live progress reached before the stall — it is not
+  // keeps the live progress reached before the stall - it is not
   // just a zeroed placeholder.
   setRemoteHeadResolverForTests(async () => ({ ok: true, branch: "main", headSha: SHA_TIMEOUT, gitRequests: 0 }));
   const fakeTarball = (): Buffer => {
@@ -598,7 +598,7 @@ async function main() {
     data.write("hello", 0, "utf8");
     // Deliberately NO end-of-archive zero blocks: the parser is still
     // waiting for the next header when the stream aborts, so the
-    // abort — not a clean finish — ends the download.
+    // abort - not a clean finish - ends the download.
     return gzipSync(Buffer.concat([header, data]));
   };
   const timeoutFetch = (async (url: unknown): Promise<Response> => {
@@ -612,7 +612,7 @@ async function main() {
             controller.enqueue(gz);
           } else {
             // The stall comes AFTER the first chunk was delivered
-            // and processed — like a real mid-download stall — so
+            // and processed - like a real mid-download stall - so
             // the abort must not fire before the loop consumes it.
             // (An immediate abort destroys gunzip while its
             // decompressed output is still buffered, and the file
@@ -641,15 +641,15 @@ async function main() {
       check("HEAD-timeout partial has no HEAD yet (nothing half-reported)", t1.partial.head === null);
       check("HEAD-timeout partial says the download timed out", typeof t1.note === "string" && /timed out/i.test(t1.note), t1.note ?? "");
       // Phase 15 (worker D): the stall aborts the whole-buffer
-      // download BEFORE any entry is parsed — the download and the
+      // download BEFORE any entry is parsed - the download and the
       // parse are separate phases there, so zero files were scanned
       // yet and the partial honestly keeps 0. (The old test forced
       // the streaming transport with a fake 2 GB repo size, where
       // entries are scanned as they arrive and 1 file was counted;
       // the size gate is gone, so a small tarball takes the
       // whole-buffer path and the count is 0. The invariants that
-      // matter — partial not throw, head stage, nothing
-      // half-reported, timed-out note — all still hold.)
+      // matter - partial not throw, head stage, nothing
+      // half-reported, timed-out note - all still hold.)
       check("HEAD-timeout partial keeps live progress (0 files scanned before the stall)", t1.progress.step === "files" && t1.progress.filesScanned === 0, `step=${t1.progress.step} files=${t1.progress.filesScanned}`);
     }
     // Same via an explicit head-stage cursor (a client retrying it).
@@ -676,11 +676,11 @@ async function main() {
     setRemoteHeadResolverForTests(null);
   }
   // Timeout BEFORE the HEAD meta is known (the git-protocol info/refs
-  // request itself stalls): still throws — there is no sha to pin a
+  // request itself stalls): still throws - there is no sha to pin a
   // cursor to and nothing was scanned yet. Phase 15 (worker D): the
   // meta step is a git-protocol request now, not a REST fetch, so the
   // stall is scripted through the resolver override (a "timeout"
-  // outcome), not a fetch stub — no fetch call is involved at all.
+  // outcome), not a fetch stub - no fetch call is involved at all.
   setRemoteHeadResolverForTests(async () => ({ ok: false, reason: "timeout", gitRequests: 1 }));
   try {
     let earlyThrew: unknown = null;
@@ -701,10 +701,10 @@ async function main() {
   // --- 9b. Phase 15 (rate-limit recovery): a 429 carries the reset time. ---
   // ghJson reads GitHub's x-ratelimit-reset / retry-after headers onto
   // the ScanError, so the error page can say honestly how long to
-  // wait. Mocked at the fetch level — no quota burned, no live 429.
+  // wait. Mocked at the fetch level - no quota burned, no live 429.
   // Phase 15 (worker D): the repo-info REST call is gone, so the 429
   // is retargeted at the one REST call the HEAD step still makes on
-  // failure — the recursive-tree fetch the per-file fallback needs
+  // failure - the recursive-tree fetch the per-file fallback needs
   // when the tarball is unavailable. The meta comes from the resolver
   // override; the tarball answers 500 so the scan reaches the tree.
   const resetEpoch = Math.floor(Date.now() / 1000) + 600;

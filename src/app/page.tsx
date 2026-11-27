@@ -21,14 +21,14 @@ function parseInput(raw: string): { owner: string; repo: string } | { error: str
   if (fromUrl) path = value.slice(at);
   path = path.replace(/\.git$/i, "").replace(/\/+$/, "");
   const parts = path.split("/").filter(Boolean);
-  // A pasted URL may carry a trailing path (/tree/main, /issues, …) — take
+  // A pasted URL may carry a trailing path (/tree/main, /issues, …) - take
   // the first two segments. A bare owner/repo with extra segments is a
   // typo, so say so instead of guessing.
-  if (fromUrl ? parts.length < 2 : parts.length !== 2) return { error: "Enter owner/repo — for example Squ1zM0/GitSecure." };
+  if (fromUrl ? parts.length < 2 : parts.length !== 2) return { error: "Enter owner/repo - for example Squ1zM0/GitSecure." };
   const [owner, repo] = parts;
   for (const [label, name] of [["owner", owner], ["repo", repo]] as const) {
     if (name === "." || name === ".." || !NAME_RE.test(name)) {
-      return { error: `That doesn't look like a valid ${label} name. Owner and repo names can only use letters, numbers, dots, hyphens and underscores — check for typos or extra characters.` };
+      return { error: `That doesn't look like a valid ${label} name. Owner and repo names can only use letters, numbers, dots, hyphens and underscores - check for typos or extra characters.` };
     }
   }
   return { owner, repo };
@@ -59,7 +59,7 @@ export default function Home() {
         <p className="lede">
           GitSecure is the security mirror for GitHub. Take any public repo, swap{" "}
           <code className="inline">github.com</code> for <code className="inline">git-secure.com</code>,
-          and get a plain-English security report — no install, no sign-up.
+          and get a plain-English security report - no install, no sign-up.
         </p>
         <div className="url-example" aria-label="Example: swap github.com for git-secure.com">
           <s>github.com/Squ1zM0/GitSecure</s> <span className="url-arrow" aria-hidden="true">→</span>{" "}
@@ -95,7 +95,7 @@ export default function Home() {
           </div>
           <div className="check-item">
             <b>Dependency flaws</b>
-            <p>Known vulnerabilities in direct and transitive dependencies, checked against OSV.dev (a free public database of known software flaws), with full advisory detail — a plain summary, a severity score, and the version that fixes each one.</p>
+            <p>Known vulnerabilities in direct and transitive dependencies, checked against OSV.dev (a free public database of known software flaws), with full advisory detail - a plain summary, a severity score, and the version that fixes each one.</p>
           </div>
           <div className="check-item">
             <b>Security posture</b>
@@ -107,10 +107,10 @@ export default function Home() {
       <div className="card">
         <h2>What you get</h2>
         <p>
-          Everyone gets the <b>full report</b> — the score (0–100) and counts, plus the full detail:
+          Everyone gets the <b>full report</b> - the score (0–100) and counts, plus the full detail:
           file names, line numbers, redacted secret fragments, framework versions, and vulnerability
           IDs with the version that fixes each one. No sign-up, no login. That works because the
-          repo is public — the detail is information already public in the repo.
+          repo is public - the detail is information already public in the repo.
         </p>
         <p>
           Secrets are never shown in full, never stored after the scan finishes, and never live-validated. A scan looks at

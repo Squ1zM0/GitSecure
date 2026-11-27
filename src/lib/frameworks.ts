@@ -1,10 +1,10 @@
 // Framework fingerprinting, Tier 1 (JS/TS, Python, Rust) + Tier 2 (Go, Ruby,
-// PHP, Java/Kotlin, .NET) — Phase 2.
-// Pluggable by design: a framework is an entry in FRAMEWORK_MAP —
+// PHP, Java/Kotlin, .NET) - Phase 2.
+// Pluggable by design: a framework is an entry in FRAMEWORK_MAP -
 // dep name -> framework name + ecosystem. Adding an ecosystem means
 // adding a manifest parser + map entries, not rebuilding the scanner.
 // Version rule: lockfile-pinned wins; manifest range second; if no version
-// can be found, version is null and versionSource is "unknown" — never guessed.
+// can be found, version is null and versionSource is "unknown" - never guessed.
 
 import type { Dependency, Framework } from "./types";
 
@@ -120,7 +120,7 @@ export function parseYamlLock(content: string, sourceFile: string, ecosystem: "n
   const out: Dependency[] = [];
   const seen = new Set<string>();
   const re = /^['"]?([^@\s/'"][^@\s'"]*)@[^:\s]+:\s*$/gm;
-  // pnpm style: "  next@14.2.5:" — also try a simpler line scan.
+  // pnpm style: "  next@14.2.5:" - also try a simpler line scan.
   for (const line of content.split("\n")) {
     const m = /^\s*['"]?([A-Za-z0-9@/_.-]+)@(\d+\.\d+\.\d+[^:\s'"]*):/.exec(line.trim());
     if (!m) continue;
@@ -149,7 +149,7 @@ export function parseRequirements(content: string, sourceFile: string): Dependen
 
 /** Parse Cargo.toml dependency sections: [dependencies] plus
  *  [dev-dependencies], [build-dependencies], [workspace.dependencies],
- *  and target-specific `[target.'cfg(...)'.dependencies]` — all the
+ *  and target-specific `[target.'cfg(...)'.dependencies]` - all the
  *  same `name = "spec"` / `name = { version = "spec" }` form. */
 export function parseCargoToml(content: string, sourceFile: string): Dependency[] {
   const out: Dependency[] = [];
@@ -188,7 +188,7 @@ function tomlSections(content: string): { header: string; body: string }[] {
 /** Parse one PEP 508 requirement string (`django==5.2.17`,
  *  `flask>=3.0`, `requests`, `name[extra]>=1.0`). An exact `==`
  *  pin is a version; any other operator (a range, not a pin) or no
- *  spec at all yields version null — a range is never presented as
+ *  spec at all yields version null - a range is never presented as
  *  the installed version. */
 function parsePep508(req: string): { name: string; version: string | null } | null {
   const m = /^\s*([A-Za-z0-9_.-]+)\s*(?:\[[^\]]*\])?\s*(.*)$/.exec(req.trim());
@@ -203,7 +203,7 @@ function parsePep508(req: string): { name: string; version: string | null } | nu
 /** Parse pyproject.toml: PEP 621 `[project] dependencies` and
  *  `[project.optional-dependencies]` arrays, plus Poetry
  *  `[tool.poetry.dependencies]` (and `[tool.poetry.group.*.dependencies]`)
- *  tables — `name = "^5.0"` / `name = { version = "5.3.0" }`.
+ *  tables - `name = "^5.0"` / `name = { version = "5.3.0" }`.
  *  The `python` entry is the interpreter, not a package, and is
  *  skipped. Poetry range strings are kept as written (the same
  *  convention as package.json ranges); PEP 621 ranges yield null
@@ -258,7 +258,7 @@ export function parsePoetryLock(content: string, sourceFile: string): Dependency
  *  `dev_dependencies:` sections. `name: ^1.2.0` keeps its range
  *  string (same convention as package.json); `name:` with a nested
  *  block and no version yields null, and an `sdk: flutter` entry is
- *  not a package at all — it is skipped here and Flutter itself is
+ *  not a package at all - it is skipped here and Flutter itself is
  *  fingerprinted from the file by fingerprintFrameworks. */
 export function parsePubspecYaml(content: string, sourceFile: string): Dependency[] {
   const out: Dependency[] = [];
@@ -277,7 +277,7 @@ export function parsePubspecYaml(content: string, sourceFile: string): Dependenc
     const name = m[1];
     const inline = m[2].trim().replace(/^["']|["']$/g, "");
     // Nested block? Look ahead: an `sdk:` line means an SDK dep
-    // (flutter itself, or flutter_test) — not a package.
+    // (flutter itself, or flutter_test) - not a package.
     let isSdk = false;
     if (!inline) {
       for (let j = i + 1; j < lines.length; j++) {
@@ -334,7 +334,7 @@ export function parseGoMod(content: string, sourceFile: string): Dependency[] {
   return out;
 }
 
-/** Parse Gemfile: `gem 'rails', '~> 7.1.0'` — version may be a range or absent. */
+/** Parse Gemfile: `gem 'rails', '~> 7.1.0'` - version may be a range or absent. */
 export function parseGemfile(content: string, sourceFile: string): Dependency[] {
   const out: Dependency[] = [];
   for (const line of content.split("\n")) {
@@ -345,7 +345,7 @@ export function parseGemfile(content: string, sourceFile: string): Dependency[] 
   return out;
 }
 
-/** Parse Gemfile.lock GEM specs: `    rails (7.1.3)` — pinned versions win
+/** Parse Gemfile.lock GEM specs: `    rails (7.1.3)` - pinned versions win
  *  over the Gemfile range. DEPENDENCIES entries (`rails (~> 7.1)`) are not
  *  versions and are skipped (their parens hold operators, not versions). */
 export function parseGemfileLock(content: string, sourceFile: string): Dependency[] {
@@ -444,7 +444,7 @@ export function parseGradle(content: string, sourceFile: string): Dependency[] {
   return out;
 }
 
-/** Parse .csproj: PackageReference versions, plus the project SDK — an
+/** Parse .csproj: PackageReference versions, plus the project SDK - an
  *  SDK of Microsoft.NET.Sdk.Web means ASP.NET Core, but its version is
  *  NOT the TargetFramework (net8.0 is a runtime target, not a framework
  *  version), so version stays null. */
@@ -511,7 +511,7 @@ export function fingerprintFrameworks(deps: Dependency[], files: Map<string, str
     }
   }
   // Flutter via pubspec.yaml: the `flutter:` entry is an SDK dep, not
-  // a versioned package, so parsePubspecYaml skips it — but the app
+  // a versioned package, so parsePubspecYaml skips it - but the app
   // is a Flutter app, and the version is not in the file, so null.
   for (const [path, content] of files) {
     if (/(^|\/)pubspec\.yaml$/.test(path) && /^\s+flutter:\s*$/m.test(content) && content.includes("sdk: flutter") && !out.some((f) => f.name === "Flutter")) {
@@ -540,7 +540,7 @@ export function viteFindings(files: Map<string, string>): { title: string; detai
     }
     const plugins = [...content.matchAll(/from\s+['"]([^'"]+)['"]/g)].map((m) => m[1]).filter((p) => p.includes("vite"));
     if (plugins.length > 0) {
-      out.push({ title: "Vite plugins in use", detail: `${path} imports: ${plugins.join(", ")}. Review each plugin — a compromised or unmaintained plugin runs in your build.`, severity: "info" });
+      out.push({ title: "Vite plugins in use", detail: `${path} imports: ${plugins.join(", ")}. Review each plugin - a compromised or unmaintained plugin runs in your build.`, severity: "info" });
     }
   }
   // VITE_-prefixed vars in .env files / code: they are baked into the client bundle.
@@ -549,7 +549,7 @@ export function viteFindings(files: Map<string, string>): { title: string; detai
     const vars = [...content.matchAll(/\bVITE_[A-Z0-9_]+/g)].map((m) => m[0]);
     const unique = [...new Set(vars)];
     if (unique.length > 0) {
-      out.push({ title: "VITE_ variables are public by design", detail: `${path} references ${unique.slice(0, 5).join(", ")}${unique.length > 5 ? ` (+${unique.length - 5} more)` : ""}. Anything prefixed VITE_ is baked into the client bundle — never put a secret behind that prefix.`, severity: "info" });
+      out.push({ title: "VITE_ variables are public by design", detail: `${path} references ${unique.slice(0, 5).join(", ")}${unique.length > 5 ? ` (+${unique.length - 5} more)` : ""}. Anything prefixed VITE_ is baked into the client bundle - never put a secret behind that prefix.`, severity: "info" });
       break;
     }
   }

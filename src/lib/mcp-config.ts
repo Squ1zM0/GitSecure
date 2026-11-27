@@ -1,5 +1,5 @@
 // MCP config snippets shown on the human pages (home + report).
-// Plain constants only — no server code — so the client-side copy
+// Plain constants only - no server code - so the client-side copy
 // component can import this file without pulling the scanner in.
 // Every snippet is valid JSON; the test in scripts/test-mcp.ts parses
 // each one. Canonical server URL is /mcp; /api/mcp is an alias.
@@ -58,4 +58,4 @@ export const MCP_SNIPPETS: McpSnippet[] = [
 
 /** One plain line, used on every human surface that mentions MCP. */
 export const MCP_PLAIN_LINE =
-  "Your AI assistant gets the full report — score, counts, file names, line numbers, and redacted secret fragments. Secrets are never shown in full, and there is no sign-up or login.";
+  "Your AI assistant gets the full report - score, counts, file names, line numbers, and redacted secret fragments. Secrets are never shown in full, and there is no sign-up or login.";

@@ -1,10 +1,10 @@
-// "Roll all into report" (Freddy, 2026-11-26) — one button in the
+// "Roll all into report" (Freddy, 2026-11-26) - one button in the
 // score hero that downloads the ENTIRE current scan as a single
 // Markdown file. Client-side only: the Markdown comes from the
 // FullReport the page already has (src/lib/report-markdown.ts), so
 // the download contains every finding even when the on-page lists
 // are collapsed or filtered. No API route, no new data fetched.
-// "use client" — the download uses Blob + an anchor click.
+// "use client" - the download uses Blob + an anchor click.
 "use client";
 
 import { useState } from "react";
@@ -33,10 +33,10 @@ export default function RollAllButton({ report, paused }: { report: FullReport; 
   }
   return (
     <div className="roll-all">
-      <button type="button" className="secondary" onClick={download} aria-label="Roll all into report — download the full scan as one Markdown file">
-        {state === "done" ? "Report downloaded" : state === "error" ? "Download didn't start — try again" : "Roll all into report"}
+      <button type="button" className="secondary" onClick={download} aria-label="Roll all into report - download the full scan as one Markdown file">
+        {state === "done" ? "Report downloaded" : state === "error" ? "Download didn't start - try again" : "Roll all into report"}
       </button>
-      <p className="small muted">One Markdown file — score, summary, and every finding.</p>
+      <p className="small muted">One Markdown file - score, summary, and every finding.</p>
     </div>
   );
 }

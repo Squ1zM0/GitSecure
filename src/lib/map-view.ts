@@ -1,7 +1,7 @@
 // Phase 18 (Worker A, 2026-11-26): pure view-transform / traversal model
 // for the dynamic spider-web map.
 //
-// Pure functions only — no React, no DOM — so the zoom/pan math,
+// Pure functions only - no React, no DOM - so the zoom/pan math,
 // node layout, pinning, edge copy and traversal can be unit-tested
 // without a browser. The component (Worker B) owns rendering and
 // event wiring and calls into this module.
@@ -10,7 +10,7 @@
 // (WORLD_W x WORLD_H). A ViewTransform maps world -> screen:
 //   screen = world * k + (x, y).
 // Clamp rule (pinned by the Phase 18 contract): after any zoom/pan
-// the world must stay at least partly visible — the scaled world
+// the world must stay at least partly visible - the scaled world
 // rect must overlap the container by at least 40 screen px on every
 // side, i.e. x in [40 - WORLD_W*k, containerW - 40] and
 // y in [40 - WORLD_H*k, containerH - 40]. Clamping only bounds the
@@ -55,7 +55,7 @@ export function fitView(containerW: number, containerH: number, padding = 8): Vi
 /**
  * Clamp a view: k into [MIN_ZOOM, MAX_ZOOM], then the translate so
  * the scaled world rect overlaps the container by at least 40 px on
- * every side. Never force-centres — it only bounds the translate.
+ * every side. Never force-centres - it only bounds the translate.
  */
 export function clampView(view: ViewTransform, containerW: number, containerH: number): ViewTransform {
   const k = clampNumber(view.k, MIN_ZOOM, MAX_ZOOM);
@@ -147,7 +147,7 @@ export function screenToWorld(p: { x: number; y: number }, view: ViewTransform):
   return { x: (p.x - view.x) / view.k, y: (p.y - view.y) / view.k };
 }
 
-/** Exactly `translate(<x> <y>) scale(<k>)` — the SVG transform string. */
+/** Exactly `translate(<x> <y>) scale(<k>)` - the SVG transform string. */
 export function viewTransformString(view: ViewTransform): string {
   return `translate(${view.x} ${view.y}) scale(${view.k})`;
 }
@@ -187,17 +187,18 @@ export function togglePin(pins: ReadonlySet<string>, id: string): Set<string> {
   return next;
 }
 
-export type EdgeKind = "code" | "test" | "own";
+export type EdgeKind = "code" | "test" | "own" | "found";
 
 export function edgeLabelText(kind: EdgeKind): string {
   if (kind === "code") return "used in code";
   if (kind === "test") return "used in tests";
+  if (kind === "found") return "found in";
   return "lives in";
 }
 
 /**
  * Fix round 4 (2026-11-27): the world-unit threshold for
- * clusterEdgeLabels, derived from the rendered label width — NOT
+ * clusterEdgeLabels, derived from the rendered label width - NOT
  * from the zoom. Recheck-4 proved `70 / view.k` is backwards: at
  * k=1.831 it passed 38 world units while the widest counted label
  * ("used in tests ×18", measured 130 screen px = 71 world units)
@@ -207,7 +208,7 @@ export function edgeLabelText(kind: EdgeKind): string {
  *
  * Scale invariance: a cluster label's <text> lives INSIDE the
  * transformed <g>, so both the label's width and the distance
- * between two label anchors scale with k — the overlap condition
+ * between two label anchors scale with k - the overlap condition
  * is scale-invariant, and the correct world-unit threshold is
  * simply the label width IN WORLD UNITS, independent of k.
  *
@@ -235,7 +236,7 @@ export function edgeLabelThresholdWorld(visibleKindCounts: { kind: EdgeKind; cou
  * labels into one counted label. Recheck-3 proved the round-2
  * t-stagger cannot work: S8's edges are only ~40-90 world units
  * long, so cycling t through [0.35, 0.5, 0.65] moves a label only
- * ~8-17 screen px at k=1.26 against a 67px-wide label — 11
+ * ~8-17 screen px at k=1.26 against a 67px-wide label - 11
  * "used in tests" labels still piled into one blob (16 overlapping
  * bbox pairs, max 5 on one label). Staggering along short edges
  * cannot separate 67px-wide identical labels, so identical labels
@@ -290,20 +291,20 @@ export function clusterEdgeLabels(items: EdgeLabelAnchor[], thresholdWorld: numb
 }
 
 /**
- * Second-pass collision pass (Phase 18 fix, 2026-11-27 — Freddy:
+ * Second-pass collision pass (Phase 18 fix, 2026-11-27 - Freddy:
  * labels landing on neighbouring nodes/captions, worst 2006px²,
  * "lives in ×2" reading as "10 uslives in ×2").
  *
  * The round-4 push-out only clears a label from its OWN edge
  * endpoints. It never looks at neighbouring nodes, other labels,
- * or node captions ("N uses", file basenames) — so a cluster label
+ * or node captions ("N uses", file basenames) - so a cluster label
  * could still land on the repo centre or across a caption. This
  * pass runs AFTER clustering, on the final label positions, and
  * checks every label against every blocker (node circles as rects,
  * caption/label rects) and every already-placed label.
  *
  * Label bbox: width = text.length * 4 + 8 (the same convention as
- * edgeLabelThresholdWorld — font-size 9 world units, ~4 per char +
+ * edgeLabelThresholdWorld - font-size 9 world units, ~4 per char +
  * padding), height 16, centred on the anchor, with a 2-unit margin
  * on every side. Nudge candidates, in order, for the cluster's
  * first edge direction (ux, uy) and its normal (-uy, ux): ±12/±24/
@@ -312,7 +313,7 @@ export function clusterEdgeLabels(items: EdgeLabelAnchor[], thresholdWorld: numb
  * clear, the candidate with the smallest total overlap area wins
  * (a small graze beats a full cover). Candidates are clamped to
  * the world (400×380) so a nudge can never push a label off-plane.
- * Deterministic, bounded, pure — no DOM measurement.
+ * Deterministic, bounded, pure - no DOM measurement.
  */
 export interface LabelBlocker {
   x: number;
@@ -393,7 +394,7 @@ export function resolveLabelCollisions(
 }
 
 /**
- * Plain-English edge detail, built ONLY from the named args — never
+ * Plain-English edge detail, built ONLY from the named args - never
  * from a secret fragment (this module never sees one). The "own"
  * case uses refFile/refLine: that is the file the finding lives in.
  */
@@ -410,9 +411,16 @@ export function edgeDetailText(args: {
     return `Secret ${findingTitle} lives in ${findingFile}:${findingLine} and is read by ${refFile}:${refLine}. Rotating it means updating that file too.`;
   }
   if (kind === "test") {
-    return `Secret ${findingTitle} lives in ${findingFile}:${findingLine} and is read by ${refFile}:${refLine} in a test — it proves the value is exercised, not that production uses it.`;
+    return `Secret ${findingTitle} lives in ${findingFile}:${findingLine} and is read by ${refFile}:${refLine} in a test - it proves the value is exercised, not that production uses it.`;
   }
-  return `Secret ${findingTitle} lives in ${refFile}:${refLine} — this is the file the secret itself sits in.`;
+  if (kind === "found") {
+    // Phase 19: a posture finding and the file it comes from. The
+    // finding and the file are the same location, so only the file
+    // is named; a line of 0 means the issue has no single line.
+    const loc = refLine > 0 ? `${refFile}:${refLine}` : refFile;
+    return `Finding ${findingTitle} was found in ${loc}.`;
+  }
+  return `Secret ${findingTitle} lives in ${refFile}:${refLine} - this is the file the secret itself sits in.`;
 }
 
 /**
@@ -438,7 +446,7 @@ export function neighboursOf(
 }
 
 /**
- * Append nextId to the traversal path — unless it equals the last
+ * Append nextId to the traversal path - unless it equals the last
  * element (an immediate backtrack), in which case the path is
  * returned unchanged.
  */
@@ -452,3 +460,136 @@ export function traverseBack(path: string[]): string[] {
   if (path.length <= 1) return path;
   return path.slice(0, -1);
 }
+
+// ------------------------------------------------------------------ Phase 19
+// Map categories: every finding on the plane belongs to one
+// category, and the node carries it as a SHAPE plus a short code
+// inside the node, never colour alone. Secrets stay circles (the
+// existing shape); each posture category gets its own polygon, so
+// the shape survives dark mode, dimming, and colour blindness.
+// The legend in the component renders these same shapes.
+
+export type PostureCategory =
+  | "code-risk"
+  | "actions"
+  | "container"
+  | "exposed-file"
+  | "install-script"
+  | "web-config"
+  | "hygiene";
+
+export type MapCategory = "secrets" | PostureCategory;
+
+export interface MapCategoryMeta {
+  label: string;
+  shortLabel: string;
+  /** Two-letter code drawn inside the node (secrets use S plus a number). */
+  code: string;
+  /** Polygon sides for the node shape; 0 means a circle (secrets). */
+  sides: number;
+  /** Rotation in degrees; vertices start at -90 degrees (top). */
+  rotation: number;
+}
+
+export const MAP_CATEGORY_META: Record<MapCategory, MapCategoryMeta> = {
+  secrets: { label: "Secrets", shortLabel: "secrets", code: "S", sides: 0, rotation: 0 },
+  "code-risk": { label: "Code risks", shortLabel: "code risk", code: "CR", sides: 4, rotation: 0 },
+  actions: { label: "Actions hardening", shortLabel: "actions", code: "AC", sides: 4, rotation: 45 },
+  container: { label: "Container hardening", shortLabel: "container", code: "CN", sides: 6, rotation: 0 },
+  "exposed-file": { label: "Exposed files", shortLabel: "exposed file", code: "EX", sides: 3, rotation: 0 },
+  "install-script": { label: "Install scripts", shortLabel: "install script", code: "IS", sides: 5, rotation: 0 },
+  "web-config": { label: "Web config", shortLabel: "web config", code: "WB", sides: 8, rotation: 22.5 },
+  hygiene: { label: "Hygiene", shortLabel: "hygiene", code: "HY", sides: 3, rotation: 180 },
+};
+
+/** Display order of the categories on the plane: secrets first,
+ *  then the new Phase 19 categories, hygiene last. */
+export const MAP_CATEGORY_ORDER: MapCategory[] = [
+  "secrets",
+  "code-risk",
+  "actions",
+  "container",
+  "exposed-file",
+  "install-script",
+  "web-config",
+  "hygiene",
+];
+
+const POSTURE_CATEGORIES: PostureCategory[] = [
+  "code-risk",
+  "actions",
+  "container",
+  "exposed-file",
+  "install-script",
+  "web-config",
+  "hygiene",
+];
+
+/**
+ * The map category of a posture issue. Issues without a category
+ * (older reports, pre-Phase 19) count as hygiene, so nothing ever
+ * drops off the plane for missing a label.
+ */
+export function postureCategoryOf(issue: { category?: string }): PostureCategory {
+  const c = issue.category;
+  return c !== undefined && (POSTURE_CATEGORIES as string[]).includes(c) ? (c as PostureCategory) : "hygiene";
+}
+
+export function categoryLabel(category: MapCategory): string {
+  return MAP_CATEGORY_META[category].label;
+}
+
+/**
+ * Polygon points for a category node shape, as an SVG points
+ * string ("x,y x,y ...", one decimal). Vertices start at the top
+ * (-90 degrees) and go clockwise. sides < 3 or a non-positive
+ * radius returns "" (the caller draws a circle instead).
+ */
+export function categoryPolygonPoints(sides: number, rotation: number, cx: number, cy: number, r: number): string {
+  if (!(sides >= 3) || !(r > 0)) return "";
+  const pts: string[] = [];
+  for (let i = 0; i < sides; i++) {
+    const a = (((-90 + rotation + (360 / sides) * i) * Math.PI) / 180);
+    pts.push(`${(cx + r * Math.cos(a)).toFixed(1)},${(cy + r * Math.sin(a)).toFixed(1)}`);
+  }
+  return pts.join(" ");
+}
+
+/**
+ * Category filter: returns the items whose category is not hidden.
+ * Filtering only changes what the plane shows, never the report
+ * counts, so this is a pure view helper. An empty hidden set
+ * returns a copy of the input.
+ */
+export function filterByCategory<T extends { category: MapCategory }>(items: readonly T[], hidden: ReadonlySet<MapCategory>): T[] {
+  if (hidden.size === 0) return [...items];
+  return items.filter((item) => !hidden.has(item.category));
+}
+
+/**
+ * Rendering cap: the first `cap` items, plus how many were left
+ * out. A cap is a rendering limit, never a data cap: the hidden
+ * count is what the cap label reports, and every item stays in the
+ * list below the map.
+ */
+export function cappedSlice<T>(items: readonly T[], cap: number): { shown: T[]; hidden: number } {
+  const n = Math.max(0, Math.floor(cap));
+  return { shown: items.slice(0, n), hidden: Math.max(0, items.length - n) };
+}
+
+/**
+ * The honest cap line for the plane, or null when nothing was
+ * capped. The caller states the cap maxima alongside this when a
+ * cap binds.
+ */
+export function capNote(shown: number, total: number, noun: string): string | null {
+  if (total <= shown) return null;
+  return `Showing first ${shown} of ${total} ${noun} on the map; the full list is below.`;
+}
+
+/** Phase 19 rendering caps (raised from 12 findings / 24 nodes):
+ *  24 secret nodes, 24 posture nodes, 32 file nodes. The plane
+ *  states these maxima whenever a cap binds. */
+export const MAP_MAX_SECRET_NODES = 24;
+export const MAP_MAX_POSTURE_NODES = 24;
+export const MAP_MAX_FILE_NODES = 32;

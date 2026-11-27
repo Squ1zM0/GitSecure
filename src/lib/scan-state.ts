@@ -1,28 +1,28 @@
-// GitSecure Phase 17, Part 1 — short-lived server store for
+// GitSecure Phase 17, Part 1 - short-lived server store for
 // in-progress history findings (see
 // test-results/phase17/accumulation-design.md §4).
 //
 // THE HOLE IT CLOSES: runScanLoop() accumulates history findings
 // in-process only. A scan whose history spans more than one
 // serverless invocation silently drops every finding found before
-// the last invocation — the finished report still claims the full
+// the last invocation - the finished report still claims the full
 // history was checked, and the score is wrong (too high). The
 // cursor must never carry findings (cursor.ts), and the GET / MCP
 // callers discard the loop's returned findings, so findings need a
 // ride across invocations. This store is that ride.
 //
 // INERT UNTIL PROVISIONED: the store activates ONLY when a
-// Upstash Redis REST pair is present in the environment —
+// Upstash Redis REST pair is present in the environment -
 // UPSTASH_REDIS_REST_URL + UPSTASH_REDIS_REST_TOKEN (Upstash
 // console route), falling back to KV_REST_API_URL +
 // KV_REST_API_TOKEN (Vercel Marketplace route, auto-injected).
 // With no pair set, getScanStateStore() returns NoopStore and the
 // scan behaves exactly as today, plus the honest limits line
 // (chunks.ts) when earlier findings could not be recovered. No
-// store, account, credential, or env var is created by this code —
+// store, account, credential, or env var is created by this code -
 // provisioning is Freddy's dashboard clicks (design §4.2).
 //
-// WHAT IS STORED: one document per scan, redacted fragments only —
+// WHAT IS STORED: one document per scan, redacted fragments only -
 // the same SecretFinding objects the finished report already
 // returns (fragment is first 4 chars … last 2, never the full
 // secret). Never a full secret, never file contents, never a live
@@ -40,7 +40,7 @@
 // DEGRADATION: a store failure (network error, non-2xx, timeout,
 // over-quota) must NEVER fail a scan. Every store call inside the
 // loop is best-effort (see chunks.ts): the loop catches, records
-// the failure, and continues with in-process accumulation only —
+// the failure, and continues with in-process accumulation only -
 // and the finished report carries the honest limits line saying
 // earlier findings may be missing. A store that is absent or down
 // degrades to today's behaviour with a stated limitation, never a
@@ -58,21 +58,21 @@
 // residual race (two writers interleaving read-then-write) is real
 // but narrow, and its worst case is the same silent loss the
 // honest-note path is built to catch. True atomicity (server-side
-// Lua / EVAL) is a possible hardening step — verify Upstash REST
+// Lua / EVAL) is a possible hardening step - verify Upstash REST
 // supports it before assuming it.
 //
 // CALLER-CARRIED FALLBACK (NOT a replacement for this store): the
 // MCP resume_scan tool and the GET route also accept
 // historyFindings from the caller (see mcp.ts, route.ts). That
 // helps MCP callers when the store is unavailable and is the only
-// fix available if the store is down — but a bare
+// fix available if the store is down - but a bare
 // curl …?cursor= resume carries nothing, and a large findings set
 // can never ride in a URL, so the fallback narrows the hole, it
 // does not close it. The store is the fix; the fallback is additive.
 
 import type { SecretFinding } from "./types";
 
-/** 7-day TTL, in seconds — backstop only; delete at assemble is the
+/** 7-day TTL, in seconds - backstop only; delete at assemble is the
  *  primary cleanup, so a finished scan leaves nothing behind. */
 export const SCAN_STATE_TTL_SECONDS = 604800;
 /** Per-call timeout: a slow store must never eat a scan's budget
@@ -124,7 +124,7 @@ export function filterHistoryFindings(value: unknown): SecretFinding[] {
 }
 
 /** Validate a stored value on read. A corrupt, oversized, or
- *  unexpected value is "no stored state" — never a crash, never
+ *  unexpected value is "no stored state" - never a crash, never
  *  trusted. Malformed finding entries are dropped individually;
  *  the rest of the document still counts as recovered state. */
 export function validateStoredState(value: unknown): StoredScanState | null {
@@ -202,14 +202,14 @@ export interface UpstashRestConfig {
   timeoutMs?: number;
 }
 
-/** Upstash Redis via the REST API, plain fetch — no SDK, no new
+/** Upstash Redis via the REST API, plain fetch - no SDK, no new
  *  dependency. Body-style commands (POST / with a JSON array):
  *  ["GET", key], ["SET", key, json, "EX", ttl], ["DEL", key].
- *  Any non-2xx, error field, or timeout throws — the caller treats
+ *  Any non-2xx, error field, or timeout throws - the caller treats
  *  that as "store unavailable" and degrades, never as a scan
  *  failure. The token is a Bearer token with full access to one
  *  single-purpose database holding only redacted fragments; it is
- *  server-side only — never in client code, never committed. */
+ *  server-side only - never in client code, never committed. */
 export class UpstashRestStore implements ScanStateStore {
   constructor(private config: UpstashRestConfig) {}
 
@@ -259,7 +259,7 @@ export class UpstashRestStore implements ScanStateStore {
 
   async save(key: string, state: StoredScanState, ttlSeconds: number = SCAN_STATE_TTL_SECONDS): Promise<void> {
     // Monotonic guard (see header): a stale writer's smaller array
-    // must not clobber a newer one. Costs one extra read per save —
+    // must not clobber a newer one. Costs one extra read per save -
     // still per invocation boundary, not per chunk.
     const current = await this.load(key);
     if (current && current.histScanned > state.histScanned) return;
@@ -281,7 +281,7 @@ export class UpstashRestStore implements ScanStateStore {
  *  (UPSTASH_REDIS_REST_URL / UPSTASH_REDIS_REST_TOKEN); fall back
  *  to the Vercel Marketplace names (KV_REST_API_URL /
  *  KV_REST_API_TOKEN, auto-injected). A half pair (URL without
- *  token, or vice versa) is the same as no pair — NoopStore.
+ *  token, or vice versa) is the same as no pair - NoopStore.
  *  `env` is injectable so tests can prove the activation rule
  *  without touching process.env. */
 export function getScanStateStore(env: NodeJS.ProcessEnv = process.env): ScanStateStore {

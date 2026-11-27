@@ -1,5 +1,5 @@
 // Secret detectors. Each detector is a regex + human-readable metadata.
-// The scanner never returns, logs, or renders a raw match — only
+// The scanner never returns, logs, or renders a raw match - only
 // redactSecret(match) (see redact.ts). No detector ever calls the service
 // the credential belongs to (no live validation).
 
@@ -16,11 +16,11 @@ export interface Detector {
   plainEnglish: string;
   /** Literal substrings every match must contain. If set and NONE of
    *  them occurs in the file, the detector cannot match and is skipped
-   *  without running its regex — a cheap `includes` (native memmem)
+   *  without running its regex - a cheap `includes` (native memmem)
    *  instead of a full regex pass. This is what makes scanning a
    *  97k-file repo affordable: most files contain none of these
    *  literals at all. Each literal is a NECESSARY condition of the
-   *  pattern above it — verified by inspection, never a heuristic. */
+   *  pattern above it - verified by inspection, never a heuristic. */
   prefilter?: string[];
 }
 
@@ -32,7 +32,7 @@ export const DETECTORS: Detector[] = [
     confidence: "high",
     pattern: /https:\/\/(?:discord\.com|discordapp\.com)\/api\/webhooks\/\d+\/[A-Za-z0-9_-]{20,}/g,
     prefilter: ["discord.com/api/webhooks", "discordapp.com/api/webhooks"],
-    fix: "Delete this webhook in Discord Server Settings > Integrations, create a fresh one, and store it as a secret — never commit it. The URL in git history still works until the webhook is deleted.",
+    fix: "Delete this webhook in Discord Server Settings > Integrations, create a fresh one, and store it as a secret - never commit it. The URL in git history still works until the webhook is deleted.",
     plainEnglish: "Anyone with this link can post messages to your Discord server with no login. This is the exact leak that hit a repo in November 2026.",
   },
   {
@@ -42,7 +42,7 @@ export const DETECTORS: Detector[] = [
     confidence: "high",
     pattern: /https:\/\/hooks\.slack\.com\/(?:services|triggers)\/[A-Za-z0-9/_-]{20,}/g,
     prefilter: ["hooks.slack.com/"],
-    fix: "Revoke this webhook in Slack, create a fresh one, and store it as a secret — never commit it.",
+    fix: "Revoke this webhook in Slack, create a fresh one, and store it as a secret - never commit it.",
     plainEnglish: "Anyone with this link can post messages into your Slack workspace with no login.",
   },
   {
@@ -92,7 +92,7 @@ export const DETECTORS: Detector[] = [
     confidence: "high",
     pattern: /\bnpm_[A-Za-z0-9]{36}\b/g,
     prefilter: ["npm_"],
-    fix: "Revoke this token at npmjs.com (Access Tokens) and create a new granular token stored as a secret — never commit it.",
+    fix: "Revoke this token at npmjs.com (Access Tokens) and create a new granular token stored as a secret - never commit it.",
     plainEnglish: "This token can publish packages to npm as the account that created it.",
   },
   {
@@ -121,7 +121,7 @@ export const DETECTORS: Detector[] = [
     severity: "high",
     confidence: "high",
     pattern: /\b[0-9]{8,10}:[A-Za-z0-9_-]{35}\b/g,
-    fix: "Revoke this token with @BotFather (/revoke) and store the new one as a secret — never commit it.",
+    fix: "Revoke this token with @BotFather (/revoke) and store the new one as a secret - never commit it.",
     plainEnglish: "This token lets anyone control your Telegram bot and read the messages sent to it.",
   },
   {
@@ -141,7 +141,7 @@ export const DETECTORS: Detector[] = [
     confidence: "high",
     pattern: /\baws_secret_access_key\s*[:=]\s*['"]?[A-Za-z0-9/+=]{40}['"]?\b/gi,
     prefilter: ["aws_secret_access_key", "AWS_SECRET_ACCESS_KEY"],
-    fix: "Deactivate and delete this key in AWS IAM, create a new one, and store it in a secrets manager — never in code.",
+    fix: "Deactivate and delete this key in AWS IAM, create a new one, and store it in a secrets manager - never in code.",
     plainEnglish: "This is the secret half of an AWS credential pair. Paired with its access key ID it can use your AWS account.",
   },
   {
@@ -151,7 +151,7 @@ export const DETECTORS: Detector[] = [
     confidence: "high",
     pattern: /\b(?:AKIA|ASIA|ABIA|ACCA)[0-9A-Z]{16}\b/g,
     prefilter: ["AKIA", "ASIA", "ABIA", "ACCA"],
-    fix: "Deactivate and delete this key in AWS IAM, create a new one, and store it in a secrets manager — never in code.",
+    fix: "Deactivate and delete this key in AWS IAM, create a new one, and store it in a secrets manager - never in code.",
     plainEnglish: "This is half of an AWS credential pair. Paired with its secret key it can use your AWS account.",
   },
   {
@@ -245,7 +245,7 @@ export interface ScannedLine {
   text: string;
 }
 
-/** Scan explicit (line number, text) pairs — the form history diffs arrive
+/** Scan explicit (line number, text) pairs - the form history diffs arrive
  *  in, where line numbers come from hunk headers rather than a position in
  *  a whole file. scanTextForSecrets is a thin wrapper over this. */
 export function scanLinesForSecrets(file: { path: string }, lines: ScannedLine[], commit: string | null): SecretFinding[] {
@@ -257,7 +257,7 @@ export function scanLinesForSecrets(file: { path: string }, lines: ScannedLine[]
       if (!text) continue;
       // No blanket "EXAMPLE" skip: a specific credential pattern (AKIA…,
       // ghp_…, a webhook URL) is worth flagging even on a line that says
-      // "example" — a human can dismiss it, a scanner must not hide it.
+      // "example" - a human can dismiss it, a scanner must not hide it.
       re.lastIndex = 0;
       let m: RegExpExecArray | null;
       while ((m = re.exec(text)) !== null) {
@@ -287,7 +287,7 @@ export function scanLinesForSecrets(file: { path: string }, lines: ScannedLine[]
 
 /** Scan a whole file's content for secrets.
  *
- *  Runs each detector regex ONCE over the whole content — not once per
+ *  Runs each detector regex ONCE over the whole content - not once per
  *  line, as the old implementation did. The old per-line loop cost
  *  ~56 s on torvalds/linux (97k files, ~30M lines: 12 detectors x
  *  every line). Line numbers come from the match offset via a
@@ -301,7 +301,7 @@ export function scanLinesForSecrets(file: { path: string }, lines: ScannedLine[]
  *  - A match can only cross a line boundary by consuming the "\n"
  *    itself, and any match whose text contains "\n" is re-scanned
  *    line by line with the exact old method, so a value split across
- *    lines is never reported — and a real match hiding inside the
+ *    lines is never reported - and a real match hiding inside the
  *    spanned lines is never swallowed by the cross-line match.
  *  - `\b` behaves the same at a line edge in whole-content mode,
  *    because "\n" is a non-word character, exactly like a string
@@ -357,7 +357,7 @@ export function scanTextForSecrets(file: ScannedFile): SecretFinding[] {
       if (raw.includes("\n")) {
         // Cross-line match: the old per-line scan could never have
         // found this match, but it may have found matches on the
-        // lines this match spans — re-scan exactly those lines with
+        // lines this match spans - re-scan exactly those lines with
         // the per-line method so nothing is lost or invented.
         const startLine = lineAt(m.index);
         lineAt(m.index + raw.length); // advance the cursor past the spanned lines
