@@ -17,17 +17,21 @@ export const metadata: Metadata = {
       "Swap github.com for git-secure.com and get a security report for a public repo: leaked secrets, framework flaws, dependency vulnerabilities, and posture. Everyone gets the full report — no sign-up, no login.",
     url: "https://git-secure.com/",
     locale: "en_US",
-    // NO images array until public/og.png exists (presence SEO item 0).
-    // Then add: images: [{ url: "/og.png", width: 1200, height: 630,
-    //   alt: "GitSecure — is this repo safe? Swap github.com for git-secure.com and get a plain-English security report." }],
+    images: [
+      {
+        url: "/og.png",
+        width: 1200,
+        height: 630,
+        alt: "GitSecure — is this repo safe? Swap github.com for git-secure.com and get a plain-English security report.",
+      },
+    ],
   },
   twitter: {
-    // "summary" until og.png exists; then "summary_large_image".
-    card: "summary",
+    card: "summary_large_image",
     title: "GitSecure — is this repo safe?",
     description:
       "Swap github.com for git-secure.com and get a security report for a public repo: leaked secrets, framework flaws, dependency vulnerabilities, and posture. Everyone gets the full report — no sign-up, no login.",
-    // NO images until public/og.png exists; then images: ["/og.png"].
+    images: ["/og.png"],
   },
 };
 
