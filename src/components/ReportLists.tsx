@@ -739,19 +739,81 @@ export function UsageMap({
     if (id.startsWith("file:")) return shortLabel(id.slice("file:".length));
     return id;
   };
-  // Ring layout is the STARTING arrangement (world 400x380, centre
-  // (200,190), secrets r=100, posture r=140, files r=170, same
-  // angle math as the static map); overrides win for dragged/pinned
-  // nodes. The posture ring sits between the secrets and the files
-  // so its short "found in" edges never cross the secrets ring.
+  // Branching layout is the STARTING arrangement (world 400x380,
+  // centre (200,190)): findings ring at r=100, posture at r=140,
+  // and each file fans out from the finding or posture issue that
+  // references it, in a small arc around that parent's outward
+  // direction, instead of sitting on its own unrelated ring. Files
+  // no drawn finding or visible posture issue references fall back
+  // to the outer ring at r=170. Overrides win for dragged/pinned
+  // nodes. The posture ring sits between the findings and the files
+  // so its short "found in" edges never cross the findings ring.
   const cx = 200;
   const cy = 190;
   const basePositions = useMemo(() => {
     const base = new Map<string, { x: number; y: number }>();
     base.set("repo", { x: cx, y: cy });
-    for (const [i, p] of ringLayout(drawn.length, cx, cy, 100).entries()) base.set(nodeIdOfFinding(drawn[i].idx), p);
-    for (const [i, p] of ringLayout(visiblePosture.length, cx, cy, 140).entries()) base.set(nodeIdOfPosture(visiblePosture[i].idx), p);
-    for (const [i, p] of ringLayout(fileNodes.length, cx, cy, 170).entries()) base.set(nodeIdOfFile(fileNodes[i].file), p);
+    const findingPos = new Map<number, { x: number; y: number }>();
+    for (const [i, p] of ringLayout(drawn.length, cx, cy, 100).entries()) {
+      base.set(nodeIdOfFinding(drawn[i].idx), p);
+      findingPos.set(drawn[i].idx, p);
+    }
+    const posturePos = new Map<number, { x: number; y: number }>();
+    for (const [i, p] of ringLayout(visiblePosture.length, cx, cy, 140).entries()) {
+      base.set(nodeIdOfPosture(visiblePosture[i].idx), p);
+      posturePos.set(visiblePosture[i].idx, p);
+    }
+    // First claim wins: each file branches off the first finding
+    // (own file, then referenced files) or posture issue that
+    // references it.
+    const fanOf = new Map<string, string[]>();
+    const parentPos = new Map<string, { x: number; y: number }>();
+    const claimFile = (file: unknown, parentId: string, pos: { x: number; y: number }) => {
+      if (typeof file !== "string" || file.length === 0) return;
+      for (const files of fanOf.values()) if (files.includes(file)) return;
+      if (!fanOf.has(parentId)) {
+        fanOf.set(parentId, []);
+        parentPos.set(parentId, pos);
+      }
+      fanOf.get(parentId)!.push(file);
+    };
+    for (const e of drawn) {
+      const pos = findingPos.get(e.idx);
+      if (!pos) continue;
+      const parentId = nodeIdOfFinding(e.idx);
+      claimFile(e.item.file, parentId, pos);
+      const u = usageOf(e);
+      if (u && !u.deadEnd) {
+        for (const r of [...u.referencedBy, ...u.referencedByTests]) claimFile(r.file, parentId, pos);
+      }
+    }
+    for (const e of visiblePosture) {
+      const pos = posturePos.get(e.idx);
+      if (pos) claimFile(e.item.file, nodeIdOfPosture(e.idx), pos);
+    }
+    const unparented: string[] = [];
+    for (const f of fileNodes) {
+      let placed = false;
+      for (const [parentId, files] of fanOf) {
+        const at = files.indexOf(f.file);
+        if (at < 0) continue;
+        const p = parentPos.get(parentId)!;
+        const k = files.length;
+        const theta = Math.atan2(p.y - cy, p.x - cx);
+        const arc = Math.min(140, 18 * k) * (Math.PI / 180);
+        const spread = k === 1 ? 0 : -arc / 2 + (arc * at) / (k - 1);
+        const r = 62 + Math.max(0, k - 5) * 8;
+        const a = theta + spread;
+        base.set(nodeIdOfFile(f.file), {
+          x: Math.min(386, Math.max(14, p.x + r * Math.cos(a))),
+          y: Math.min(366, Math.max(14, p.y + r * Math.sin(a))),
+        });
+        placed = true;
+        break;
+      }
+      if (!placed) unparented.push(f.file);
+    }
+    for (const [i, p] of ringLayout(unparented.length, cx, cy, 170).entries()) base.set(nodeIdOfFile(unparented[i]), p);
     return base;
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [drawn, visiblePosture, fileNodes]);
