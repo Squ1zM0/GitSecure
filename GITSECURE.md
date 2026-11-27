@@ -2008,7 +2008,7 @@ Freddy, 2026-11-26: "it needs to be a dynamic visual plane that the user can pin
 - Live proof: the new code checks fire on real code, not only fixtures (TechDirect script injection above). Fixture proofs: test-code-risks-phase19 81 PASS, test-posture-phase19 78 PASS, test-map-phase19 110 PASS, all with planted findings plus clean-fixture no-false-positive cases.
 - Map worker (worker C) was closed before its recheck rounds finished at Freddy's "finish up" order; its code shipped as it stood (legend, filters, "found in" edges, raised caps, 110/110 tests). The label-collision re-measurement against the current code was not reported back by the worker; it stays an open item.
 - Out of scope, unchanged: branch protection and repo settings (token is Contents read only), the history chunk no-progress loop (separate pipeline fix), paid features (stays free).
-- Status: built, tested, pushed (head SHA in the push record below), live verification by the parent.
+- Status: built, tested, pushed 2026-11-27, head c283e48cf3f7f88472ca6237ae0f1a26573c871d (497 files; remote tree verified to match local exactly, head SHA matches). Full offline suite green plus tsc plus build exit 0; post-push test:mcp 63/63 (self-scan 100/A confirmed live). Live home serves the new build (200, hyphen title, zero em dashes in served HTML), og.png 200. Live verification by the parent.
 
 ## Phase 2 status - built and pushed 2026-11-25, commit 870f889f, live at https://gitsecure.vercel.app/ (verified serving: home 200, live TechDirect scan 200, 83/B)
 - Next.js 16 / React 19 / TypeScript + Auth.js (NextAuth 5.0.0-beta.32,
