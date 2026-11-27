@@ -62,7 +62,6 @@ import {
   panBy,
   postureCategoryOf,
   resolveLabelCollisions,
-  ringLayout,
   resolveNodePositions,
   togglePin,
   traverseBack,
@@ -739,81 +738,61 @@ export function UsageMap({
     if (id.startsWith("file:")) return shortLabel(id.slice("file:".length));
     return id;
   };
-  // Branching layout is the STARTING arrangement (world 400x380,
-  // centre (200,190)): findings ring at r=100, posture at r=140,
-  // and each file fans out from the finding or posture issue that
-  // references it, in a small arc around that parent's outward
-  // direction, instead of sitting on its own unrelated ring. Files
-  // no drawn finding or visible posture issue references fall back
-  // to the outer ring at r=170. Overrides win for dragged/pinned
-  // nodes. The posture ring sits between the findings and the files
-  // so its short "found in" edges never cross the findings ring.
+  // Sector tree is the STARTING arrangement (world 400x380, centre
+  // (200,190)): the circle is divided into leaf slots, one per file
+  // plus one per childless finding or posture issue. Each finding or
+  // posture issue owns the sector covering its files and sits at the
+  // sector centre on its ring (findings r=100, posture r=140); its
+  // files sit in their slots on the outer ring (r=170), inside that
+  // sector, so no two parents fan into the same space. Files no
+  // drawn finding or visible posture issue references get slots of
+  // their own at the end. Overrides win for dragged/pinned nodes.
+  // The posture ring sits between the findings and the files so its
+  // short "found in" edges never cross the findings ring.
   const cx = 200;
   const cy = 190;
   const basePositions = useMemo(() => {
     const base = new Map<string, { x: number; y: number }>();
     base.set("repo", { x: cx, y: cy });
-    const findingPos = new Map<number, { x: number; y: number }>();
-    for (const [i, p] of ringLayout(drawn.length, cx, cy, 100).entries()) {
-      base.set(nodeIdOfFinding(drawn[i].idx), p);
-      findingPos.set(drawn[i].idx, p);
-    }
-    const posturePos = new Map<number, { x: number; y: number }>();
-    for (const [i, p] of ringLayout(visiblePosture.length, cx, cy, 140).entries()) {
-      base.set(nodeIdOfPosture(visiblePosture[i].idx), p);
-      posturePos.set(visiblePosture[i].idx, p);
-    }
     // First claim wins: each file branches off the first finding
     // (own file, then referenced files) or posture issue that
     // references it.
     const fanOf = new Map<string, string[]>();
-    const parentPos = new Map<string, { x: number; y: number }>();
-    const claimFile = (file: unknown, parentId: string, pos: { x: number; y: number }) => {
+    const claimFile = (file: unknown, parentId: string) => {
       if (typeof file !== "string" || file.length === 0) return;
       for (const files of fanOf.values()) if (files.includes(file)) return;
-      if (!fanOf.has(parentId)) {
-        fanOf.set(parentId, []);
-        parentPos.set(parentId, pos);
-      }
+      if (!fanOf.has(parentId)) fanOf.set(parentId, []);
       fanOf.get(parentId)!.push(file);
     };
     for (const e of drawn) {
-      const pos = findingPos.get(e.idx);
-      if (!pos) continue;
       const parentId = nodeIdOfFinding(e.idx);
-      claimFile(e.item.file, parentId, pos);
+      claimFile(e.item.file, parentId);
       const u = usageOf(e);
       if (u && !u.deadEnd) {
-        for (const r of [...u.referencedBy, ...u.referencedByTests]) claimFile(r.file, parentId, pos);
+        for (const r of [...u.referencedBy, ...u.referencedByTests]) claimFile(r.file, parentId);
       }
     }
-    for (const e of visiblePosture) {
-      const pos = posturePos.get(e.idx);
-      if (pos) claimFile(e.item.file, nodeIdOfPosture(e.idx), pos);
-    }
+    for (const e of visiblePosture) claimFile(e.item.file, nodeIdOfPosture(e.idx));
+    const level1: { id: string; radius: number; files: string[] }[] = [];
+    for (const e of drawn) level1.push({ id: nodeIdOfFinding(e.idx), radius: 100, files: fanOf.get(nodeIdOfFinding(e.idx)) ?? [] });
+    for (const e of visiblePosture) level1.push({ id: nodeIdOfPosture(e.idx), radius: 140, files: fanOf.get(nodeIdOfPosture(e.idx)) ?? [] });
     const unparented: string[] = [];
     for (const f of fileNodes) {
-      let placed = false;
-      for (const [parentId, files] of fanOf) {
-        const at = files.indexOf(f.file);
-        if (at < 0) continue;
-        const p = parentPos.get(parentId)!;
-        const k = files.length;
-        const theta = Math.atan2(p.y - cy, p.x - cx);
-        const arc = Math.min(140, 18 * k) * (Math.PI / 180);
-        const spread = k === 1 ? 0 : -arc / 2 + (arc * at) / (k - 1);
-        const r = 62 + Math.max(0, k - 5) * 8;
-        const a = theta + spread;
-        base.set(nodeIdOfFile(f.file), {
-          x: Math.min(386, Math.max(14, p.x + r * Math.cos(a))),
-          y: Math.min(366, Math.max(14, p.y + r * Math.sin(a))),
-        });
-        placed = true;
-        break;
-      }
-      if (!placed) unparented.push(f.file);
+      let claimed = false;
+      for (const files of fanOf.values()) if (files.includes(f.file)) { claimed = true; break; }
+      if (!claimed) unparented.push(f.file);
     }
-    for (const [i, p] of ringLayout(unparented.length, cx, cy, 170).entries()) base.set(nodeIdOfFile(unparented[i]), p);
+    const leaves = level1.reduce((n, p) => n + Math.max(1, p.files.length), 0) + unparented.length;
+    const slot = leaves > 0 ? (2 * Math.PI) / leaves : 0;
+    const place = (angle: number, radius: number) => ({ x: cx + radius * Math.cos(angle), y: cy + radius * Math.sin(angle) });
+    let cursor = -Math.PI / 2;
+    for (const p of level1) {
+      const count = Math.max(1, p.files.length);
+      base.set(p.id, place(cursor + (slot * count) / 2, p.radius));
+      p.files.forEach((file, j) => base.set(nodeIdOfFile(file), place(cursor + slot * (j + 0.5), 170)));
+      cursor += slot * count;
+    }
+    unparented.forEach((file, j) => base.set(nodeIdOfFile(file), place(cursor + slot * (j + 0.5), 170)));
     return base;
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [drawn, visiblePosture, fileNodes]);
