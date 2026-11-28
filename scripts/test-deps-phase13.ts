@@ -104,7 +104,7 @@ const upgraded: [string, string][] = [
   ["sinatra", "4.2.0"],
   ["puma", "7.2.1"],
   ["phpunit/phpunit", "10.5.62"],
-  ["diff", "8.0.4"],
+  ["diff", "9.0.0"],
   ["zod", "4.6.7"],
 ];
 for (const [name, version] of upgraded) {
@@ -116,7 +116,7 @@ const pinned = new Map(deduped.map((d) => [`${d.ecosystem}:${d.name}`, d.version
 check("Phase 13: Django pinned at 5.2.17", pinned.get("pypi:Django") === "5.2.17", String(pinned.get("pypi:Django")));
 const fixtureNext = parsePackageJson(GENERATED_FAKE_REPO["package.json"], "tests/fixtures/fake-repo/package.json").find((d) => d.name === "next");
 check("Phase 13: fixture next pinned at 15.5.29 (root next 16.4.6 shadows it in-scan)", fixtureNext?.version === "15.5.29", String(fixtureNext?.version));
-check("Phase 13: diff pinned at 8.0.4", pinned.get("npm:diff") === "8.0.4", String(pinned.get("npm:diff")));
+check("Phase 13: diff pinned at 9.0.0", pinned.get("npm:diff") === "9.0.0", String(pinned.get("npm:diff")));
 check("Phase 13: zod pinned at 4.6.7", pinned.get("npm:zod") === "4.6.7", String(pinned.get("npm:zod")));
 
 // --- Kept-vulnerable fixtures must still flag (detection coverage) ---
