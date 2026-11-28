@@ -10,7 +10,7 @@
   },
   "description": "GitSecure - swap github.com for git-secure.com and get a security report for a public repo: leaked secrets, framework flaws, dependency vulnerabilities, and posture. Everyone gets the full report - no sign-up, no login.",
   "devDependencies": {
-    "@types/node": "^20",
+    "@types/node": "^26",
     "@types/react": "^19",
     "@types/react-dom": "^19",
     "tsx": "^4.21.0",
