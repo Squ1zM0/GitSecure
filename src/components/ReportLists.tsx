@@ -464,13 +464,15 @@ function CategoryGlyph({ category }: { category: MapCategory }) {
  *  rings are spread (finding 82 -> 100, file 138 -> 140, taller
  *  viewBox), file labels are middle-truncated basenames with an
  *  ellipsis (shortLabel, never a silent mid-word clip) placed
- *  radially OUTWARD from their node so they can never collide with a
- *  finding's "N uses" caption, file counts sit INSIDE their node
- *  circles (no count ever sits on an edge again), finding nodes grow
- *  with their reference count (like file nodes grow with finding
- *  count), the centre is painted after the edges so no edge can
- *  strike through "This repo", and every label outside a circle
- *  carries the .map-label halo so a dashed edge passing behind it
+ *  radially from their node so they can never collide with a
+ *  finding's "N uses" caption (outward then; inward toward the hub
+ *  since the 2026-11-28 swap put the files on the inner ring),
+ *  file counts sit INSIDE their node circles (no count ever sits on
+ *  an edge again), finding nodes grow with their reference count
+ *  (like file nodes grow with finding count), the centre is painted
+ *  after the edges so no edge can strike through "This repo", and
+ *  every label outside a circle carries the .map-label halo so a
+ *  dashed edge passing behind it
  *  cannot strike the text through. The "N uses" captions alternate
  *  a sideways step so neighbours' captions stop stacking. Click,
  *  keyboard, dark mode, and reduced-motion behaviour are unchanged. */
@@ -541,14 +543,15 @@ export function UsageMap({
   const svgRef = useRef<SVGSVGElement | null>(null);
   // Fix round 2 (defect 2): the initial fit and Reset view call
   // fitView with padding 48, not the default 8. fitView fits the
-  // 400x380 WORLD, but file labels sit radially OUTWARD from the
-  // outer ring (up to ~r+14 world units beyond it), i.e. outside the
-  // fitted rect - at 360px the side labels butted hard against the
-  // plane border and read as clipped. 48 screen px of breathing
-  // room on every side (raised from 32 in the 2026-11-27 second
-  // pass - Freddy: default a little more zoomed out, rings spread
-  // wider); the map gets slightly smaller (fit k drops ~9% at
-  // 640px, ~11% at 360px) and the labels fit inside. fitView's
+  // 480x440 WORLD, but a finding's "N uses" caption sits fr+14
+  // below its outer-ring node (up to ~13 world units past the
+  // world edge at the bottom), i.e. outside the fitted rect - at
+  // 360px the side labels butted hard against the plane border and
+  // read as clipped. 48 screen px of breathing room on every side
+  // (raised from 32 in the 2026-11-27 second pass - Freddy:
+  // default a little more zoomed out, rings spread wider); the map
+  // gets slightly smaller (fit k drops ~9% at 640px, ~11% at 360px)
+  // and the labels fit inside. fitView's
   // default stays 8; the zoom-to-node target (zoomTargetK) is
   // unchanged.
   const [view, setView] = useState<ViewTransform>(() => fitView(640, 420, 48));
@@ -748,13 +751,15 @@ export function UsageMap({
   // (240,220)): the circle is divided into leaf slots, one per file
   // plus one per childless finding or posture issue. Each finding or
   // posture issue owns the sector covering its files and sits at the
-  // sector centre on its ring (findings r=125, posture r=165); its
-  // files sit in their slots on the outer ring (r=205), inside that
+  // sector centre on its ring (findings r=205, posture r=165); its
+  // files sit in their slots on the inner ring (r=125), inside that
   // sector, so no two parents fan into the same space. Files no
   // drawn finding or visible posture issue references get slots of
   // their own at the end. Overrides win for dragged/pinned nodes.
-  // The posture ring sits between the findings and the files so its
-  // short "found in" edges never cross the findings ring.
+  // The posture ring sits between the files and the findings so its
+  // short "found in" edges never cross the findings ring. Secrets
+  // sit outside, files inside: the swap Freddy asked for 2026-11-28,
+  // so the findings fan out to the roomier outer ring.
   const cx = 240;
   const cy = 220;
   const basePositions = useMemo(() => {
@@ -780,7 +785,7 @@ export function UsageMap({
     }
     for (const e of visiblePosture) claimFile(e.item.file, nodeIdOfPosture(e.idx));
     const level1: { id: string; radius: number; files: string[] }[] = [];
-    for (const e of drawn) level1.push({ id: nodeIdOfFinding(e.idx), radius: 125, files: fanOf.get(nodeIdOfFinding(e.idx)) ?? [] });
+    for (const e of drawn) level1.push({ id: nodeIdOfFinding(e.idx), radius: 205, files: fanOf.get(nodeIdOfFinding(e.idx)) ?? [] });
     for (const e of visiblePosture) level1.push({ id: nodeIdOfPosture(e.idx), radius: 165, files: fanOf.get(nodeIdOfPosture(e.idx)) ?? [] });
     const unparented: string[] = [];
     for (const f of fileNodes) {
@@ -795,19 +800,20 @@ export function UsageMap({
     for (const p of level1) {
       const count = Math.max(1, p.files.length);
       base.set(p.id, place(cursor + (slot * count) / 2, p.radius));
-      p.files.forEach((file, j) => base.set(nodeIdOfFile(file), place(cursor + slot * (j + 0.5), 205)));
+      p.files.forEach((file, j) => base.set(nodeIdOfFile(file), place(cursor + slot * (j + 0.5), 125)));
       cursor += slot * count;
     }
-    unparented.forEach((file, j) => base.set(nodeIdOfFile(file), place(cursor + slot * (j + 0.5), 205)));
+    unparented.forEach((file, j) => base.set(nodeIdOfFile(file), place(cursor + slot * (j + 0.5), 125)));
     return base;
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [drawn, visiblePosture, fileNodes]);
   const positions = useMemo(() => resolveNodePositions(basePositions, overrides), [basePositions, overrides]);
   // File-label stagger follows the ANGULAR order, not the list
   // order: neighbouring files on the plane sit on two label rings
-  // (r+14 and r+42) so adjacent labels never share a line. The
-  // placement order is sorted by angle from the top, so sorting by
-  // wrapped angle recovers it.
+  // (r-14 and r-42, pointing INWARD toward the repo hub now the
+  // files are on the inner ring) so adjacent labels never share a
+  // line. The placement order is sorted by angle from the top, so
+  // sorting by wrapped angle recovers it.
   const fileLabelParity = useMemo(() => {
     const wrapped = (a: number) => (((a + Math.PI / 2) % (2 * Math.PI)) + 2 * Math.PI) % (2 * Math.PI);
     const ranked = fileNodes
@@ -1102,7 +1108,7 @@ export function UsageMap({
     // 2006px² vs the repo centre) or across a caption ("lives in
     // ×2" reading as "10 uslives in ×2"). Every blocker below uses
     // the SAME geometry as the render: node circles (radiusOf),
-    // file labels (radial outward, clamped [42, 358]), finding
+    // file labels (radial inward, clamped [42, 438]), finding
     // captions ("N uses" / "dead end", alternating ±20, fr+14
     // below the node). Edge directions come from the cluster's
     // first edge, so nudges run along/across its own track.
@@ -1114,8 +1120,8 @@ export function UsageMap({
       blockers.push({ x: pos.x, y: pos.y, w: r * 2, h: r * 2 });
       const angle = Math.atan2(pos.y - cy, pos.x - cx);
       const lo = r + 14 + ((fileLabelParity.get(nodeIdOfFile(f.file)) ?? 0) === 1 ? 28 : 0);
-      const lx = Math.max(42, Math.min(438, pos.x + Math.cos(angle) * lo));
-      const ly = Math.max(8, Math.min(432, pos.y + Math.sin(angle) * lo));
+      const lx = Math.max(42, Math.min(438, pos.x - Math.cos(angle) * lo));
+      const ly = Math.max(8, Math.min(432, pos.y - Math.sin(angle) * lo));
       blockers.push({ x: lx, y: ly, w: shortLabel(f.file).length * 4 + 8, h: 14 });
     }
     drawn.forEach((e, i) => {
@@ -1616,17 +1622,18 @@ export function UsageMap({
               const dimmed = dimNode(nodeIdOfFile(f.file));
               const isNeighbour = neighbours.some((n) => n.id === nodeIdOfFile(f.file));
               const pinned = pins.has(nodeIdOfFile(f.file));
-              // The label sits radially OUTWARD from its node (away
-              // from the finding ring), so it can never collide with
-              // a finding's "N uses" caption, which lives in the band
-              // between the rings. The x is clamped so a side node's
-              // label stays inside the viewBox; the y is clamped so
-              // the top node's label stays inside it now the outer
-              // ring is wider (2026-11-27).
+              // The label sits radially INWARD from its node (toward
+              // the repo hub), now the files are on the inner ring,
+              // so it can never collide with a finding's "N uses"
+              // caption, which lives in the band between the rings.
+              // The x is clamped so a side node's label stays inside
+              // the viewBox; the y is clamped so the top node's label
+              // stays inside it now the outer ring is wider
+              // (2026-11-27).
               const angle = Math.atan2(y - cy, x - cx);
               const lo = r + 14 + ((fileLabelParity.get(nodeIdOfFile(f.file)) ?? 0) === 1 ? 28 : 0);
-              const lx = Math.max(42, Math.min(438, x + Math.cos(angle) * lo));
-              const ly = Math.max(8, Math.min(432, y + Math.sin(angle) * lo));
+              const lx = Math.max(42, Math.min(438, x - Math.cos(angle) * lo));
+              const ly = Math.max(8, Math.min(432, y - Math.sin(angle) * lo));
               return (
                 <g
                   key={f.file}
