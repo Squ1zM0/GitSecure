@@ -53,14 +53,14 @@ const CW = 640;
 const CH = 420;
 
 // --- 0. Constants ---
-check("Constants: MIN_ZOOM 0.5, MAX_ZOOM 4, WORLD 480x440", MIN_ZOOM === 0.5 && MAX_ZOOM === 4 && WORLD_W === 480 && WORLD_H === 440);
+check("Constants: MIN_ZOOM 0.5, MAX_ZOOM 4, WORLD 480x480", MIN_ZOOM === 0.5 && MAX_ZOOM === 4 && WORLD_W === 480 && WORLD_H === 480);
 
 // --- 1. fitView ---
 const fit = fitView(CW, CH);
 const fitK = Math.min((CW - 16) / WORLD_W, (CH - 16) / WORLD_H);
 check("fitView: k = min((640-16)/WORLD_W, (420-16)/WORLD_H)", approx(fit.k, fitK), `k=${fit.k} expected=${fitK}`);
 check("fitView: centres the world (x)", approx(fit.x, (CW - WORLD_W * fit.k) / 2), `x=${fit.x}`);
-check("fitView: centres the world (y = 8, since 440*k = 404)", approx(fit.y, 8), `y=${fit.y}`);
+check("fitView: centres the world (y = 8, since 480*k = 404)", approx(fit.y, 8), `y=${fit.y}`);
 check("fitView: custom padding 0 gives k = min(640/WORLD_W, 420/WORLD_H)", approx(fitView(CW, CH, 0).k, Math.min(640 / WORLD_W, 420 / WORLD_H)), `k=${fitView(CW, CH, 0).k}`);
 check("fitView: zero container returns identity (k=1, x=y=0)", JSON.stringify(fitView(0, CH)) === JSON.stringify({ x: 0, y: 0, k: 1 }), JSON.stringify(fitView(0, CH)));
 check("fitView: negative container returns identity", JSON.stringify(fitView(-5, -5)) === JSON.stringify({ x: 0, y: 0, k: 1 }));
@@ -85,7 +85,7 @@ const zoomedCentre = zoomByFactor(fit, 2, CW, CH);
 check("zoomByFactor: world point at container centre stays fixed", ptApprox(screenToWorld({ x: CW / 2, y: CH / 2 }, zoomedCentre), centreBefore));
 
 // --- 5. panBy clamps so the world cannot leave the viewport ---
-// fit.k ≈ 0.9182: x in [40 - 480k, 600] ≈ [-400.73, 600], y in [40 - 440k, 380] = [-364, 380].
+// fit.k ≈ 0.8417: x in [40 - 480k, 600] ≈ [-364, 600], y in [40 - 480k, 380] = [-364, 380].
 const panRight = panBy(fit, 10000, 0, CW, CH);
 check("panBy: far-right pan clamps x to containerW - 40", approx(panRight.x, CW - 40), `x=${panRight.x}`);
 const panLeft = panBy(fit, -10000, 0, CW, CH);
@@ -111,7 +111,7 @@ check("zoomToNode: k is 2 (within [fitK, 4])", toNode.k === 2, `k=${toNode.k}`);
 check("zoomToNode: k within [fitK, 4]", toNode.k >= fitK - 1e-9 && toNode.k <= 4);
 const toNodeBig = zoomToNode(fit, node, 2000, 1900);
 const fitKBig = fitView(2000, 1900).k;
-check("zoomToNode: large container uses fitK when fitK > 2", approx(toNodeBig.k, Math.min(fitKBig, 4)) && toNodeBig.k === 4, `k=${toNodeBig.k} fitK=${fitKBig}`);
+check("zoomToNode: large container uses fitK when fitK > 2", approx(toNodeBig.k, Math.min(fitKBig, 4)) && approx(toNodeBig.k, fitKBig), `k=${toNodeBig.k} fitK=${fitKBig}`);
 check("zoomToNode: large container still centres the node", ptApprox(worldToScreen(node, toNodeBig), { x: 1000, y: 950 }), JSON.stringify(worldToScreen(node, toNodeBig)));
 
 // --- 7b. zoomToNode with an explicit targetK (fix round 2026-11-27,
@@ -125,7 +125,7 @@ const toNodeSmall = zoomToNode(fit, node, CW, CH, 0.5);
 check("zoomToNode: explicit targetK below fitK clamps up to fitK", approx(toNodeSmall.k, fitK) && ptApprox(worldToScreen(node, toNodeSmall), { x: CW / 2, y: CH / 2 }), `k=${toNodeSmall.k} fitK=${fitK}`);
 check("zoomToNode: default targetK is still 2", zoomToNode(fit, node, CW, CH).k === 2, `k=${zoomToNode(fit, node, CW, CH).k}`);
 // The component's responsive target on a 360px-wide plane:
-// min(2, fitK * 1.75) with fitK = min((360-16)/480, (380-16)/440).
+// min(2, fitK * 1.75) with fitK = min((360-16)/480, (380-16)/480).
 const fit360 = fitView(360, 380);
 const target360 = Math.min(2, fit360.k * 1.75);
 const toNode360 = zoomToNode(fit360, node, 360, 380, target360);

@@ -6,7 +6,7 @@
 // without a browser. The component (Worker B) owns rendering and
 // event wiring and calls into this module.
 //
-// World: the map lays nodes out in a fixed 400 x 380 world rect
+// World: the map lays nodes out in a fixed 480 x 480 world rect
 // (WORLD_W x WORLD_H). A ViewTransform maps world -> screen:
 //   screen = world * k + (x, y).
 // Clamp rule (pinned by the Phase 18 contract): after any zoom/pan
@@ -25,7 +25,7 @@ export interface ViewTransform {
 export const MIN_ZOOM = 0.5;
 export const MAX_ZOOM = 4;
 export const WORLD_W = 480;
-export const WORLD_H = 440;
+export const WORLD_H = 480;
 
 /** Pixels of the world that must stay visible on every side. */
 const OVERLAP_PX = 40;
@@ -35,8 +35,8 @@ function clampNumber(v: number, lo: number, hi: number): number {
 }
 
 /**
- * Fit the 400x380 world into the container, default padding 8.
- * Scale = min((cw - 2p) / 400, (ch - 2p) / 380), centred.
+ * Fit the 480x480 world into the container, default padding 8.
+ * Scale = min((cw - 2p) / 480, (ch - 2p) / 480), centred.
  * Zero/negative container sizes (or a container too small for the
  * padding, which would give a non-positive scale) return the
  * identity view { x: 0, y: 0, k: 1 }.
@@ -609,3 +609,164 @@ export function capNote(shown: number, total: number, noun: string): string | nu
 export const MAP_MAX_SECRET_NODES = 24;
 export const MAP_MAX_POSTURE_NODES = 24;
 export const MAP_MAX_FILE_NODES = 32;
+
+/**
+ * Sector layout: order parents and claim files so connected nodes
+ * sit on the same side and their edges do not intersect (Freddy,
+ * 2026-11-28: "have the connected on the same side so that line
+ * don't intersect", and the map is free to expand outward).
+ *
+ * Two rules, both pure and unit-tested in test-map-ordering.ts:
+ *
+ * 1. Greedy parent order. Parents (findings + posture issues) are
+ *    ordered so parents sharing files sit next to each other: start
+ *    with the most-connected parent, then always append the
+ *    unplaced parent sharing the most files with the placed set. A
+ *    shared OWN file counts 10, a shared reference 1: the own edge
+ *    is the visible one (code/test edges hide at fit zoom), so
+ *    owners of the same file cluster first. Ties keep input order.
+ *
+ * 2. Median claim. Each file is claimed by the median parent that
+ *    OWNS it (lower median), or, when no drawn parent owns it, the
+ *    median parent that references it. First-claim let one early
+ *    parent hoard every shared file in its sector: on the live
+ *    self-scan, S8 claimed all four shared test files, so fourteen
+ *    own edges crossed the map to reach them (33 own-edge
+ *    crossings). The median owner puts the file in the middle of
+ *    its owners.
+ *
+ * Measured on the live self-scan report (39 secrets, 24 drawn,
+ * 10 files): own-edge crossings 33 -> 0, total crossings 202 ->
+ * 129, mean edge span 71 -> 54 degrees. The remaining crossings
+ * are all code/test edges, which hide at fit zoom; two findings
+ * sharing two test files cannot be drawn without a crossing on
+ * straight edges, so the test-edge floor is structural, not a bug.
+ * Evidence: test-results/map-crossings-2026-11-28.md.
+ */
+export interface SectorLayoutParent {
+  /** Node id, e.g. "finding:3" or "posture:1". */
+  id: string;
+  /** Ring radius for this parent. */
+  radius: number;
+  /** The file this parent lives in ("" when it has none). */
+  ownFile: string;
+  /** Files this parent references (code/test uses), may repeat. */
+  refs: string[];
+}
+
+export function computeSectorLayout(
+  parents: SectorLayoutParent[],
+  fileIds: string[],
+  centre: { x: number; y: number },
+  fileRadius: number,
+): {
+  positions: Map<string, { x: number; y: number }>;
+  order: string[];
+  claimParent: Map<string, string>;
+} {
+  const byId = new Map(parents.map((p) => [p.id, p]));
+  const connOf = new Map<string, Set<string>>();
+  for (const p of parents) {
+    const s = new Set<string>();
+    if (p.ownFile) s.add(p.ownFile);
+    for (const f of p.refs) if (f) s.add(f);
+    connOf.set(p.id, s);
+  }
+  // 1. Greedy order.
+  const order: string[] = [];
+  const remaining = new Set(parents.map((p) => p.id));
+  const sharedWith = (id: string): number => {
+    let n = 0;
+    for (const placedId of order) {
+      for (const f of connOf.get(id) ?? []) {
+        if (!connOf.get(placedId)?.has(f)) continue;
+        n += byId.get(id)?.ownFile === f && byId.get(placedId)?.ownFile === f ? 10 : 1;
+      }
+    }
+    return n;
+  };
+  while (remaining.size > 0) {
+    let best: string | null = null;
+    let bestScore = -1;
+    let bestLast = -1;
+    for (const id of remaining) {
+      const score = sharedWith(id);
+      const lastId = order.length > 0 ? order[order.length - 1] : null;
+      const last = lastId ? [...(connOf.get(id) ?? [])].filter((f) => connOf.get(lastId)?.has(f)).length : 0;
+      if (score > bestScore || (score === bestScore && last > bestLast)) {
+        best = id;
+        bestScore = score;
+        bestLast = last;
+      }
+    }
+    // best is never null while remaining is non-empty.
+    order.push(best!);
+    remaining.delete(best!);
+  }
+  // 2. Median claim.
+  const orderPos = new Map(order.map((id, i) => [id, i]));
+  const ownersOf = new Map<string, string[]>();
+  const refsOf = new Map<string, string[]>();
+  for (const p of parents) {
+    if (p.ownFile) {
+      if (!ownersOf.has(p.ownFile)) ownersOf.set(p.ownFile, []);
+      ownersOf.get(p.ownFile)!.push(p.id);
+    }
+    for (const f of p.refs) {
+      if (!f) continue;
+      if (!refsOf.has(f)) refsOf.set(f, []);
+      refsOf.get(f)!.push(p.id);
+    }
+  }
+  const claimParent = new Map<string, string>();
+  for (const f of new Set([...ownersOf.keys(), ...refsOf.keys()])) {
+    const owners = [...new Set(ownersOf.get(f) ?? [])].sort((a, b) => (orderPos.get(a) ?? 0) - (orderPos.get(b) ?? 0));
+    if (owners.length > 0) {
+      claimParent.set(f, owners[Math.floor((owners.length - 1) / 2)]);
+    } else {
+      const refs = [...new Set(refsOf.get(f) ?? [])].sort((a, b) => (orderPos.get(a) ?? 0) - (orderPos.get(b) ?? 0));
+      claimParent.set(f, refs[Math.floor((refs.length - 1) / 2)]);
+    }
+  }
+  // 3. Group files by claim parent, in map order, own file first.
+  const fanOf = new Map<string, string[]>();
+  for (const pid of order) {
+    const p = byId.get(pid)!;
+    const files = [p.ownFile, ...p.refs].filter((f): f is string => typeof f === "string" && f.length > 0);
+    for (const f of files) {
+      if (claimParent.get(f) !== pid) continue;
+      if (!fanOf.has(pid)) fanOf.set(pid, []);
+      if (!fanOf.get(pid)!.includes(f)) fanOf.get(pid)!.push(f);
+    }
+  }
+  // 4. Sector slot math (unchanged from the original basePositions):
+  // the circle is divided into leaf slots, one per file plus one
+  // per childless parent; each parent owns the sector covering its
+  // files and sits at the sector centre on its ring; files sit in
+  // their slots on the inner ring inside that sector; unparented
+  // files get slots of their own at the end.
+  const positions = new Map<string, { x: number; y: number }>();
+  positions.set("repo", { x: centre.x, y: centre.y });
+  const level1 = order.map((id) => ({ id, radius: byId.get(id)!.radius, files: fanOf.get(id) ?? [] }));
+  const unparented: string[] = [];
+  for (const f of fileIds) {
+    let claimed = false;
+    for (const files of fanOf.values()) if (files.includes(f)) {
+      claimed = true;
+      break;
+    }
+    if (!claimed) unparented.push(f);
+  }
+  const leaves = level1.reduce((n, p) => n + Math.max(1, p.files.length), 0) + unparented.length;
+  const slot = leaves > 0 ? (2 * Math.PI) / leaves : 0;
+  const place = (angle: number, radius: number) => ({ x: centre.x + radius * Math.cos(angle), y: centre.y + radius * Math.sin(angle) });
+  let cursor = -Math.PI / 2;
+  for (const p of level1) {
+    const count = Math.max(1, p.files.length);
+    positions.set(p.id, place(cursor + (slot * count) / 2, p.radius));
+    p.files.forEach((file, j) => positions.set(`file:${file}`, place(cursor + slot * (j + 0.5), fileRadius)));
+    cursor += slot * count;
+  }
+  unparented.forEach((file, j) => positions.set(`file:${file}`, place(cursor + slot * (j + 0.5), fileRadius)));
+  return { positions, order, claimParent };
+}

@@ -53,6 +53,7 @@ import {
   categoryLabel,
   categoryPolygonPoints,
   clusterEdgeLabels,
+  computeSectorLayout,
   edgeDetailText,
   edgeLabelText,
   edgeLabelThresholdWorld,
@@ -73,6 +74,7 @@ import {
   type EdgeKind,
   type EdgeLabelAnchor,
   type MapCategory,
+  type SectorLayoutParent,
   type ViewTransform,
 } from "@/lib/map-view";
 
@@ -543,7 +545,7 @@ export function UsageMap({
   const svgRef = useRef<SVGSVGElement | null>(null);
   // Fix round 2 (defect 2): the initial fit and Reset view call
   // fitView with padding 48, not the default 8. fitView fits the
-  // 480x440 WORLD, but a finding's "N uses" caption sits fr+14
+  // 480x480 WORLD, but a finding's "N uses" caption sits fr+14
   // below its outer-ring node (up to ~13 world units past the
   // world edge at the bottom), i.e. outside the fitted rect - at
   // 360px the side labels butted hard against the plane border and
@@ -554,7 +556,7 @@ export function UsageMap({
   // and the labels fit inside. fitView's
   // default stays 8; the zoom-to-node target (zoomTargetK) is
   // unchanged.
-  const [view, setView] = useState<ViewTransform>(() => fitView(640, 420, 48));
+  const [view, setView] = useState<ViewTransform>(() => fitView(640, 540, 48));
   const [selected, setSelected] = useState<{ type: "node" | "edge"; id: string } | null>(null);
   const [pins, setPins] = useState<Set<string>>(new Set());
   const [overrides, setOverrides] = useState<Map<string, { x: number; y: number }>>(new Map());
@@ -747,64 +749,47 @@ export function UsageMap({
     if (id.startsWith("file:")) return shortLabel(id.slice("file:".length));
     return id;
   };
-  // Sector tree is the STARTING arrangement (world 480x440, centre
-  // (240,220)): the circle is divided into leaf slots, one per file
+  // Sector tree is the STARTING arrangement (world 480x480, centre
+  // (240,240)): the circle is divided into leaf slots, one per file
   // plus one per childless finding or posture issue. Each finding or
   // posture issue owns the sector covering its files and sits at the
-  // sector centre on its ring (findings r=205, posture r=165); its
-  // files sit in their slots on the inner ring (r=125), inside that
+  // sector centre on its ring (findings r=225, posture r=185); its
+  // files sit in their slots on the inner ring (r=140), inside that
   // sector, so no two parents fan into the same space. Files no
   // drawn finding or visible posture issue references get slots of
   // their own at the end. Overrides win for dragged/pinned nodes.
   // The posture ring sits between the files and the findings so its
   // short "found in" edges never cross the findings ring. Secrets
   // sit outside, files inside: the swap Freddy asked for 2026-11-28,
-  // so the findings fan out to the roomier outer ring.
+  // so the findings fan out to the roomier outer ring. The rings
+  // are pushed outward (findings 205 to 225, files 125 to 140) and
+  // the world grew to 480x480 so they fit: Freddy, 2026-11-28, the
+  // map is free to expand out. The parent order and the file claims
+  // come from computeSectorLayout in map-view.ts (greedy order so
+  // parents sharing files sit together, median claim so a file sits
+  // in the middle of its owners): connected nodes sit on the same
+  // side and their edges do not intersect.
   const cx = 240;
-  const cy = 220;
+  const cy = 240;
   const basePositions = useMemo(() => {
-    const base = new Map<string, { x: number; y: number }>();
-    base.set("repo", { x: cx, y: cy });
-    // First claim wins: each file branches off the first finding
-    // (own file, then referenced files) or posture issue that
-    // references it.
-    const fanOf = new Map<string, string[]>();
-    const claimFile = (file: unknown, parentId: string) => {
-      if (typeof file !== "string" || file.length === 0) return;
-      for (const files of fanOf.values()) if (files.includes(file)) return;
-      if (!fanOf.has(parentId)) fanOf.set(parentId, []);
-      fanOf.get(parentId)!.push(file);
-    };
-    for (const e of drawn) {
-      const parentId = nodeIdOfFinding(e.idx);
-      claimFile(e.item.file, parentId);
-      const u = usageOf(e);
-      if (u && !u.deadEnd) {
-        for (const r of [...u.referencedBy, ...u.referencedByTests]) claimFile(r.file, parentId);
-      }
-    }
-    for (const e of visiblePosture) claimFile(e.item.file, nodeIdOfPosture(e.idx));
-    const level1: { id: string; radius: number; files: string[] }[] = [];
-    for (const e of drawn) level1.push({ id: nodeIdOfFinding(e.idx), radius: 205, files: fanOf.get(nodeIdOfFinding(e.idx)) ?? [] });
-    for (const e of visiblePosture) level1.push({ id: nodeIdOfPosture(e.idx), radius: 165, files: fanOf.get(nodeIdOfPosture(e.idx)) ?? [] });
-    const unparented: string[] = [];
-    for (const f of fileNodes) {
-      let claimed = false;
-      for (const files of fanOf.values()) if (files.includes(f.file)) { claimed = true; break; }
-      if (!claimed) unparented.push(f.file);
-    }
-    const leaves = level1.reduce((n, p) => n + Math.max(1, p.files.length), 0) + unparented.length;
-    const slot = leaves > 0 ? (2 * Math.PI) / leaves : 0;
-    const place = (angle: number, radius: number) => ({ x: cx + radius * Math.cos(angle), y: cy + radius * Math.sin(angle) });
-    let cursor = -Math.PI / 2;
-    for (const p of level1) {
-      const count = Math.max(1, p.files.length);
-      base.set(p.id, place(cursor + (slot * count) / 2, p.radius));
-      p.files.forEach((file, j) => base.set(nodeIdOfFile(file), place(cursor + slot * (j + 0.5), 125)));
-      cursor += slot * count;
-    }
-    unparented.forEach((file, j) => base.set(nodeIdOfFile(file), place(cursor + slot * (j + 0.5), 125)));
-    return base;
+    const parents: SectorLayoutParent[] = [
+      ...drawn.map((e) => {
+        const u = usageOf(e);
+        return {
+          id: nodeIdOfFinding(e.idx),
+          radius: 225,
+          ownFile: e.item.file,
+          refs: u && !u.deadEnd ? [...u.referencedBy, ...u.referencedByTests].map((r) => r.file) : [],
+        };
+      }),
+      ...visiblePosture.map((e) => ({
+        id: nodeIdOfPosture(e.idx),
+        radius: 185,
+        ownFile: typeof e.item.file === "string" ? e.item.file : "",
+        refs: [] as string[],
+      })),
+    ];
+    return computeSectorLayout(parents, fileNodes.map((f) => f.file), { x: cx, y: cy }, 140).positions;
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [drawn, visiblePosture, fileNodes]);
   const positions = useMemo(() => resolveNodePositions(basePositions, overrides), [basePositions, overrides]);
@@ -1121,7 +1106,7 @@ export function UsageMap({
       const angle = Math.atan2(pos.y - cy, pos.x - cx);
       const lo = r + 14 + ((fileLabelParity.get(nodeIdOfFile(f.file)) ?? 0) === 1 ? 28 : 0);
       const lx = Math.max(42, Math.min(438, pos.x - Math.cos(angle) * lo));
-      const ly = Math.max(8, Math.min(432, pos.y - Math.sin(angle) * lo));
+      const ly = Math.max(8, Math.min(472, pos.y - Math.sin(angle) * lo));
       blockers.push({ x: lx, y: ly, w: shortLabel(f.file).length * 4 + 8, h: 14 });
     }
     drawn.forEach((e, i) => {
@@ -1633,7 +1618,7 @@ export function UsageMap({
               const angle = Math.atan2(y - cy, x - cx);
               const lo = r + 14 + ((fileLabelParity.get(nodeIdOfFile(f.file)) ?? 0) === 1 ? 28 : 0);
               const lx = Math.max(42, Math.min(438, x - Math.cos(angle) * lo));
-              const ly = Math.max(8, Math.min(432, y - Math.sin(angle) * lo));
+              const ly = Math.max(8, Math.min(472, y - Math.sin(angle) * lo));
               return (
                 <g
                   key={f.file}

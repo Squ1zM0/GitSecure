@@ -479,7 +479,7 @@ button.file-chip { margin: 3px; padding: 6px 10px; font-size: 13px; font-weight:
  * the one <g transform>), overflow hidden clips panned content, and
  * touch-action none keeps every gesture inside the box. The old
  * .map-wrap overflow rule is untouched - FileMap still uses it. */
-.map-plane { height: 420px; border: 1px solid var(--line); border-radius: var(--radius-sm); overflow: hidden; }
+.map-plane { height: 540px; border: 1px solid var(--line); border-radius: var(--radius-sm); overflow: hidden; }
 .map-plane svg { display: block; width: 100%; height: 100%; touch-action: none; }
 .map-plane:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
 .map-toolbar { display: flex; gap: 8px; flex-wrap: wrap; margin: 10px 0; }
@@ -512,6 +512,9 @@ text.map-edge-label { font-size: 9px; fill: var(--text); paint-order: stroke; st
 .map-hint { font-size: 13px; color: var(--muted); }
 /* Visually-hidden screen-reader summary of the whole map. */
 .map-sr-summary { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+@media (max-width: 480px) {
+  .map-plane { height: 420px; }
+}
 @media (max-width: 360px) {
   .map-plane { height: 380px; }
 }
