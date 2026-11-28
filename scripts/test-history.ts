@@ -86,6 +86,10 @@ async function main() {
   // it. The fake secret is assembled from fragments (never a literal
   // secret-pattern string in this file). List is paginated: page 1
   // returns 2 commits + a Link next header, page 2 returns 1 commit.
+  // List entries carry parents, as the real API does: the old commit
+  // is the root, so the window has no compare base and the scan falls
+  // back to the per-commit fetches - that is why the detail count
+  // below stays 3 (Phase 21).
   const SHA_OLD = "1111111111111111111111111111111111111111";
   const SHA_MID = "2222222222222222222222222222222222222222";
   const SHA_NEW = "3333333333333333333333333333333333333333";
@@ -102,10 +106,10 @@ async function main() {
       if (page === "1") {
         res.setHeader("Link", `<${base}/repos/testowner/testrepo/commits?per_page=100&sha=main&page=2>; rel="next"`);
         res.setHeader("Content-Type", "application/json");
-        res.end(JSON.stringify([{ sha: SHA_NEW }, { sha: SHA_MID }]));
+        res.end(JSON.stringify([{ sha: SHA_NEW, parents: [{ sha: SHA_MID }] }, { sha: SHA_MID, parents: [{ sha: SHA_OLD }] }]));
       } else {
         res.setHeader("Content-Type", "application/json");
-        res.end(JSON.stringify([{ sha: SHA_OLD }]));
+        res.end(JSON.stringify([{ sha: SHA_OLD, parents: [] }]));
       }
       return;
     }
@@ -190,6 +194,132 @@ async function main() {
     check("rate-limit mock reports 1 commit scanned", rl.commitsScanned === 1, `${rl.commitsScanned} scanned`);
   } finally {
     await new Promise<void>((resolve) => rlServer.close(() => resolve()));
+  }
+
+  // --- Phase 21 (Workstream B): compare-window pre-filter on the
+  // whole-API path. A 1001-commit linear history behind the mock
+  // (1000 listed, the 1001st is the parent of the oldest listed commit
+  // so the last window still has a compare base): a clean scan must
+  // cost 10 list pages + 4 compare calls and ZERO detail fetches,
+  // against ~1010 calls for the old per-commit path. With a secret
+  // planted in one commit, only that commit's window falls back to
+  // detail fetches, and the finding is attributed to the exact commit.
+  // The mock compare answers the NET diff from base to head, as the
+  // real endpoint does: each commit appends one line (the plant commit
+  // appends the webhook line to app.js instead), nothing is ever
+  // removed, so the net diff is the window's added lines grouped by
+  // file.
+  const BIG_LISTED = 1000;
+  const bigSha = (i: number) => i.toString(16).padStart(40, "0");
+  const PLANT_IDX = 600; // newest-first index of the planting commit
+  const fakeWebhookBig =
+    "https://discord.com/api/webhooks/" + "777777777777777777/" + FAKE.repeat(6) + "123456";
+  let bigPlantSecret = false;
+  let bigListRequests = 0;
+  let bigCompareRequests = 0;
+  let bigDetailRequests = 0;
+  const bigServer = createServer((req: IncomingMessage, res: ServerResponse) => {
+    const url = new URL(req.url ?? "/", `http://${req.headers.host}`);
+    const base = `http://${req.headers.host}`;
+    if (url.pathname === "/repos/testowner/testrepo/commits") {
+      bigListRequests++;
+      const page = parseInt(url.searchParams.get("page") ?? "1", 10);
+      const start = (page - 1) * 100;
+      const end = Math.min(start + 100, BIG_LISTED);
+      if (page < 10) {
+        res.setHeader("Link", `<${base}/repos/testowner/testrepo/commits?per_page=100&sha=main&page=${page + 1}>; rel="next"`);
+      }
+      res.setHeader("Content-Type", "application/json");
+      const entries = [];
+      for (let i = start; i < end; i++) entries.push({ sha: bigSha(i), parents: [{ sha: bigSha(i + 1) }] });
+      res.end(JSON.stringify(entries));
+      return;
+    }
+    const bigCompareM = /^\/repos\/testowner\/testrepo\/compare\/([0-9a-f]+)\.\.\.([0-9a-f]+)$/.exec(url.pathname);
+    if (bigCompareM) {
+      bigCompareRequests++;
+      const headIdx = parseInt(bigCompareM[2], 16);
+      const baseIdx = parseInt(bigCompareM[1], 16);
+      const total = baseIdx - headIdx;
+      const byFile = new Map<string, string[]>();
+      for (let i = headIdx; i < baseIdx; i++) {
+        if (bigPlantSecret && i === PLANT_IDX) {
+          byFile.set("app.js", [...(byFile.get("app.js") ?? []), `const HOOK = "${fakeWebhookBig}";`]);
+        } else {
+          const file = `file${i % 10}.txt`;
+          byFile.set(file, [...(byFile.get(file) ?? []), `change ${i}`]);
+        }
+      }
+      const files = [...byFile.entries()].map(([filename, lines]) => ({
+        filename,
+        patch: `@@ -0,0 +1,${lines.length} @@\n${lines.map((l) => `+${l}`).join("\n")}\n`,
+      }));
+      res.setHeader("Content-Type", "application/json");
+      res.end(JSON.stringify({ status: "ahead", ahead_by: total, behind_by: 0, total_commits: total, truncated: false, files }));
+      return;
+    }
+    const bigDetailM = /^\/repos\/testowner\/testrepo\/commits\/([0-9a-f]+)$/.exec(url.pathname);
+    if (bigDetailM) {
+      bigDetailRequests++;
+      const idx = parseInt(bigDetailM[1], 16);
+      let files: { filename: string; patch: string }[];
+      if (bigPlantSecret && idx === PLANT_IDX) {
+        files = [{ filename: "app.js", patch: `@@ -0,0 +1,2 @@\n+const HOOK = "${fakeWebhookBig}";\n+module.exports = { HOOK };\n` }];
+      } else {
+        files = [{ filename: `file${idx % 10}.txt`, patch: `@@ -1,1 +1,2 @@\n context\n+change ${idx}\n` }];
+      }
+      res.setHeader("Content-Type", "application/json");
+      res.end(JSON.stringify({ sha: bigDetailM[1], files }));
+      return;
+    }
+    res.statusCode = 404;
+    res.end("not found");
+  });
+  await new Promise<void>((resolve) => bigServer.listen(0, "127.0.0.1", resolve));
+  const bigBase = `http://127.0.0.1:${(bigServer.address() as { port: number }).port}`;
+  try {
+    const bigClean = await scanHistoryViaApi("testowner", "testrepo", "main", { apiBase: bigBase });
+    check("Phase 21 clean 1000-commit scan succeeds", bigClean.ok, bigClean.note ?? "");
+    check("Phase 21 clean scan covers all 1000 commits", bigClean.commitsScanned === 1000, `${bigClean.commitsScanned} scanned`);
+    check("Phase 21 clean scan finds nothing", bigClean.findings.length === 0, `${bigClean.findings.length} findings`);
+    check(
+      "Phase 21 clean scan costs 10 list + 4 compare calls and 0 detail fetches",
+      bigListRequests === 10 && bigCompareRequests === 4 && bigDetailRequests === 0,
+      `list=${bigListRequests} compare=${bigCompareRequests} detail=${bigDetailRequests}`,
+    );
+    check("Phase 21 clean scan restCalls is 14 (old per-commit path: ~1010)", bigClean.restCalls === 14, `${bigClean.restCalls} calls`);
+
+    // Same history with a secret planted in one commit: only that
+    // commit's window falls back to detail fetches.
+    bigPlantSecret = true;
+    bigListRequests = 0;
+    bigCompareRequests = 0;
+    bigDetailRequests = 0;
+    const bigHit = await scanHistoryViaApi("testowner", "testrepo", "main", { apiBase: bigBase });
+    check("Phase 21 hit scan succeeds", bigHit.ok, bigHit.note ?? "");
+    check("Phase 21 hit scan covers all 1000 commits", bigHit.commitsScanned === 1000, `${bigHit.commitsScanned} scanned`);
+    const bigHooks = bigHit.findings.filter((f) => f.type === "discord-webhook");
+    check("Phase 21 hit scan finds the planted webhook once", bigHooks.length === 1, `${bigHooks.length} found`);
+    check(
+      "Phase 21 hit finding attributed to the exact planting commit",
+      bigHooks[0]?.commit === bigSha(PLANT_IDX).slice(0, 7),
+      `commit=${bigHooks[0]?.commit ?? "?"} expected ${bigSha(PLANT_IDX).slice(0, 7)}`,
+    );
+    check("Phase 21 hit finding points at app.js", bigHooks[0]?.file === "app.js", bigHooks[0]?.file ?? "?");
+    check(
+      "Phase 21 hit scan fetches details only for the one hit window (250)",
+      bigDetailRequests === 250,
+      `detail=${bigDetailRequests}`,
+    );
+    check(
+      "Phase 21 hit scan still costs 10 list + 4 compare calls",
+      bigListRequests === 10 && bigCompareRequests === 4,
+      `list=${bigListRequests} compare=${bigCompareRequests}`,
+    );
+    check("Phase 21 hit scan restCalls is 264 (old per-commit path: ~1010)", bigHit.restCalls === 264, `${bigHit.restCalls} calls`);
+    check("no full fake secret in Phase 21 findings", !leaksSecret(JSON.stringify(bigHit.findings), fakeWebhookBig));
+  } finally {
+    await new Promise<void>((resolve) => bigServer.close(() => resolve()));
   }
 
   // Invalid owner/repo must fail closed on the API path too.

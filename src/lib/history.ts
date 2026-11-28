@@ -55,6 +55,7 @@ import { scanLinesForSecrets, type ScannedLine } from "./secrets";
 import { triageFindings, triageHistoryFindings } from "./triage";
 import { computeUsageForFindings, type FindingContext } from "./usage";
 import { isSkippablePath } from "./paths";
+import { COMPARE_WINDOW_MAX_COMMITS, parsePatchAddedLines, resolveCompareBase, scanCompareWindow } from "./compare-windows";
 import type { SecretFinding } from "./types";
 
 export const MAX_HISTORY_COMMITS = 1000;
@@ -395,17 +396,22 @@ export async function scanFullHistory(
 
 // ---------------------------------------------------------------------------
 // API history path (Phase 6). Same guarantees as the clone path, but over
-// the GitHub REST API - this is the path that runs on Vercel, where there
-// is no git binary. No import from scan.ts here (scan.ts imports this
+// the GitHub REST API - this is the fallback when the git path fails
+// (clone error, pack past the bound, or timeout), not the primary
+// path: the git path runs on Vercel too, through isomorphic-git, and
+// is tried first. No import from scan.ts here (scan.ts imports this
 // module); all fetch / rate-limit handling lives in this file.
 //
 // Flow: page the commits list (newest-first, 100/page, Link headers) up
-// to MAX_HISTORY_COMMITS, then fetch each commit's detail in a pool of 5
-// and scan the ADDED lines of each file's patch only, with the same
-// detectors, the same skippable-path rules, and the same caps (commits /
-// patch bytes / deadline). Findings scanned before a cap are kept.
-// Attribution is per-commit: a finding's commit is the 7-char sha of the
-// commit whose patch contained it.
+// to MAX_HISTORY_COMMITS, then scan it in compare windows of up to 250
+// commits (Phase 21, Workstream B): one compare call per window scans
+// the window's aggregate diff, and only a window with a hit - or one
+// the compare cannot vouch for - falls back to fetching each commit's
+// detail in a pool of 5. Either way the ADDED lines of each file's
+// patch are scanned with the same detectors, the same skippable-path
+// rules, and the same caps (commits / patch bytes / deadline). Findings
+// scanned before a cap are kept. Attribution is per-commit: a finding's
+// commit is the 7-char sha of the commit whose patch contained it.
 //
 // Auth: Bearer GITHUB_TOKEN when set (never logged), same headers as
 // scan.ts's ghJson. A 429, or a 403 with x-ratelimit-remaining: 0, stops
@@ -447,31 +453,6 @@ async function apiFetch(url: string, timeoutMs: number, stats: { restCalls: numb
   }
 }
 
-/** Parse a unified-diff patch into its added lines, with new-file line
- *  numbers taken from the hunk headers - the same shape the clone path
- *  feeds the detectors. Removed lines and context lines are not scanned. */
-function parsePatchAddedLines(patch: string): ScannedLine[] {
-  const lines: ScannedLine[] = [];
-  let newLine = 0;
-  for (const raw of patch.split("\n")) {
-    const line = raw.replace(/\r$/, "");
-    const hunkM = /^@@ -\d+(?:,\d+)? \+(\d+)(?:,\d+)? @@/.exec(line);
-    if (hunkM) {
-      newLine = parseInt(hunkM[1], 10);
-      continue;
-    }
-    if (line.startsWith("+++")) continue;
-    if (line.startsWith("+")) {
-      lines.push({ line: newLine, text: line.slice(1) });
-      newLine++;
-    } else if (line.startsWith(" ")) {
-      newLine++;
-    }
-    // "-" (removed) lines do not advance newLine.
-  }
-  return lines;
-}
-
 export async function scanHistoryViaApi(
   owner: string,
   repo: string,
@@ -503,7 +484,12 @@ export async function scanHistoryViaApi(
   let rateLimited = false;
 
   // --- Phase 1: page the commits list, newest-first, up to the cap. ---
+  // firstParents[i] is the first parent of shas[i] (null for the root
+  // commit, or when the list entry carries no parents) - the compare
+  // pre-filter in Phase 2 needs it as the base for a window that runs
+  // to the end of the listed history.
   const shas: string[] = [];
+  const firstParents: (string | null)[] = [];
   let listUrl: string | null = `${apiBase}/repos/${owner}/${repo}/commits?per_page=100&sha=${encodeURIComponent(branch)}`;
   while (listUrl && shas.length < MAX_HISTORY_COMMITS) {
     const remaining = deadline - Date.now();
@@ -518,16 +504,21 @@ export async function scanHistoryViaApi(
       return { ok: true, findings, commitsScanned, patchBytes, truncated: false, timedOut: false, note: rateLimitNote(0), ms: Date.now() - started, method: "api", cachedCommits: 0, commitsFetched: commitsScanned, restCalls: stats.restCalls, gitRequests: 0 };
     }
     if (!res.ok) return fail(`GitHub API answered with an unexpected error (${res.status}) - history API scan skipped.`);
-    let page: { sha?: string }[];
+    let page: { sha?: string; parents?: { sha?: string }[] }[];
     try {
-      page = (await res.json()) as { sha?: string }[];
+      page = (await res.json()) as { sha?: string; parents?: { sha?: string }[] }[];
     } catch {
       return fail("GitHub API returned an unreadable response - history API scan skipped.");
     }
     if (!Array.isArray(page)) return fail("GitHub API returned an unexpected response - history API scan skipped.");
     for (const c of page) {
       if (shas.length >= MAX_HISTORY_COMMITS) break;
-      if (typeof c.sha === "string" && c.sha) shas.push(c.sha);
+      if (typeof c.sha === "string" && c.sha) {
+        shas.push(c.sha);
+        firstParents.push(
+          Array.isArray(c.parents) && typeof c.parents[0]?.sha === "string" ? c.parents[0].sha : null,
+        );
+      }
     }
     const link = res.headers.get("link");
     const next = link ? /<([^>]+)>;\s*rel="next"/.exec(link)?.[1] ?? null : null;
@@ -535,8 +526,17 @@ export async function scanHistoryViaApi(
     listUrl = next;
   }
 
-  // --- Phase 2: fetch each commit's patch (pool of 5) and scan added lines. ---
-  let nextIdx = 0;
+  // --- Phase 2: compare-window pre-filter, then per-commit fetches
+  // only where the pre-filter cannot clear the window. ---
+  // Windows are newest-first slices of up to COMPARE_WINDOW_MAX_COMMITS
+  // (250) SHAs. One compare call covers a whole window's aggregate
+  // diff: a clean window costs exactly 1 call and skips the per-commit
+  // fetches below. A window with a hit, or one the compare cannot vouch
+  // for (no base, truncated diff, diverged range), falls through to the
+  // per-commit loop, which attributes each finding to its exact commit -
+  // the per-commit fetch is the confirmation step, not the search step.
+  // A rate-limited compare stops the scan without advancing, exactly as
+  // a rate-limited detail fetch does.
   const scanCommit = async (sha: string): Promise<void> => {
     const remaining = deadline - Date.now();
     if (remaining <= 0) {
@@ -573,19 +573,71 @@ export async function scanHistoryViaApi(
     }
   };
 
-  const worker = async (): Promise<void> => {
-    for (;;) {
-      if (rateLimited || truncated || timedOut) return;
-      if (Date.now() >= deadline) {
-        timedOut = true;
-        return;
+  const scanWindowPerCommit = async (windowShas: string[]): Promise<void> => {
+    let nextIdx = 0;
+    const worker = async (): Promise<void> => {
+      for (;;) {
+        if (rateLimited || truncated || timedOut) return;
+        if (Date.now() >= deadline) {
+          timedOut = true;
+          return;
+        }
+        const idx = nextIdx++;
+        if (idx >= windowShas.length) return;
+        await scanCommit(windowShas[idx]);
       }
-      const idx = nextIdx++;
-      if (idx >= shas.length) return;
-      await scanCommit(shas[idx]);
-    }
+    };
+    await Promise.all(Array.from({ length: Math.min(API_CONCURRENCY, windowShas.length) }, () => worker()));
   };
-  await Promise.all(Array.from({ length: Math.min(API_CONCURRENCY, shas.length) }, () => worker()));
+
+  let windowStart = 0;
+  while (windowStart < shas.length) {
+    if (rateLimited || truncated || timedOut) break;
+    if (Date.now() >= deadline) {
+      timedOut = true;
+      break;
+    }
+    const windowShas = shas.slice(windowStart, windowStart + COMPARE_WINDOW_MAX_COMMITS);
+    const windowEnd = windowStart + windowShas.length;
+    // The compare base is the commit immediately older than the window:
+    // the next SHA on the list, or the oldest window commit's first
+    // parent when the window runs to the end of the listed history.
+    // No base (the window ends at the root commit) means the per-commit
+    // fetches - no compare can express the root commit's own diff.
+    const nextSha = windowEnd < shas.length ? shas[windowEnd] : null;
+    const oldestFirstParent = firstParents[windowEnd - 1] ?? null;
+    const baseSha = resolveCompareBase(windowShas, nextSha, oldestFirstParent);
+    let usePerCommit = true;
+    if (baseSha !== null) {
+      const remaining = deadline - Date.now();
+      if (remaining <= 0) {
+        timedOut = true;
+        break;
+      }
+      // KNOWN LIMIT (Phase 21, deliberate tradeoff): the aggregate diff
+      // is a NET diff from base to head, so a secret added and then
+      // removed again inside this same window leaves no trace in it
+      // and the pre-filter cannot see it. The git path has no such hole;
+      // this affects only the API path. The window size stays at 250
+      // and no extra fetching closes it - the exposure is bounded by
+      // the window.
+      const compared = await scanCompareWindow(
+        apiBase, owner, repo, baseSha, windowShas[0], windowShas.length,
+        (url, timeoutMs) => apiFetch(url, timeoutMs, stats),
+        remaining,
+      );
+      if (compared.outcome === "rate-limited") {
+        rateLimited = true;
+        break;
+      } else if (compared.outcome === "clean") {
+        commitsScanned += windowShas.length;
+        usePerCommit = false;
+      }
+      // "hit" or "unusable": fall through to the per-commit fetches.
+    }
+    if (usePerCommit) await scanWindowPerCommit(windowShas);
+    windowStart = windowEnd;
+  }
 
   const wasTruncated = truncated || listTruncated;
   const ms = Date.now() - started;
@@ -712,6 +764,12 @@ export async function scanHistoryApiChunk(
 
   // List the current page if the cursor does not already hold its SHAs.
   let pageShas = state.pageShas;
+  // Phase 21 (Workstream B): first-parent SHA per listed commit,
+  // parallel to pageShas. Populated only when the page is listed
+  // fresh in this call - the cursor carries SHAs only, so a resumed
+  // page has no parents and the compare pre-filter below falls back
+  // to the per-commit fetches for a window ending at that page.
+  let pageFirstParents: (string | null)[] = [];
   let page = state.page;
   let idx = state.idx;
   if (idx >= pageShas.length) {
@@ -725,14 +783,18 @@ export async function scanHistoryApiChunk(
     if (listRes.status === 404) return fail("Repository not found (or it is private).");
     if (isApiRateLimited(listRes)) return { ...empty, rateLimited: true, restCalls: stats.restCalls };
     if (!listRes.ok) return fail(`GitHub API answered with an unexpected error (${listRes.status}) - history API scan skipped.`);
-    let listPage: { sha?: string }[];
+    let listPage: { sha?: string; parents?: { sha?: string }[] }[];
     try {
-      listPage = (await listRes.json()) as { sha?: string }[];
+      listPage = (await listRes.json()) as { sha?: string; parents?: { sha?: string }[] }[];
     } catch {
       return fail("GitHub API returned an unreadable response - history API scan skipped.");
     }
     if (!Array.isArray(listPage)) return fail("GitHub API returned an unexpected response - history API scan skipped.");
-    pageShas = listPage.filter((c) => typeof c.sha === "string").map((c) => c.sha as string);
+    const listed = listPage.filter((c) => typeof c.sha === "string");
+    pageShas = listed.map((c) => c.sha as string);
+    pageFirstParents = listed.map((c) =>
+      Array.isArray(c.parents) && typeof c.parents[0]?.sha === "string" ? (c.parents[0].sha as string) : null,
+    );
     idx = 0;
     if (pageShas.length === 0) {
       // No commits at all on this page - history is complete.
@@ -754,7 +816,40 @@ export async function scanHistoryApiChunk(
   let commitsScanned = 0;
   let rateLimited = false;
   let nextIdx = idx;
-  for (const sha of shas) {
+
+  // Phase 21 (Workstream B): compare-window pre-filter. One compare
+  // call covers the whole window's aggregate diff; a clean window
+  // costs exactly 1 call and skips the per-commit fetches below. A
+  // window with a hit, or one the compare cannot vouch for (no base,
+  // truncated diff, diverged range), falls through to the per-commit
+  // loop, which attributes each finding to its exact commit.
+  let usePerCommit = true;
+  if (!outOfTime() && shas.length > 0) {
+    const nextPageSha = idx + take < pageShas.length ? pageShas[idx + take] : null;
+    const oldestFirstParent =
+      pageFirstParents.length === pageShas.length ? pageFirstParents[idx + take - 1] : null;
+    const baseSha = resolveCompareBase(shas, nextPageSha, oldestFirstParent);
+    if (baseSha !== null) {
+      const compared = await scanCompareWindow(
+        apiBase, owner, repo, baseSha, shas[0], shas.length,
+        (url, timeoutMs) => apiFetch(url, timeoutMs, stats),
+        fetchTimeoutMs(),
+      );
+      if (compared.outcome === "rate-limited") {
+        // Stop here WITHOUT advancing: the cursor points at this
+        // window, so a later call retries it when quota returns.
+        rateLimited = true;
+        usePerCommit = false;
+      } else if (compared.outcome === "clean") {
+        commitsScanned += shas.length;
+        nextIdx = idx + shas.length;
+        usePerCommit = false;
+      }
+      // "hit" or "unusable": fall through to the per-commit loop.
+    }
+  }
+  const confirmShas = usePerCommit ? shas : [];
+  for (const sha of confirmShas) {
     // Phase 16: stop at the deadline - the cursor stays on this
     // commit (nextIdx is not advanced), so the next chunk retries
     // it, exactly like the rate-limit break below.

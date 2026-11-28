@@ -52,6 +52,8 @@
     "test:map-phase19": "tsx scripts/test-map-phase19.ts",
     "test:assemble-head-validation": "tsx scripts/test-assemble-head-validation.ts",
     "test:phase20": "tsx scripts/test-phase20.ts",
+    "test:phase21-compare": "tsx scripts/test-phase21-compare.ts",
+    "test:phase21-resume": "tsx scripts/test-phase21-resume.ts",
     "test:map-ordering": "tsx scripts/test-map-ordering.ts"
   },
   "version": "0.1.0"

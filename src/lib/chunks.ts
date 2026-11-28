@@ -410,7 +410,14 @@ export async function advanceScan(input: AdvanceInput): Promise<AdvanceResult> {
         Math.min(chunkCommits, API_HISTORY_CHUNK_COMMITS),
         { apiBase: input.apiBase, expectedHeadSha: cursor.headSha, deadlineMs: input.deadlineMs },
       );
-      return apiChunkResult(cursor, apiChunk, headForPartial, "git");
+      // Phase 21 (Workstream A): pass the short git-failure phrase
+      // through - when the API fallback fails too, apiChunkResult
+      // advances the cursor to assemble with a note naming both
+      // failures instead of throwing a retryable 502 (see there).
+      return apiChunkResult(
+        cursor, apiChunk, headForPartial, "git",
+        result.packTooLarge ? "the history pack was too large to clone" : "the git clone failed",
+      );
     }
     chunkFindings = result.findings;
     // commitsScanned for this chunk is the commits it covered (new
@@ -463,16 +470,75 @@ export async function advanceScan(input: AdvanceInput): Promise<AdvanceResult> {
 /** Shared tail of a history chunk that came from the API path: build
  *  the next cursor and the partial. `fallbackFrom` names the method the
  *  scan started with (the report's history line uses the API method
- *  either way - the path that produced the findings is what matters). */
+ *  either way - the path that produced the findings is what matters).
+ *  `gitFailedNote` is a short phrase naming why the git path gave up
+ *  (git-fallback branch only) - it goes into the terminal note when
+ *  the API fallback fails too, so the report says both halves.
+ *
+ *  Phase 21 (Workstream A): a FAILED API chunk no longer throws.
+ *  It used to throw ScanError 502 here, which returned no cursor at
+ *  all - so the driver retried the byte-identical cursor, hit the
+ *  identical failure, and looped forever. The standing repro is a
+ *  clone that times out (or a pack past the bound) plus an API that
+ *  answers 500: every advanceScan attempt threw the identical 502
+ *  with no cursor returned. A failed chunk now advances the cursor
+ *  to assemble instead: the scan finishes with an honest history
+ *  note, and there is no identical cursor left to retry. A
+ *  rate-limit-shaped failure (an unexpected 403/429 from the API -
+ *  the primary limit is caught earlier as rateLimited, so what
+ *  reaches here is the secondary/abuse limit) stops as
+ *  "rate-limit" with the honest unknown-reset wording ("resets
+ *  within the hour" - the API chunk does not surface GitHub's
+ *  reset header, so no countdown is invented); any other failure
+ *  stops as "truncated" with both failure reasons in the note.
+ *  headMoved still throws: a moved HEAD is a genuine restart, and
+ *  the driver handles 409 by discarding progress and reloading -
+ *  that is not a loop. */
 function apiChunkResult(
   cursor: ScanCursorData,
   chunk: Awaited<ReturnType<typeof scanHistoryApiChunk>>,
   head: HeadPartial | null,
   _fallbackFrom: "git" | "api",
+  gitFailedNote?: string | null,
 ): AdvanceResult {
   if (chunk.headMoved) throw headMovedError();
   if (chunk.failed) {
-    throw new ScanError(502, "upstream", chunk.note ?? "GitHub didn't answer as expected. Try again in a bit.");
+    const histScanned = cursor.histScanned + chunk.commitsScanned;
+    const apiNote = chunk.note ?? "GitHub API did not answer as expected.";
+    // Secondary rate limit (abuse detection): a 403/429 that the API
+    // chunk reports as a plain failure, not rateLimited - the primary
+    // limit never reaches here (isApiRateLimited catches it first).
+    // Matched on the chunk's own note format; a miss degrades to the
+    // truncated stop below, which is still non-looping.
+    const rateLimitedShape = /unexpected error \((403|429)\)/.test(apiNote);
+    const commitsWord = `${histScanned} commit${histScanned === 1 ? "" : "s"}`;
+    let histStop: ScanCursorData["histStop"];
+    let histNote: string;
+    if (rateLimitedShape) {
+      histStop = "rate-limit";
+      histNote = gitFailedNote
+        ? `History stopped here: ${gitFailedNote} and the GitHub API fallback hit the request limit - history stopped after ${commitsWord}. The limit resets within the hour.`
+        : `GitHub's request limit was hit - history stopped after ${commitsWord}. The limit resets within the hour.`;
+    } else {
+      histStop = "truncated";
+      histNote = gitFailedNote
+        ? `History stopped here: ${gitFailedNote} and the GitHub API fallback failed (${apiNote}). ${histScanned} commit${histScanned === 1 ? "" : "s"} scanned before stopping.`
+        : `History stopped here: the GitHub API failed (${apiNote}). ${histScanned} commit${histScanned === 1 ? "" : "s"} scanned before stopping.`;
+    }
+    const next: ScanCursorData = {
+      ...cursor,
+      historyMethod: "api",
+      histScanned,
+      histPage: chunk.nextPage,
+      histIdx: chunk.nextIdx,
+      histPageShas: chunk.nextPageShas,
+      histDone: false,
+      histStop,
+      histNote,
+      stage: "assemble",
+    };
+    const partial = partialFrom(next, head, histNote);
+    return { status: "partial", cursor: encodeCursor(next), partial, chunkFindings: chunk.findings, progress: partial.progress, note: histNote };
   }
   const histScanned = cursor.histScanned + chunk.commitsScanned;
   let histStop: ScanCursorData["histStop"] = null;
