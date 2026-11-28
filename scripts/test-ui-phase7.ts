@@ -105,7 +105,7 @@ const fakeSecrets: SecretFinding[] = [
   },
 ];
 const list = renderToString(
-  React.createElement(SecretsList, { secrets: fakeSecrets, owner: "Squ1zM0", repo: "TechDirect", branch: "main" }),
+  React.createElement(SecretsList, { secrets: fakeSecrets, owner: "Squ1zM0", repo: "TechDirect", branch: "main", defaultView: "list" }),
 ).replace(/<!-- -->/g, "");
 check("list has a GitHub blob link to the exact file and line", list.includes("https://github.com/Squ1zM0/TechDirect/blob/main/config/settings.py#L12"));
 check("history finding links to its commit, not the branch", list.includes("https://github.com/Squ1zM0/TechDirect/blob/abc1234/keys/id_rsa#L1"));
@@ -152,7 +152,7 @@ const triagedSecrets: SecretFinding[] = [
   },
 ];
 const triageList = renderToString(
-  React.createElement(SecretsList, { secrets: triagedSecrets, owner: "Squ1zM0", repo: "TechDirect", branch: "main" }),
+  React.createElement(SecretsList, { secrets: triagedSecrets, owner: "Squ1zM0", repo: "TechDirect", branch: "main", defaultView: "list" }),
 ).replace(/<!-- -->/g, "");
 check("triage: likely-test-key pill renders with its label", triageList.includes("Likely test key"));
 check("triage: likely-genuine-leak pill renders with its label", triageList.includes("Likely genuine leak"));
@@ -296,7 +296,7 @@ const phase11Secrets: SecretWithUsage[] = [
   },
 ];
 const p11List = renderToString(
-  React.createElement(SecretsList, { secrets: phase11Secrets, owner: "Squ1zM0", repo: "TechDirect", branch: "main" }),
+  React.createElement(SecretsList, { secrets: phase11Secrets, owner: "Squ1zM0", repo: "TechDirect", branch: "main", defaultView: "list" }),
 ).replace(/<!-- -->/g, "");
 // The opening <details …> tag of one verdict section.
 const sectionTag = (html: string, cls: string) => {
@@ -313,7 +313,7 @@ check("phase11: test-keys section is collapsed by default", !sectionTag(p11List,
 check("phase11: genuine-leaks section is open by default", sectionTag(p11List, "verdict-genuine").includes("open"));
 check("phase11: uncertain section is open by default", sectionTag(p11List, "verdict-uncertain").includes("open"));
 const p11ListOpen = renderToString(
-  React.createElement(SecretsList, { secrets: phase11Secrets, owner: "Squ1zM0", repo: "TechDirect", branch: "main", defaultTestSectionOpen: true }),
+  React.createElement(SecretsList, { secrets: phase11Secrets, owner: "Squ1zM0", repo: "TechDirect", branch: "main", defaultTestSectionOpen: true, defaultView: "list" }),
 ).replace(/<!-- -->/g, "");
 check("phase11: test-keys section expands (open when asked)", sectionTag(p11ListOpen, "verdict-test").includes("open"));
 check("phase11: genuine leak is not in the test-keys section", !testSection.includes("src/config/prod.key") && !testSection.includes("src/server.ts"));
@@ -340,14 +340,22 @@ const p11Findings = phase11Secrets.map((item, idx) => ({ item, idx }));
 const usageMap = renderToString(
   React.createElement(UsageMap, { findings: p11Findings, byFile: p11ByFile, onSelectFile: () => {} }),
 ).replace(/<!-- -->/g, "");
+// The zoomed-in detail state: captions ("N uses", "dead end") and
+// test edges render. At fit zoom both stay hidden (see the fit
+// checks below); showDetail renders the detail state for tests.
+const usageMapDetail = renderToString(
+  React.createElement(UsageMap, { findings: p11Findings, byFile: p11ByFile, onSelectFile: () => {}, showDetail: true }),
+).replace(/<!-- -->/g, "");
 check("phase11 map: renders an SVG usage graph", usageMap.includes("<svg") && usageMap.includes("Usage map"));
 check("phase11 map: legend names solid vs dashed edges and dead ends", usageMap.includes("Used in non-test code") && usageMap.includes("Used in tests only") && usageMap.includes("dead end"));
-check("phase11 map: in-use finding gets code + test edges", usageMap.includes("map-edge-code") && usageMap.includes("map-edge-test"));
-check("phase11 map: edges total 5 (test key: own+code+test, genuine: own+code, dead end: none)", (usageMap.match(/class="map-edge map-edge-/g) ?? []).length === 5);
+check("phase11 map: in-use finding gets code + test edges", usageMapDetail.includes("map-edge-code") && usageMapDetail.includes("map-edge-test"));
+check("phase11 map: edges total 5 (test key: own+code+test, genuine: own+code, dead end: none)", (usageMapDetail.match(/class="map-edge map-edge-/g) ?? []).length === 5);
+check("map at fit zoom: test edges hidden, code and own edges stay", usageMap.includes("map-edge-code") && usageMap.includes("map-edge-own") && !usageMap.includes("map-edge-test"));
+check("map at fit zoom: uses captions hidden until zoom", !usageMap.includes(" uses") && usageMapDetail.includes(" uses"));
 // Phase 18: every edge renders a second invisible wide line as its
 // hit target, so the <line> count doubles (5 visible + 5 hit).
-check("phase18 map: every edge also renders an invisible wide hit line", (usageMap.match(/<line/g) ?? []).length === 10);
-check("phase11 map: dead-end finding is greyed and labelled", usageMap.includes("map-finding-deadend") && usageMap.includes(">dead end<"));
+check("phase18 map: every edge also renders an invisible wide hit line", (usageMapDetail.match(/<line/g) ?? []).length === 10);
+check("phase11 map: dead-end finding is greyed and labelled", usageMapDetail.includes("map-finding-deadend") && usageMapDetail.includes(">dead end<"));
 check("phase11 map: finding nodes are keyboard reachable", usageMap.includes('role="button"') && usageMap.includes("tabindex=\"0\""));
 check("phase11 map: track hint renders when nothing is selected", usageMap.includes("Click a finding node to follow its track"));
 const noUsageMap = renderToString(
@@ -366,6 +374,10 @@ const emptySecretsList = renderToString(
   React.createElement(SecretsList, { secrets: [], owner: "Squ1zM0", repo: "TechDirect", branch: "main" }),
 ).replace(/<!-- -->/g, "");
 check("map always exists: SecretsList with zero secrets still offers the Map view", emptySecretsList.includes(">Map<") && emptySecretsList.includes("map-plane"));
+const defaultViewRender = renderToString(
+  React.createElement(SecretsList, { secrets: fakeSecrets, owner: "Squ1zM0", repo: "TechDirect", branch: "main" }),
+).replace(/<!-- -->/g, "");
+check("map is the default view: SecretsList opens on the plane, not the list", defaultViewRender.includes("map-plane") && !defaultViewRender.includes('id="secret-0"'));
 check("phase11 CSS: verdict sections, dead-end pill, map edges and track detail styled", css.includes(".verdict-test") && css.includes(".pill.dead-end") && css.includes(".map-edge-test") && css.includes(".map-edge-own") && css.includes(".map-finding-deadend") && css.includes(".map-track-detail"));
 
 // --- 2e. Phase 18: dynamic usage-map plane --------------------------
@@ -385,8 +397,8 @@ check("phase18 map: toolbar renders Zoom in/out, Reset view, Reset layout", usag
 check("phase18 map: toolbar buttons are real buttons", (usageMap.match(/<button/g) ?? []).length === 4);
 check("phase18 map: edge kind labels are gated by zoom (absent at fit zoom, nothing selected)", !usageMap.includes(">used in code<") && !usageMap.includes(">used in tests<") && !usageMap.includes(">lives in<"));
 check("phase18 map: edges still render with legend + aria-labels at fit zoom", usageMap.includes("map-edge-code") && usageMap.includes("Used in non-test code"));
-check("phase18 map: edges are keyboard reachable with file:line aria-labels (never a fragment)", usageMap.includes('aria-label="Connection: Secret 1 used in code in src/app.ts line 10"') && usageMap.includes('aria-label="Connection: Secret 1 used in tests in tests/app.test.ts line 5"') && usageMap.includes('aria-label="Connection: Secret 1 lives in tools/testing/selftests/sgx/sign_key.pem line 1"'));
-check("phase18 map: all nodes + edges are keyboard reachable (4 findings + 7 files + repo + 5 edges)", (usageMap.match(/role="button"/g) ?? []).length === 17);
+check("phase18 map: edges are keyboard reachable with file:line aria-labels (never a fragment)", usageMapDetail.includes('aria-label="Connection: Secret 1 used in code in src/app.ts line 10"') && usageMapDetail.includes('aria-label="Connection: Secret 1 used in tests in tests/app.test.ts line 5"') && usageMapDetail.includes('aria-label="Connection: Secret 1 lives in tools/testing/selftests/sgx/sign_key.pem line 1"'));
+check("phase18 map: all nodes + edges are keyboard reachable (4 findings + 7 files + repo + 5 edges)", (usageMapDetail.match(/role="button"/g) ?? []).length === 17);
 check("phase18 map: hint names click-to-zoom, drag and pin", usageMap.includes("Click a node to zoom to it") && usageMap.includes("Drag the background to pan") && usageMap.includes("Press p to pin a node"));
 check("phase18 map: detail-panel region renders with aria-live", usageMap.includes('class="map-track-detail"') && usageMap.includes('aria-live="polite"'));
 check("phase18 map: screen-reader summary names the counts by kind", usageMap.includes("Usage map: 4 findings and 7 files drawn. 2 code references, 1 test references, 2 own-file links."));
@@ -525,7 +537,7 @@ const longPathSecret: SecretFinding = {
   plainEnglish: "A password is written in a file anyone can read.",
 };
 const longPathList = renderToString(
-  React.createElement(SecretsList, { secrets: [longPathSecret], owner: "DefinitelyTyped", repo: "DefinitelyTyped", branch: "master" }),
+  React.createElement(SecretsList, { secrets: [longPathSecret], owner: "DefinitelyTyped", repo: "DefinitelyTyped", branch: "master", defaultView: "list" }),
 ).replace(/<!-- -->/g, "");
 check("phase15 finding 2: GitHub link label is short", longPathList.includes(">View on GitHub<"));
 check("phase15 finding 2: the long path is not in the link label", !longPathList.includes("View on GitHub - types/"));
@@ -597,8 +609,12 @@ const denseByFile = [
   { file: "config.js", count: 1 },
 ];
 const denseMap = renderToString(
+  React.createElement(UsageMap, { findings: denseFindings.map((item, idx) => ({ item, idx })), byFile: denseByFile, onSelectFile: () => {}, showDetail: true }),
+).replace(/<!-- -->/g, "");
+const denseMapFit = renderToString(
   React.createElement(UsageMap, { findings: denseFindings.map((item, idx) => ({ item, idx })), byFile: denseByFile, onSelectFile: () => {} }),
 ).replace(/<!-- -->/g, "");
+check("map at fit zoom: dense map hides the uses captions until zoom", !denseMapFit.includes(" uses") && denseMap.includes("35 uses"));
 check("phase15 finding 4: dense map truncates file labels with an ellipsis, never a silent clip", denseMap.includes(">test-usa…11.ts<") && denseMap.includes(">test-his…ry.ts<") && !denseMap.includes(">test-usage-pha<") && !denseMap.includes(">test-history.t<"));
 check("phase15 finding 4: dense map shows the uses captions", denseMap.includes("35 uses") && denseMap.includes("27 uses") && denseMap.includes("15 uses"));
 check("phase15 finding 4: dense map labels carry the halo class", denseMap.includes('class="map-label"'));

@@ -264,7 +264,7 @@ const byFile = [
 
 const mapHtml = stripComments(
   renderToString(
-    React.createElement(UsageMap, { findings: [{ item: secretWithUsage, idx: 0 }], posture, byFile, onSelectFile: () => {} }),
+    React.createElement(UsageMap, { findings: [{ item: secretWithUsage, idx: 0 }], posture, byFile, onSelectFile: () => {}, showDetail: true }),
   ),
 );
 
@@ -291,6 +291,7 @@ const secretsOnlyHtml = stripComments(
   ),
 );
 check("filter: no toggle row with a single category (button count stays 4)", !secretsOnlyHtml.includes('aria-label="Map category filters"') && (secretsOnlyHtml.match(/<button/g) ?? []).length === 4);
+check("map: test edges hidden at fit zoom (code + own stay)", secretsOnlyHtml.includes("map-edge-code") && secretsOnlyHtml.includes("map-edge-own") && !secretsOnlyHtml.includes("map-edge-test"));
 
 // --- 10. Posture nodes and "found in" edges --------------------------
 check("map: 8 posture nodes render (one per issue)", (mapHtml.match(/map-posture-node/g) ?? []).length === 8, `nodes=${(mapHtml.match(/map-posture-node/g) ?? []).length}`);

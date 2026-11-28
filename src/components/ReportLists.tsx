@@ -521,6 +521,7 @@ export function UsageMap({
   byFile,
   onSelectFile,
   onShowFinding,
+  showDetail = false,
 }: {
   findings: Indexed<SecretFinding>[];
   /** Phase 19: posture issues for the map (threaded from
@@ -530,6 +531,11 @@ export function UsageMap({
   byFile: { file: string; count: number }[];
   onSelectFile: (file: string) => void;
   onShowFinding?: (idx: number) => void;
+  /** Render the zoomed-in detail at fit zoom too: node captions
+   *  ("N uses", "dead end", severity) and test edges. The live
+   *  map hides both at fit zoom and shows them on zoom or
+   *  selection; tests render the detail state with this prop. */
+  showDetail?: boolean;
 }) {
   const planeRef = useRef<HTMLDivElement | null>(null);
   const svgRef = useRef<SVGSVGElement | null>(null);
@@ -1551,7 +1557,7 @@ export function UsageMap({
               // always render.
               const onSelectedTrack =
                 (activeNodeId != null && activeNodeId !== "repo" && (e.fromId === activeNodeId || e.toId === activeNodeId)) || (selected?.type === "edge" && e.key === selected.id);
-              if (e.kind === "test" && view.k < EDGE_LABEL_MIN_ZOOM && !onSelectedTrack) return null;
+              if (e.kind === "test" && view.k < EDGE_LABEL_MIN_ZOOM && !onSelectedTrack && !showDetail) return null;
               // Fix round 3 (2026-11-27): no per-edge label here
               // any more - labels render as clusters below (see
               // labelClusters). The line itself (solid/dashed/thin)
@@ -1679,7 +1685,7 @@ export function UsageMap({
               // twenty-four "0 uses" captions in a small ring read as
               // soup. They appear once zoomed in, or for the selected
               // node, where they have room.
-              const showCaption = view.k >= EDGE_LABEL_MIN_ZOOM || activeNodeId === nodeIdOfFinding(e.idx);
+              const showCaption = showDetail || view.k >= EDGE_LABEL_MIN_ZOOM || activeNodeId === nodeIdOfFinding(e.idx);
               return (
                 <g
                   key={e.idx}
@@ -1729,7 +1735,7 @@ export function UsageMap({
               const pinned = pins.has(nodeIdOfPosture(e.idx));
               const captionX = x + (i % 2 === 0 ? 20 : -20);
               const captionY = y + r + 14;
-              const showCaption = view.k >= EDGE_LABEL_MIN_ZOOM || activeNodeId === nodeIdOfPosture(e.idx);
+              const showCaption = showDetail || view.k >= EDGE_LABEL_MIN_ZOOM || activeNodeId === nodeIdOfPosture(e.idx);
               const fileLoc = typeof e.item.file === "string" && e.item.file.length > 0
                 ? `${e.item.file}${typeof e.item.line === "number" && e.item.line > 0 ? `:${e.item.line}` : ""}`
                 : "no single file";
@@ -1920,7 +1926,7 @@ export function UsageMap({
   );
 }
 
-export function SecretsList({ secrets, owner, repo, branch, posture = [], defaultTestSectionOpen = false }: { secrets: SecretFinding[]; owner: string; repo: string; branch: string; posture?: PostureIssue[]; defaultTestSectionOpen?: boolean }) {
+export function SecretsList({ secrets, owner, repo, branch, posture = [], defaultTestSectionOpen = false, defaultView = "map" }: { secrets: SecretFinding[]; owner: string; repo: string; branch: string; posture?: PostureIssue[]; defaultTestSectionOpen?: boolean; defaultView?: "list" | "map" }) {
   const [groupBy, setGroupBy] = useState<"none" | "type" | "file">("none");
   const [typeFilter, setTypeFilter] = useState("all");
   const [sevFilter, setSevFilter] = useState("all");
@@ -1928,8 +1934,9 @@ export function SecretsList({ secrets, owner, repo, branch, posture = [], defaul
   const [fileQuery, setFileQuery] = useState("");
   // The map is the default view on every report (2026-11-27, Freddy):
   // a report opens on the plane, with the list one tap away. A clean
-  // repo opens on the map too, showing just the repo node.
-  const [view, setView] = useState<"list" | "map">("map");
+  // repo opens on the map too, showing just the repo node. Tests that
+  // assert list content render with defaultView="list".
+  const [view, setView] = useState<"list" | "map">(defaultView);
   // Phase 11 verdict sections. Genuine leaks and uncertain findings
   // are open by default - they are the ones that need a human. Likely
   // test keys are collapsed by default: still listed, still counted,
